@@ -344,6 +344,9 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
                 Instalar aplicación
             </button>
+            <button onclick="ejecutarDiagnostico()" class="w-full mt-2 text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
+                Diagnóstico de instalación
+            </button>
         </div>
     </aside>
 
@@ -984,6 +987,24 @@
         </div>
     </div>
 
+    <!-- ============ v3.4.1: diagnóstico de instalación (abrir con ?diagnostico=1) ============ -->
+    <div id="panelDiagnostico" class="hidden fixed inset-0 z-[80] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Diagnóstico de instalación</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Revisa uno por uno los requisitos que exige el navegador para ofrecer la instalación.</p>
+                </div>
+                <button onclick="cerrarDiagnostico()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div id="resultadoDiagnostico" class="p-5 overflow-y-auto text-sm"></div>
+            <div class="flex justify-between items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button onclick="ejecutarDiagnostico()" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Volver a revisar</button>
+                <button onclick="cerrarDiagnostico()" class="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-5 py-2 rounded-lg">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v3.4: avisos de la aplicación instalable ============ -->
     <div id="avisoActualizacion" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] no-print
                                         bg-slate-900 text-white rounded-xl shadow-2xl px-5 py-3 flex items-center gap-4">
@@ -1196,7 +1217,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '3.4';
+        const VERSION_APP = '3.4.1';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1417,6 +1438,7 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             promptInstalacion = e;
+            seOfrecioInstalacion = true;
             const btn = document.getElementById('btnInstalarApp');
             if (btn && !esAplicacionInstalada()) { btn.classList.remove('hidden'); btn.classList.add('flex'); }
         });
@@ -1443,6 +1465,148 @@
             promptInstalacion = null;
             document.getElementById('btnInstalarApp').classList.add('hidden');
         });
+
+        /* ============================================================
+           v3.4.1 — DIAGNÓSTICO DE INSTALACIÓN
+
+           El navegador solo ofrece instalar cuando se cumplen TODOS sus
+           requisitos, y cuando falta uno no dice cuál: simplemente no aparece
+           el icono. Esto los revisa uno por uno y señala el que falla.
+           Se abre con el enlace del menú lateral o agregando ?diagnostico=1
+           a la dirección.
+           ============================================================ */
+        let seOfrecioInstalacion = false;
+
+        async function ejecutarDiagnostico() {
+            const panel = document.getElementById('panelDiagnostico');
+            const cont = document.getElementById('resultadoDiagnostico');
+            panel.classList.remove('hidden'); panel.classList.add('flex');
+            cont.innerHTML = '<p class="text-slate-500 italic">Revisando…</p>';
+
+            const puntos = [];
+            const ok   = (t, d) => puntos.push({ estado: 'ok', titulo: t, detalle: d });
+            const mal  = (t, d) => puntos.push({ estado: 'mal', titulo: t, detalle: d });
+            const nota = (t, d) => puntos.push({ estado: 'nota', titulo: t, detalle: d });
+
+            // 1. Origen seguro
+            const hostLocal = ['localhost', '127.0.0.1', '[::1]'].indexOf(location.hostname) > -1;
+            if (location.protocol === 'https:' || hostLocal) {
+                ok('Conexión segura (HTTPS)', location.origin);
+            } else if (location.protocol === 'file:') {
+                mal('Conexión segura (HTTPS)',
+                    'La página se abrió como archivo local (file://). Así el navegador nunca ofrece instalar. Ábrela desde su dirección de GitHub Pages.');
+            } else {
+                mal('Conexión segura (HTTPS)', 'El sitio se está sirviendo por ' + location.protocol + ', y se requiere https.');
+            }
+
+            // 2. ¿Ya está instalada?
+            if (esAplicacionInstalada()) {
+                nota('Ya está instalada', 'Estás viendo la versión instalada, por eso no aparece el icono de instalar.');
+            }
+
+            // 3. Manifiesto
+            const enlaceManifiesto = document.querySelector('link[rel="manifest"]');
+            if (!enlaceManifiesto) {
+                mal('Manifiesto enlazado', 'Falta la etiqueta <link rel="manifest"> en la página.');
+            } else {
+                try {
+                    const r = await fetch(enlaceManifiesto.href, { cache: 'no-store' });
+                    if (!r.ok) {
+                        mal('manifest.json accesible',
+                            'El navegador recibió un error ' + r.status + ' al pedirlo. Revisa que el archivo esté subido junto a index.html.');
+                    } else {
+                        const m = await r.json();
+                        ok('manifest.json accesible', enlaceManifiesto.href);
+                        const faltan = ['name', 'start_url', 'display', 'icons'].filter(k => !m[k]);
+                        if (faltan.length) mal('Contenido del manifiesto', 'Faltan campos: ' + faltan.join(', '));
+                        else ok('Contenido del manifiesto', 'name, start_url, display e icons presentes');
+
+                        // 4. Iconos: deben existir 192 y 512, y descargarse
+                        const tam = (m.icons || []).map(i => i.sizes).join(' ');
+                        if (tam.indexOf('192x192') === -1 || tam.indexOf('512x512') === -1) {
+                            mal('Tamaños de icono', 'Se requieren un icono de 192x192 y otro de 512x512. Declarados: ' + (tam || 'ninguno'));
+                        } else {
+                            ok('Tamaños de icono', '192x192 y 512x512 declarados');
+                        }
+                        for (const icono of (m.icons || [])) {
+                            const url = new URL(icono.src, enlaceManifiesto.href).href;
+                            try {
+                                const ri = await fetch(url, { cache: 'no-store' });
+                                if (ri.ok) ok('Icono ' + icono.sizes, url);
+                                else mal('Icono ' + icono.sizes, 'Error ' + ri.status + ' al descargarlo: ' + url);
+                            } catch (e) {
+                                mal('Icono ' + icono.sizes, 'No se pudo descargar: ' + url);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    mal('manifest.json accesible', 'No se pudo leer o no es un JSON válido: ' + e.message);
+                }
+            }
+
+            // 5. Service worker
+            if (!('serviceWorker' in navigator)) {
+                mal('Service worker', 'Este navegador no lo admite.');
+            } else {
+                try {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (!reg) {
+                        mal('Service worker registrado',
+                            'No hay ninguno. Suele significar que sw.js no está subido junto a index.html, o que devolvió un error al cargarse.');
+                    } else if (reg.active) {
+                        ok('Service worker activo', 'Ámbito: ' + reg.scope);
+                    } else {
+                        nota('Service worker instalándose', 'Aún no toma el control. Recarga la página y vuelve a revisar.');
+                    }
+                    // ¿sw.js se descarga?
+                    const rs = await fetch('sw.js', { cache: 'no-store' });
+                    if (rs.ok) ok('sw.js accesible', new URL('sw.js', location.href).href);
+                    else mal('sw.js accesible', 'Error ' + rs.status + '. Verifica que el archivo esté subido.');
+                } catch (e) {
+                    mal('Service worker', e.message);
+                }
+            }
+
+            // 6. Invitación del navegador
+            if (seOfrecioInstalacion || promptInstalacion) {
+                ok('El navegador ofreció la instalación', 'Usa el botón "Instalar aplicación" del menú lateral.');
+            } else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                nota('Navegador iOS',
+                     'Safari nunca muestra el icono de instalar ni avisa a la página. La instalación se hace a mano: Compartir → Agregar a inicio.');
+            } else if (!esAplicacionInstalada()) {
+                nota('El navegador todavía no la ofrece',
+                     'Si todo lo anterior salió bien, suele bastar con recargar una vez, o cerrar y volver a abrir el navegador. ' +
+                     'Chrome también espera a que el sitio se haya usado un momento antes de ofrecerla.');
+            }
+
+            const icono = { ok: '✓', mal: '✕', nota: 'i' };
+            const color = {
+                ok:   'bg-green-50 border-green-200 text-green-800',
+                mal:  'bg-red-50 border-red-200 text-red-800',
+                nota: 'bg-amber-50 border-amber-200 text-amber-800'
+            };
+            const fallas = puntos.filter(p => p.estado === 'mal').length;
+
+            cont.innerHTML =
+                (fallas === 0
+                    ? '<p class="mb-4 text-sm text-slate-600">No se encontró ningún requisito incumplido. Si aun así no aparece el icono, revisa las notas de abajo.</p>'
+                    : '<p class="mb-4 text-sm font-semibold text-red-700">' + fallas + ' punto(s) impiden la instalación. Corrige los marcados en rojo.</p>') +
+                puntos.map(p =>
+                    '<div class="flex gap-3 items-start border rounded-lg p-3 mb-2 ' + color[p.estado] + '">' +
+                        '<span class="font-bold shrink-0 w-4 text-center">' + icono[p.estado] + '</span>' +
+                        '<div class="min-w-0"><p class="font-semibold">' + esc(p.titulo) + '</p>' +
+                        '<p class="text-xs opacity-90 break-words">' + esc(p.detalle) + '</p></div>' +
+                    '</div>').join('');
+        }
+
+        function cerrarDiagnostico() {
+            const panel = document.getElementById('panelDiagnostico');
+            panel.classList.add('hidden'); panel.classList.remove('flex');
+        }
+
+        if (new URLSearchParams(location.search).get('diagnostico') === '1') {
+            window.addEventListener('load', () => setTimeout(ejecutarDiagnostico, 400));
+        }
 
         registrarServiceWorker();
 

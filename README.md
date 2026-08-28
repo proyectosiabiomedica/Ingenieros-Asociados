@@ -498,6 +498,22 @@ La página **siempre se busca primero en la red**, así que un cambio publicado 
 
 Cuando hay una versión nueva aparece un aviso al pie con el botón **Actualizar**: al pulsarlo se aplica y la página se recarga una sola vez. Si se pospone, el aviso vuelve en la siguiente visita. Al subir una versión nueva conviene **cambiar el número `VERSION` al inicio de `sw.js`**, que es lo que renombra los cachés y descarta los anteriores.
 
+### Si no aparece el icono de instalar
+
+El navegador exige que se cumplan **todos** sus requisitos y, cuando falta uno, no avisa cuál: simplemente no muestra el icono. Para no adivinar, la plataforma trae un **diagnóstico** que los revisa uno por uno y marca en rojo el que falla.
+
+Se abre con el enlace **Diagnóstico de instalación**, al pie del menú lateral, o agregando `?diagnostico=1` a la dirección.
+
+Revisa, en este orden:
+
+1. **Conexión segura.** Abierto como archivo local (`file://`) nunca se ofrece la instalación.
+2. **`manifest.json` accesible.** La causa más frecuente: el archivo no se subió junto a `index.html`, o quedó en otra carpeta.
+3. **Contenido del manifiesto** e **iconos que de verdad se descargan**. Se exige uno de 192×192 y otro de 512×512.
+4. **Service worker activo** y **`sw.js` alcanzable**.
+5. Si todo sale en verde y aun así no aparece: recargar una vez, o cerrar y volver a abrir el navegador. Chrome espera además a que el sitio se haya usado un momento antes de ofrecerla.
+
+En **iPhone y iPad no existe el icono de instalar**, hagas lo que hagas: Safari no lo muestra ni avisa a la página. Ahí la instalación es manual, con Compartir → *Agregar a inicio*.
+
 ### Requisito
 
 Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble clic (`file://`) el service worker simplemente no se registra y la plataforma funciona como antes, sin instalación ni copias locales.
@@ -575,6 +591,7 @@ Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble cl
 
 | Versión | Cambios principales |
 |---|---|
+| 3.4.1 | **Diagnóstico de instalación.** Cuando el navegador no ofrece instalar, no dice cuál requisito falta: simplemente no muestra el icono. Este diagnóstico los revisa uno por uno —HTTPS, manifiesto accesible y completo, iconos que se descargan, service worker activo, `sw.js` alcanzable— y señala en rojo el que falla. Se abre desde el enlace al pie del menú lateral o agregando `?diagnostico=1` a la dirección |
 | 3.4 | **La plataforma se instala como aplicación (PWA).** Se agrega a la pantalla de inicio del teléfono o al escritorio y abre sin barra del navegador, con el isotipo institucional como icono. Un *service worker* guarda copia de la página y de las librerías externas —Tailwind, Chart.js, PapaParse, la tipografía—, de modo que la plataforma abre aunque la red del hospital bloquee esos dominios, y guarda también la última descarga de datos para poder consultar sin señal. Aviso en pantalla cuando hay una versión nueva, con botón para aplicarla |
 | 3.3 | **Pantalla de carga con avance real.** Sustituye la leyenda "Conectando con Google Sheets y procesando datos…" por **"Preparando su información"** con un anillo de progreso y un contador de 0 a 100 %. El porcentaje no es un temporizador: cada etapa lo empuja cuando termina de verdad —descarga de cada hoja, lectura, organización por unidad, cálculo de mantenimientos, armado del panel— y el 100 % solo aparece con el panel ya listo. Debajo del número se indica la etapa en curso. Aparece tanto al entrar con el PIN como al pulsar **Actualizar**. La geometría de esta pantalla va en estilos en línea para que se vea correcta aunque la hoja de estilos externa tarde o no cargue |
 | 3.2 | **El ingreso es solo con PIN**: ya no se captura el nombre. El PIN identifica a la persona y el servidor devuelve su nombre y su rol, de modo que nadie puede entrar con el nombre de otro. Como consecuencia, **el PIN debe ser único por usuario** y el alta lo verifica. El bloqueo por intentos fallidos pasa a contarse **por dispositivo** (ya no hay nombre contra el cual contar), con un tope global como red de seguridad. El código maestro entra con el nombre configurado en `NOMBRE_ADMIN`. Se corrigió además el aviso cuando `CODIGO_ADMIN` tiene menos de 6 caracteres: antes se confundía con un PIN incorrecto y no había forma de saber el motivo real |
