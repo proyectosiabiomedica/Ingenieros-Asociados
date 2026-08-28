@@ -1,0 +1,28 @@
+{
+  "name": "Ingenieros Asociados · Gestión de Mantenimiento",
+  "short_name": "Mantenimiento",
+  "description": "Panel de control, rutinas de mantenimiento y seguimiento con el cliente para el equipo de ingeniería biomédica.",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#005DA1",
+  "categories": ["business", "productivity", "medical"],
+  "icons": [
+    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard general",
+      "short_name": "Dashboard",
+      "url": "./index.html",
+      "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

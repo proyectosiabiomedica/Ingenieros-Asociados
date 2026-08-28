@@ -461,6 +461,47 @@ Cada hoja empuja el contador **en cuanto llega**, sin esperar a las demás, así
 
 Con pocas órdenes las últimas etapas pasan muy rápido y casi no se alcanzan a leer; con un histórico grande son las que más tiempo ocupan, que es cuando el aviso sirve.
 
+## 4.9 Instalación como aplicación (v3.4)
+
+La plataforma es una **aplicación web instalable**. Se agrega a la pantalla de inicio o al escritorio y abre como cualquier otra aplicación, sin barra de direcciones.
+
+### Archivos que la componen
+
+| Archivo | Para qué |
+|---|---|
+| `index.html` | La aplicación completa |
+| `manifest.json` | Nombre, icono, color y modo de presentación |
+| `sw.js` | *Service worker*: copias locales y funcionamiento sin señal |
+| `iconos/` | Icono en 192, 512, versión *maskable* y para iOS |
+
+Los cuatro van juntos en la raíz del repositorio, con la misma estructura. Las rutas son relativas, así que funciona igual en la raíz del dominio o en un subdirectorio de GitHub Pages.
+
+### Cómo se instala
+
+| Dispositivo | Cómo |
+|---|---|
+| Android / Chrome | Botón **Instalar aplicación** al pie del menú lateral, o menú ⋮ → *Agregar a pantalla principal* |
+| iPhone / iPad | Safari → Compartir → *Agregar a inicio* (iOS no ofrece botón dentro de la página) |
+| Computadora | Icono de instalar en la barra de direcciones, o el botón del menú lateral |
+
+El botón del menú lateral **solo aparece cuando el navegador acepta la instalación**; si no la ofrece, muestra las instrucciones manuales en lugar de fallar en silencio.
+
+### Qué se guarda en el equipo, y qué no
+
+- **La página y las librerías externas** quedan guardadas tras la primera visita. Este es el beneficio menos obvio y el más útil en la práctica: si la red del hospital bloquea o ralentiza los dominios de Tailwind o Chart.js, la plataforma sigue abriendo con la copia local en lugar de quedarse a medias.
+- **La última descarga de hojas** también se guarda. Sin señal, la plataforma abre y muestra esa información con un aviso en pantalla que lo advierte, para que nadie confunda datos viejos con datos del momento.
+- **Los envíos nunca se guardan.** Dar de alta un usuario, mandar un correo o registrar un seguimiento siempre exige conexión real: servir una respuesta guardada de esas operaciones haría creer que algo se hizo cuando no ocurrió.
+
+### Actualizaciones
+
+La página **siempre se busca primero en la red**, así que un cambio publicado llega el mismo día. La copia local es el respaldo, no la fuente.
+
+Cuando hay una versión nueva aparece un aviso al pie con el botón **Actualizar**: al pulsarlo se aplica y la página se recarga una sola vez. Si se pospone, el aviso vuelve en la siguiente visita. Al subir una versión nueva conviene **cambiar el número `VERSION` al inicio de `sw.js`**, que es lo que renombra los cachés y descarta los anteriores.
+
+### Requisito
+
+Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble clic (`file://`) el service worker simplemente no se registra y la plataforma funciona como antes, sin instalación ni copias locales.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -502,6 +543,8 @@ Con pocas órdenes las últimas etapas pasan muy rápido y casi no se alcanzan a
 | El código maestro no funciona | No se volvió a implementar el `Code.gs` después de cambiarlo, o tiene menos de 6 caracteres | Implementar → Administrar implementaciones → editar → Nueva versión, y usar un código de al menos 6 caracteres |
 | Todos los PIN dejaron de servir de golpe | Se cambió `SAL_PIN` después de dar de alta usuarios | Volver a la sal anterior, o volver a capturar el PIN de cada usuario |
 | El apartado de Usuarios no aparece | La sesión no es de administrador | Cerrar sesión y entrar con el código maestro o con un usuario de rol `admin` |
+| El botón "Instalar aplicación" no aparece | El navegador no ofrece la instalación (iOS siempre, o ya está instalada, o no es HTTPS) | En iPhone: Compartir → Agregar a inicio. En computadora: icono de instalar en la barra de direcciones |
+| Los cambios publicados no se ven | El equipo está usando la copia guardada | Pulsar **Actualizar** en el aviso de versión nueva; si no aparece, cerrar y volver a abrir la aplicación. Al publicar, subir el número `VERSION` en `sw.js` |
 | "Error de Conexión" al abrir | La hoja dejó de estar publicada o cambió la URL | Volver a publicar en la web y actualizar las URLs (o revisar la configuración de Apps Script si `ORIGEN_DATOS = 'appsscript'`) |
 | Aviso amarillo "no se pudo descargar la hoja de KPIs" | Solo la pestaña de KPIs falló o cambió de URL/nombre | Revisar la publicación/nombre de esa pestaña; el resto del panel sigue operando |
 | Fechas invertidas (día↔mes) | La hoja de Sheets está en configuración regional US | Cambiar `FORMATO_FECHA` a `'MDY'`, o la hoja a español |
@@ -532,6 +575,7 @@ Con pocas órdenes las últimas etapas pasan muy rápido y casi no se alcanzan a
 
 | Versión | Cambios principales |
 |---|---|
+| 3.4 | **La plataforma se instala como aplicación (PWA).** Se agrega a la pantalla de inicio del teléfono o al escritorio y abre sin barra del navegador, con el isotipo institucional como icono. Un *service worker* guarda copia de la página y de las librerías externas —Tailwind, Chart.js, PapaParse, la tipografía—, de modo que la plataforma abre aunque la red del hospital bloquee esos dominios, y guarda también la última descarga de datos para poder consultar sin señal. Aviso en pantalla cuando hay una versión nueva, con botón para aplicarla |
 | 3.3 | **Pantalla de carga con avance real.** Sustituye la leyenda "Conectando con Google Sheets y procesando datos…" por **"Preparando su información"** con un anillo de progreso y un contador de 0 a 100 %. El porcentaje no es un temporizador: cada etapa lo empuja cuando termina de verdad —descarga de cada hoja, lectura, organización por unidad, cálculo de mantenimientos, armado del panel— y el 100 % solo aparece con el panel ya listo. Debajo del número se indica la etapa en curso. Aparece tanto al entrar con el PIN como al pulsar **Actualizar**. La geometría de esta pantalla va en estilos en línea para que se vea correcta aunque la hoja de estilos externa tarde o no cargue |
 | 3.2 | **El ingreso es solo con PIN**: ya no se captura el nombre. El PIN identifica a la persona y el servidor devuelve su nombre y su rol, de modo que nadie puede entrar con el nombre de otro. Como consecuencia, **el PIN debe ser único por usuario** y el alta lo verifica. El bloqueo por intentos fallidos pasa a contarse **por dispositivo** (ya no hay nombre contra el cual contar), con un tope global como red de seguridad. El código maestro entra con el nombre configurado en `NOMBRE_ADMIN`. Se corrigió además el aviso cuando `CODIGO_ADMIN` tiene menos de 6 caracteres: antes se confundía con un PIN incorrecto y no había forma de saber el motivo real |
 | 3.1 | **Modo administrador y alta de usuarios.** El acceso deja de depender de un PIN compartido escrito en el archivo: cada ingeniero entra con su nombre y su PIN, y quien escribe el código maestro entra como administrador y puede dar de alta, desactivar o eliminar usuarios desde la propia plataforma. Con backend configurado, los usuarios viven en la hoja `Usuarios`, los PIN se guardan como huella SHA-256 con sal y **toda la validación ocurre en Apps Script**, que además bloquea por intentos fallidos. El apartado de usuarios no se muestra a quien no es administrador y el servidor rechaza cualquier alta sin credencial válida. **Filtro por año** en preventivos y correctivos, con el selector de meses encadenado al año elegido |
