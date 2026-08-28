@@ -472,9 +472,11 @@ La plataforma es una **aplicación web instalable**. Se agrega a la pantalla de 
 | `index.html` | La aplicación completa |
 | `manifest.json` | Nombre, icono, color y modo de presentación |
 | `sw.js` | *Service worker*: copias locales y funcionamiento sin señal |
-| `iconos/` | Icono en 192, 512, versión *maskable* y para iOS |
+| `icono-192.png`, `icono-512.png`, `icono-maskable-512.png`, `apple-touch-icon.png` | Iconos de la aplicación |
 
-Los cuatro van juntos en la raíz del repositorio, con la misma estructura. Las rutas son relativas, así que funciona igual en la raíz del dominio o en un subdirectorio de GitHub Pages.
+**Los siete archivos van sueltos en la raíz del repositorio, sin subcarpetas.** Se eligió así a propósito: subir una carpeta desde la web de GitHub es el paso donde más fácil se pierde algo, y basta con que falte un icono para que el navegador deje de ofrecer la instalación sin decir por qué.
+
+Las rutas son relativas, así que funciona igual en la raíz del dominio o en un subdirectorio de GitHub Pages. Ojo: GitHub Pages **distingue mayúsculas de minúsculas**, así que los nombres deben ir tal cual.
 
 ### Cómo se instala
 
@@ -591,6 +593,7 @@ Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble cl
 
 | Versión | Cambios principales |
 |---|---|
+| 3.4.2 | Los iconos pasan a la **raíz del repositorio**, sin la carpeta `iconos/`: era el paso donde se perdían al publicar, y su ausencia impedía la instalación sin explicación visible |
 | 3.4.1 | **Diagnóstico de instalación.** Cuando el navegador no ofrece instalar, no dice cuál requisito falta: simplemente no muestra el icono. Este diagnóstico los revisa uno por uno —HTTPS, manifiesto accesible y completo, iconos que se descargan, service worker activo, `sw.js` alcanzable— y señala en rojo el que falla. Se abre desde el enlace al pie del menú lateral o agregando `?diagnostico=1` a la dirección |
 | 3.4 | **La plataforma se instala como aplicación (PWA).** Se agrega a la pantalla de inicio del teléfono o al escritorio y abre sin barra del navegador, con el isotipo institucional como icono. Un *service worker* guarda copia de la página y de las librerías externas —Tailwind, Chart.js, PapaParse, la tipografía—, de modo que la plataforma abre aunque la red del hospital bloquee esos dominios, y guarda también la última descarga de datos para poder consultar sin señal. Aviso en pantalla cuando hay una versión nueva, con botón para aplicarla |
 | 3.3 | **Pantalla de carga con avance real.** Sustituye la leyenda "Conectando con Google Sheets y procesando datos…" por **"Preparando su información"** con un anillo de progreso y un contador de 0 a 100 %. El porcentaje no es un temporizador: cada etapa lo empuja cuando termina de verdad —descarga de cada hoja, lectura, organización por unidad, cálculo de mantenimientos, armado del panel— y el 100 % solo aparece con el panel ya listo. Debajo del número se indica la etapa en curso. Aparece tanto al entrar con el PIN como al pulsar **Actualizar**. La geometría de esta pantalla va en estilos en línea para que se vea correcta aunque la hoja de estilos externa tarde o no cargue |

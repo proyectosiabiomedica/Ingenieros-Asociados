@@ -35,10 +35,10 @@ const ARCHIVOS_APP = [
   './',
   './index.html',
   './manifest.json',
-  './iconos/icono-192.png',
-  './iconos/icono-512.png',
-  './iconos/icono-maskable-512.png',
-  './iconos/apple-touch-icon.png'
+  './icono-192.png',
+  './icono-512.png',
+  './icono-maskable-512.png',
+  './apple-touch-icon.png'
 ];
 
 const LIBRERIAS = [
