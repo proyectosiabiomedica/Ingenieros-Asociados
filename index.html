@@ -1217,7 +1217,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '3.4.1';
+        const VERSION_APP = '3.5';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2646,10 +2646,32 @@
             return String(texto || '').match(RE_GRUPO_NUM) || [];
         }
 
+        /* v3.5 — Rangos expresados como RELACIÓN, del tipo
+           "Rango estándar de operación I:E 4:1-1:9 (relación Inspiración:
+           Espiración)". Las relaciones no son magnitudes que se puedan situar
+           en un eje, así que se conservan como texto: se imprimen tal cual en
+           la tabla y en la leyenda, y no dibujan banda en la gráfica. Antes el
+           parser intentaba sacarles números y devolvía "1 – 1" sin sentido. */
+        const RE_RELACION = /\d+\s*:\s*\d+/;
+
         function parsearRangoEstandar(nombreOrig) {
             const t = String(nombreOrig || '').trim();
             const sinPrefijo = t.replace(RE_PREFIJO_RANGO, '').trim();
             if (!sinPrefijo) return null;
+
+            // ---- Caso relación (I:E) ----
+            if (RE_RELACION.test(sinPrefijo)) {
+                const m = sinPrefijo.match(RE_RELACION);
+                const param = sinPrefijo.slice(0, m.index).trim().replace(/[:\-–—,]+$/, '').trim();
+                const cuerpo = sinPrefijo.slice(m.index).trim();
+                return {
+                    param: param,
+                    minPartes: [], maxPartes: [],
+                    unidad: '',
+                    soloTexto: true,
+                    texto: cuerpo.replace(/\s*-\s*/, ' – ')
+                };
+            }
 
             const lados = separarLadosRango(sinPrefijo);
             if (!lados) return null;
@@ -2664,9 +2686,9 @@
             const iMax = lados[1].indexOf(gMax);
             const unidad = lados[1].slice(iMax + gMax.length).trim();
 
-            /* La unidad también trae dígitos ("%O2"), así que antes de buscar
-               el mínimo se le quita al lado izquierdo. Sin esto, "SpO2 1 %O2"
-               entregaría el 2 de "%O2" como valor mínimo. */
+            /* La unidad también trae dígitos ("%O2", "cmH2O"), así que antes de
+               buscar el mínimo se le quita al lado izquierdo. Sin esto,
+               "SpO2 1 %O2" entregaría el 2 de "%O2" como valor mínimo. */
             const escapar = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const izqLimpio = unidad
                 ? lados[0].replace(new RegExp(escapar(unidad), 'gi'), ' ')
@@ -2695,6 +2717,7 @@
         // Rango normalizado para imprimir: "10/30 – 220/260 mmHg"
         function textoRangoCapturado(r) {
             if (!r) return '';
+            if (r.soloTexto) return r.texto;      // relaciones tipo 4:1 – 1:9
             const j = (a) => a.map(v => redondear(v)).join('/');
             return j(r.minPartes) + ' – ' + j(r.maxPartes) + (r.unidad ? ' ' + r.unidad : '');
         }
@@ -2735,6 +2758,46 @@
            mayúsculas; manda la primera regla que coincida. REVISAR contra el
            procedimiento de calibración de cada contrato.
            ============================================================ */
+        /* ============================================================
+           v3.5 — LA TOLERANCIA DEPENDE DEL TIPO DE EQUIPO
+
+           Criterio fijado por el ingeniero a cargo:
+             · Equipo de soporte de vida  →  5 %
+             · Todos los demás            →  10 %
+
+           Antes el criterio era por parámetro y con valores absolutos
+           (±3 mmHg, ±2 %, ±0.3 °C). Esa tabla se conserva más abajo y puede
+           reactivarse con CRITERIO_TOLERANCIA = 'parametro', pero el criterio
+           vigente del documento es el del equipo.
+
+           Conviene tenerlo presente al revisar un documento firmado: un
+           criterio relativo del 10 % aprueba una desviación de 8 mmHg sobre
+           80 mmHg. Si en algún contrato eso no es aceptable, el modo
+           'parametro' queda listo para usarse.
+           ============================================================ */
+        const CRITERIO_TOLERANCIA = 'equipo';      // 'equipo' | 'parametro'
+        const TOLERANCIA_SOPORTE_VIDA = 0.05;      // 5 %
+        const TOLERANCIA_GENERAL      = 0.10;      // 10 %
+
+        /* Equipos considerados de soporte de vida. La coincidencia es por
+           contención y sin acentos, para que "Ventilador volumétrico" o
+           "Máquina de anestesia Fabius" entren igual. */
+        const EQUIPOS_SOPORTE_VIDA = [
+            'desfibrilador',
+            'anestesia',            // máquina de anestesia
+            'ventilador',           // volumétrico, de transporte, neonatal
+            'vaporizador'
+        ];
+
+        // Equipo de la rutina abierta; lo fija abrirRutina()
+        let equipoRutinaActual = '';
+
+        function esEquipoSoporteVida(nombreEquipo) {
+            const n = normalizar(String(nombreEquipo || '')).toLowerCase();
+            if (!n) return false;
+            return EQUIPOS_SOPORTE_VIDA.some(k => n.includes(k));
+        }
+
         const TOLERANCIA_DEFAULT = { tipo: 'rel', valor: 0.10 };
 
         const TOLERANCIAS_PARAMETRO = [
@@ -2751,8 +2814,22 @@
         ];
 
         function toleranciaParaParametro(nombre) {
+            // v3.5: el criterio vigente lo marca el tipo de equipo, no el parámetro
+            if (CRITERIO_TOLERANCIA === 'equipo') {
+                return esEquipoSoporteVida(equipoRutinaActual)
+                    ? { tipo: 'rel', valor: TOLERANCIA_SOPORTE_VIDA, soporteVida: true }
+                    : { tipo: 'rel', valor: TOLERANCIA_GENERAL, soporteVida: false };
+            }
             const n = normalizar(String(nombre || '')).toLowerCase();
             return TOLERANCIAS_PARAMETRO.find(t => n.includes(t.clave)) || TOLERANCIA_DEFAULT;
+        }
+
+        // De dónde sale el criterio, para imprimirlo junto a la tolerancia
+        function origenTolerancia() {
+            if (CRITERIO_TOLERANCIA !== 'equipo') return 'criterio por parámetro';
+            return esEquipoSoporteVida(equipoRutinaActual)
+                ? 'equipo de soporte de vida'
+                : 'equipo de uso general';
         }
 
         function fueraDeTolerancia(nombre, programado, error) {
@@ -2769,6 +2846,11 @@
             if (t.tipo === 'abs')   return '±' + t.valor + u;
             if (t.tipo === 'mixta') return '±' + t.abs + u + ' o ±' + Math.round(t.rel * 100) + '%';
             return '±' + Math.round(t.valor * 100) + '%';
+        }
+
+        // "±5 % · equipo de soporte de vida", para imprimir en las gráficas
+        function textoToleranciaCompleto(nombre) {
+            return textoTolerancia(nombre) + ' · ' + origenTolerancia();
         }
 
         // v2.8: margen absoluto permitido para un valor programado concreto
@@ -2851,6 +2933,7 @@
            extremo cuando el rango se capturó compuesto (10/30 – 220/260). */
         function rangoOperacion(nombre, comp) {
             const cap = rangoCapturadoDe(nombre);
+            if (cap && cap.soloTexto) return null;   // relación: no se puede situar en un eje
             if (cap) {
                 const i = Number.isInteger(comp) ? comp : 0;
                 const min = (cap.minPartes[i] !== undefined) ? cap.minPartes[i] : cap.minPartes[0];
@@ -2869,6 +2952,7 @@
 
         function textoRangoOperacion(nombre, comp) {
             const cap = rangoCapturadoDe(nombre);
+            if (cap && cap.soloTexto) return textoRangoCapturado(cap);
             if (cap && !Number.isInteger(comp)) return textoRangoCapturado(cap);
             const r = rangoOperacion(nombre, comp);
             if (!r) return 'No capturado en la orden ni definido en la configuración';
@@ -3028,6 +3112,31 @@
             return valorCelda(f.medido) || valorCelda(f.desplegado) || valorCelda(f.programado) || '';
         }
 
+        /* v3.5 — La unidad declarada entre paréntesis, normalizada para poder
+           compararla: "(cmH20)" y "(cmH2O)" son la misma, y "(L/min)" y "(L/m)"
+           también. El cero y la letra O se unifican porque los ingenieros usan
+           ambos indistintamente al capturar. */
+        function unidadDeNombre(nombre) {
+            const m = String(nombre || '').match(/\(([^)]*)\)\s*$/);
+            return normalizarUnidad(m ? m[1] : '');
+        }
+
+        function normalizarUnidad(u) {
+            return normalizar(String(u || ''))
+                .toLowerCase()
+                .replace(/0/g, 'o')
+                .replace(/[^a-z%]/g, '');
+        }
+
+        /* ¿La unidad del renglón es compatible con la del rango? Si alguna de
+           las dos no se declaró, se acepta: no hay elementos para descartarla.
+           Esto evita que un renglón de temperatura herede, por estar debajo,
+           el rango de flujo del encabezado anterior. */
+        function unidadesCompatibles(unidadFila, unidadRango) {
+            if (!unidadFila || !unidadRango) return true;
+            return unidadFila.indexOf(unidadRango) === 0 || unidadRango.indexOf(unidadFila) === 0;
+        }
+
         function separarBloquesMedicion(filas) {
             const ambientales = { temperatura: '', humedad: '', origen: [] };
             const rangos = new Map();
@@ -3084,11 +3193,16 @@
                 if (f.rango) {
                     const propio = parsearRangoEstandar('rango ' + f.rango);
                     if (propio) rangos.set(n, propio);
-                } else if (rangoVigente && analizarFila(f).comparable) {
+                } else if (rangoVigente && analizarFila(f).comparable &&
+                           unidadesCompatibles(unidadDeNombre(f.nombre), normalizarUnidad(rangoVigente.unidad))) {
                     /* Hereda el rango del encabezado anterior. Se exige que la
-                       medición sea comparable (programado + real) para no
-                       arrastrar el rango de energía a un renglón que solo trae
-                       una lectura suelta, como "Tiempo de carga max (s)". */
+                       medición sea comparable para no arrastrar el rango de
+                       energía a un renglón con una sola lectura suelta, como
+                       "Tiempo de carga max (s)".
+                       v3.5: como ahora también es comparable un renglón de
+                       desplegado contra medido, parámetros como P Max o P media
+                       —que nunca traen valor programado— por fin heredan el
+                       rango de su encabezado. Antes se quedaban en "—". */
                     if (!rangos.has(n)) rangos.set(n, rangoVigente);
                 }
                 mediciones.push(f);
@@ -3122,6 +3236,8 @@
             document.getElementById('rutArea').innerText = eq.Area;
 
             document.getElementById('rutEq').innerText = eq.Equipo;
+            // v3.5: el tipo de equipo define la tolerancia de toda la rutina
+            equipoRutinaActual = eq.Equipo || '';
             document.getElementById('rutMarca').innerText = eq.Marca;
             document.getElementById('rutModelo').innerText = eq.Modelo;
             document.getElementById('rutSerie').innerText = eq.Serie;
@@ -3281,39 +3397,73 @@
 
         // v2.7: analiza una fila y devuelve el error DE CADA COMPONENTE.
         // Un valor simple produce un componente; una PANI 120/80 produce dos.
+        /* ============================================================
+           v3.5 — QUÉ SE COMPARA CONTRA QUÉ
+
+           Hasta la 3.4 solo se evaluaba cuando existía valor PROGRAMADO, así
+           que un renglón con desplegado y medido —muy común en temperatura,
+           presión de vía aérea o flujo, donde no se programa nada— se quedaba
+           sin error y sin gráfica.
+
+           Ahora hay dos situaciones y en ambas se evalúa:
+
+           A) Con valor programado. El programado es el valor verdadero: es lo
+              que se ajustó en el patrón. Se compara contra lo que respondió el
+              equipo (medido y, si no hay, desplegado).
+
+           B) Sin valor programado. El verdadero es el MEDIDO, que es la
+              lectura del analizador calibrado, y lo que se evalúa es lo que
+              DESPLEGÓ el equipo bajo prueba.
+
+           Si solo existe una de las tres columnas no hay nada que comparar y
+           el renglón se queda sin error, como antes.
+           ============================================================ */
         function analizarFila(f) {
             const prog = medicionAPartes(f.programado);
             const desp = medicionAPartes(f.desplegado);
             const med  = medicionAPartes(f.medido);
-            const real = med.length ? med : desp;
-            const origen = med.length ? 'Medido' : 'Desplegado';
 
-            if (!prog.length || !real.length) {
+            let ref, comp, origenRef, origenComp;
+
+            if (prog.length && (med.length || desp.length)) {
+                ref = prog;  origenRef = 'Programado';
+                comp = med.length ? med : desp;
+                origenComp = med.length ? 'Medido' : 'Desplegado';
+            } else if (desp.length && med.length) {
+                ref = med;   origenRef = 'Medido';
+                comp = desp; origenComp = 'Desplegado';
+            } else {
                 return { comparable: false, compuesto: false, componentes: [] };
             }
 
-            const n = Math.min(prog.length, real.length);
+            const n = Math.min(ref.length, comp.length);
             const etiquetas = etiquetasComponentes(f.nombre, n);
             const componentes = [];
 
             for (let i = 0; i < n; i++) {
                 // v2.9: todos los cálculos se limitan a 2 decimales
-                const error = redondear(real[i] - prog[i]);
+                const error = redondear(comp[i] - ref[i]);
                 componentes.push({
                     idx: i,
                     etiqueta: n > 1 ? etiquetas[i] : '',
-                    prog: prog[i],
+                    prog: ref[i],            // valor de referencia (nombre conservado)
+                    ref: ref[i],
                     desp: desp[i] ?? null,
                     med: med[i] ?? null,
-                    real: real[i],
+                    real: comp[i],           // valor evaluado
                     error: error,
-                    // v3.0: el porcentaje es ahora el error principal del documento
-                    errorPct: prog[i] !== 0 ? redondear((error / prog[i]) * 100) : null,
-                    errorRel: prog[i] !== 0 ? redondear((error / prog[i]) * 100) : null,
-                    fuera: fueraDeTolerancia(f.nombre, prog[i], error)
+                    // v3.0: el porcentaje es el error principal del documento
+                    errorPct: ref[i] !== 0 ? redondear((error / ref[i]) * 100) : null,
+                    errorRel: ref[i] !== 0 ? redondear((error / ref[i]) * 100) : null,
+                    fuera: fueraDeTolerancia(f.nombre, ref[i], error)
                 });
             }
-            return { comparable: true, compuesto: n > 1, origen: origen, componentes: componentes };
+            return {
+                comparable: true, compuesto: n > 1,
+                origen: origenComp,          // qué columna se evaluó
+                origenRef: origenRef,        // contra qué columna
+                componentes: componentes
+            };
         }
 
         /* v2.9: el número se limita a 2 decimales.
@@ -3354,7 +3504,8 @@
                 return {
                     html: '<span class="' + (c.fuera ? 'text-red-600 font-bold' : 'text-slate-700') + '">' + fmtErrorPct(c) + '</span>',
                     cls: 'p-3 text-center ' + (c.fuera ? 'bg-red-50' : ''),
-                    title: 'Error absoluto ' + fmtError(c.error) + u + ' · tolerancia ' + tol + ' · contra valor ' + a.origen
+                    title: 'Error absoluto ' + fmtError(c.error) + u + ' · tolerancia ' + tol +
+                           ' · ' + a.origen + ' contra ' + a.origenRef
                 };
             }
             const filas = a.componentes.map(c =>
@@ -3369,7 +3520,7 @@
                 cls: 'p-3 ' + (a.componentes.some(c => c.fuera) ? 'bg-red-50' : ''),
                 title: 'Error absoluto ' +
                        a.componentes.map(c => c.etiqueta + ' ' + fmtError(c.error) + u).join(' · ') +
-                       ' · tolerancia ' + tol + ' · contra valor ' + a.origen
+                       ' · tolerancia ' + tol + ' · ' + a.origen + ' contra ' + a.origenRef
             };
         }
 
@@ -3427,9 +3578,11 @@
                 }
             });
             tablaHTML += '</tbody></table>' +
-                '<p class="text-[10px] text-slate-400 mt-2 italic">Los rangos marcados con * no se capturaron en la orden: provienen de la tabla de configuración del sistema. ' +
-                'El error se expresa como porcentaje respecto al valor programado: ' +
-                '(real − programado) ÷ programado × 100. Se calcula contra el valor medido y, si no existe, contra el desplegado. ' +
+                '<p class="text-[10px] text-slate-400 mt-2 italic">Tolerancia aplicada: ' + esc(textoToleranciaCompleto('')) + '. ' +
+                'Los rangos marcados con * no se capturaron en la orden: provienen de la tabla de configuración del sistema. ' +
+                'El error se expresa como porcentaje respecto al valor de referencia: cuando hay valor programado, ese es la referencia ' +
+                'y se evalúa el medido (o el desplegado si no hay medido); cuando no hay programado, la referencia es el medido ' +
+                'del analizador y se evalúa el desplegado por el equipo. ' +
                 'Los valores compuestos (p. ej. PANI 120/80) se evalúan y grafican por componente.</p>';
             document.getElementById('rutinaTablaContainer').innerHTML = tablaHTML;
         }
@@ -3544,7 +3697,7 @@
         // Leyenda impresa bajo cada gráfica: tolerancia, intervalo aceptable de
         // cada medición y rango estándar de operación del parámetro.
         function leyendaRangosParametro(grupo) {
-            const tol = textoTolerancia(grupo.nombre);
+            const tol = textoToleranciaCompleto(grupo.nombre);
             const cap = rangoCapturadoDe(grupo.nombre);
             const rangoTxt = textoRangoOperacion(grupo.nombre, grupo.idxComp);
             const unidad = (toleranciaParaParametro(grupo.nombre).unidad) || '';
@@ -3564,7 +3717,7 @@
             return '<p><span class="font-semibold text-slate-700">Tolerancia:</span> ' + esc(tol) +
                        ' <span class="text-slate-400">(' + grupo.puntos.length + ' ' +
                        (grupo.puntos.length === 1 ? 'medición' : 'mediciones') + ')</span></p>' +
-                   '<p><span class="font-semibold text-slate-700">Intervalo aceptable (programado ± tolerancia):</span> ' + textoIntervalo + '</p>' +
+                   '<p><span class="font-semibold text-slate-700">Intervalo aceptable (referencia ± tolerancia):</span> ' + textoIntervalo + '</p>' +
                    '<p><span class="font-semibold text-slate-700">Rango estándar de operación' +
                        (grupo.etiqueta ? ' (' + esc(grupo.etiqueta) + ')' : '') + ':</span> ' + esc(rangoTxt) +
                        ' <span class="text-slate-400">(' +
@@ -3617,13 +3770,13 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Programado', data: serieProg,
+                            label: 'Referencia (programado o medido)', data: serieProg,
                             borderColor: '#94a3b8', backgroundColor: '#94a3b8',
                             borderDash: [5, 5], borderWidth: 2,
                             fill: false, tension: 0.1, pointRadius: 3, yAxisID: 'y'
                         },
                         {
-                            label: 'Real (medido/desplegado)', data: serieReal,
+                            label: 'Lectura evaluada (medido o desplegado)', data: serieReal,
                             borderColor: COLOR_INSTITUCIONAL,
                             backgroundColor: 'rgba(0, 93, 161, 0.10)',
                             borderWidth: 2, fill: true, tension: 0.3,

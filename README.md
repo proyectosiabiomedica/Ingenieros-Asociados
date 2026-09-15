@@ -520,6 +520,44 @@ En **iPhone y iPad no existe el icono de instalar**, hagas lo que hagas: Safari 
 
 Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble clic (`file://`) el service worker simplemente no se registra y la plataforma funciona como antes, sin instalación ni copias locales.
 
+## 4.10 Criterio de tolerancia por tipo de equipo (v3.5)
+
+El criterio vigente lo marca **el equipo, no el parámetro**:
+
+| Tipo de equipo | Tolerancia |
+|---|---|
+| Soporte de vida: desfibrilador, máquina de anestesia, ventilador, vaporizador | **±5 %** |
+| Todos los demás | **±10 %** |
+
+El equipo se reconoce por su nombre en la orden, sin acentos y por contención, de modo que *Ventilador volumétrico* o *Máquina de anestesia Fabius* entran igual. La lista se ajusta en `EQUIPOS_SOPORTE_VIDA` y los porcentajes en `TOLERANCIA_SOPORTE_VIDA` y `TOLERANCIA_GENERAL`.
+
+La tabla anterior por parámetro —±3 mmHg en presión, ±2 % en SpO₂, ±0.3 °C en temperatura— **se conserva en el archivo** y puede reactivarse con `CRITERIO_TOLERANCIA = 'parametro'`. Vale la pena saber qué se cede al usar el criterio relativo: **±10 % aprueba una desviación de 8 mmHg sobre 80 mmHg**. Si en algún contrato eso no es aceptable, el modo por parámetro está listo.
+
+La tolerancia aplicada y su origen se imprimen tanto al pie de la tabla de mediciones como en la leyenda de cada gráfica: *"Tolerancia: ±5 % · equipo de soporte de vida"*.
+
+## 4.11 Qué se compara contra qué (v3.5)
+
+Hasta la 3.4 solo se evaluaba cuando existía valor **programado**, así que un renglón con desplegado y medido —muy común en temperatura, presión de vía aérea o flujo, donde no se programa nada— se quedaba sin error y sin gráfica. Ahora hay dos situaciones y en ambas se evalúa:
+
+| Situación | Referencia (valor verdadero) | Valor evaluado |
+|---|---|---|
+| La orden trae valor programado | **Programado**: es lo que se ajustó en el patrón | Medido y, si no hay, desplegado |
+| No hay valor programado | **Medido**: es la lectura del analizador calibrado | **Desplegado** por el equipo bajo prueba |
+
+Si solo existe una de las tres columnas no hay nada que comparar y el renglón se queda sin error, como antes. Esto es lo que mantiene fuera a renglones como *Tiempo de carga max energía 200 J (s)*, que traen una sola lectura suelta.
+
+La información emergente de cada celda dice qué se comparó contra qué: *"Medido contra Programado"* o *"Desplegado contra Medido"*.
+
+## 4.12 Rangos que no se cargaban (v3.5)
+
+Dos causas distintas, ambas resueltas:
+
+**Rangos expresados como relación.** `Rango estándar de operación I:E 4:1-1:9 (relación Inspiración: Espiración)` se imprimía como `1 – 1:9`, sin sentido: el parser buscaba dos números y encontraba los de la relación. Ahora se detecta que es una relación y **se conserva el texto tal cual**, que es lo correcto: una relación no es una magnitud que pueda situarse en un eje, así que se imprime en la tabla y en la leyenda pero no dibuja banda en la gráfica.
+
+**Parámetros sin valor programado.** `P Max` y `P media` quedaban en `—` porque el rango solo se heredaba del encabezado cuando el renglón era comparable, y sin valor programado no lo eran. Al evaluarse ahora desplegado contra medido, heredan correctamente. Nota adicional: el encabezado decía `PAW` y los renglones `P Max (cmH20)`, así que el emparejamiento por nombre tampoco servía; funciona por herencia del encabezado anterior.
+
+**Verificación de unidad.** Heredar del encabezado anterior tiene un riesgo: un renglón de `Temperatura inicial (°C)` colocado después del rango de `Flujo (L/m)` lo heredaría por simple vecindad. Ahora se compara la unidad declarada entre paréntesis y solo se hereda si son compatibles. La comparación unifica el cero y la letra O —`(cmH20)` y `(cmH2O)` son la misma— y admite abreviaturas —`(L/min)` y `(L/m)`— porque los ingenieros usan ambas indistintamente.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -555,6 +593,7 @@ Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble cl
 | La leyenda del pie sale cortada | El pie sobresalía hacia el margen y el navegador recorta lo que queda fuera del área de página (corregido en la 3.0.1) | Mantener `#piePaginaImpresion` con `bottom: 0`, dentro del área de contenido, y el margen inferior de `@page` en 34 mm |
 | Al imprimir aparecen el título y la URL del navegador | Está activa la casilla "Encabezados y pies de página" del diálogo de impresión: no se puede desactivar por código | Quitar esa casilla en el diálogo. El documento ya trae su propio pie con la leyenda legal en todas las hojas |
 | Un parámetro real del equipo (incubadora, baño térmico) desapareció de la tabla | Su nombre contiene "temperatura" y quedó entre las dos primeras capturas, por lo que se tomó como condición ambiental | Capturar primero la temperatura y la humedad **ambiente** (con esa palabra en el nombre), o bajar el parámetro del equipo a partir de la tercera posición |
+| Un parámetro heredó un rango de otra magnitud | Está debajo del encabezado de otro parámetro y comparten unidad, o ninguno declara unidad entre paréntesis | Capturar su propio renglón de *Rango estándar de operación* antes de sus mediciones |
 | El rango sale marcado con `*` | Ese parámetro no trae renglón de rango en la orden; se está usando el de configuración | Capturar el renglón *Rango estándar de operación* antes de las mediciones de ese parámetro, o editar la celda antes de imprimir |
 | Un parámetro heredó un rango que no le corresponde | Está debajo de un renglón de rango de otro parámetro y sí es comparable | Capturar su propio renglón de rango antes de sus mediciones |
 | Un ingeniero no puede entrar y su nombre sí está dado de alta | Está inactivo, el PIN cambió, o se agotaron los intentos | Revisar su estado en **Usuarios**; si hay bloqueo, esperar 10 minutos. La bitácora registra el motivo de cada intento fallido |
@@ -593,6 +632,7 @@ Necesita **HTTPS**, que GitHub Pages ya provee. Abriendo el archivo con doble cl
 
 | Versión | Cambios principales |
 |---|---|
+| 3.5 | Atiende las tres observaciones de los ingenieros sobre el generador de rutinas. **La tolerancia depende del tipo de equipo**: 5 % en soporte de vida (desfibrilador, máquina de anestesia, ventilador y vaporizador) y 10 % en el resto, en sustitución del criterio por parámetro, que queda disponible con `CRITERIO_TOLERANCIA = 'parametro'`. **Se evalúa también desplegado contra medido**: cuando la orden no trae valor programado —temperatura, presión de vía aérea, flujo— la referencia es el valor medido por el analizador y se evalúa lo que desplegó el equipo, así que esos renglones por fin tienen error y gráfica. **Rangos que no se cargaban**: los expresados como relación (`I:E 4:1-1:9`) se conservan como texto en lugar de intentar convertirlos en números, y los parámetros sin valor programado ya heredan el rango de su encabezado, con verificación de unidad para que un renglón de temperatura no herede el rango de flujo por estar debajo |
 | 3.4.2 | Los iconos pasan a la **raíz del repositorio**, sin la carpeta `iconos/`: era el paso donde se perdían al publicar, y su ausencia impedía la instalación sin explicación visible |
 | 3.4.1 | **Diagnóstico de instalación.** Cuando el navegador no ofrece instalar, no dice cuál requisito falta: simplemente no muestra el icono. Este diagnóstico los revisa uno por uno —HTTPS, manifiesto accesible y completo, iconos que se descargan, service worker activo, `sw.js` alcanzable— y señala en rojo el que falla. Se abre desde el enlace al pie del menú lateral o agregando `?diagnostico=1` a la dirección |
 | 3.4 | **La plataforma se instala como aplicación (PWA).** Se agrega a la pantalla de inicio del teléfono o al escritorio y abre sin barra del navegador, con el isotipo institucional como icono. Un *service worker* guarda copia de la página y de las librerías externas —Tailwind, Chart.js, PapaParse, la tipografía—, de modo que la plataforma abre aunque la red del hospital bloquee esos dominios, y guarda también la última descarga de datos para poder consultar sin señal. Aviso en pantalla cuando hay una versión nueva, con botón para aplicarla |
