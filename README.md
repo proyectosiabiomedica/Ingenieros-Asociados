@@ -558,6 +558,25 @@ Dos causas distintas, ambas resueltas:
 
 **Verificación de unidad.** Heredar del encabezado anterior tiene un riesgo: un renglón de `Temperatura inicial (°C)` colocado después del rango de `Flujo (L/m)` lo heredaría por simple vecindad. Ahora se compara la unidad declarada entre paréntesis y solo se hereda si son compatibles. La comparación unifica el cero y la letra O —`(cmH20)` y `(cmH2O)` son la misma— y admite abreviaturas —`(L/min)` y `(L/m)`— porque los ingenieros usan ambas indistintamente.
 
+## 4.13 Editar usuarios y cambiar el PIN (v3.6)
+
+### El administrador edita
+
+Cada renglón de la lista tiene un botón **Editar** que carga a esa persona en el formulario. Se le puede cambiar el nombre, el rol y el PIN:
+
+- **Dejar el PIN vacío conserva el actual.** Solo se reemplaza si se escribe uno nuevo, y en ese caso el anterior deja de servir de inmediato.
+- **Renombrar mueve el registro existente**, no crea otro. Esto importa: si se creara uno nuevo, el registro viejo se quedaría con su PIN vivo y esa persona seguiría entrando con el nombre anterior. El servidor recibe el nombre original justamente para saber qué renglón tocar.
+- Un nombre que ya ocupe otra persona se rechaza, igual que un PIN repetido.
+- La bitácora guarda el cambio completo, incluido el nombre anterior cuando hubo renombramiento.
+
+### Cada quien cambia su propio PIN
+
+Botón **Cambiar mi PIN** al pie del menú lateral. Pide el PIN actual, el nuevo y su confirmación.
+
+No hace falta ser administrador, pero sí demostrar que el PIN actual es suyo: el servidor identifica a la persona por ese PIN, igual que en el ingreso. De ahí se siguen dos cosas que conviene tener claras: **nadie puede cambiarle el PIN a otro**, ni siquiera conociendo su nombre, y **el administrador no se entera del PIN nuevo**. Si alguien olvida el suyo, el camino es que el administrador le asigne uno desde *Editar*, no recuperar el anterior: las huellas no se pueden revertir.
+
+El cambio respeta las mismas reglas que el alta: mínimo 4 caracteres (se recomiendan 6), no puede repetir el PIN de otra persona ni coincidir con el código maestro. Los intentos fallidos cuentan para el bloqueo por dispositivo.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -596,6 +615,7 @@ Dos causas distintas, ambas resueltas:
 | Un parámetro heredó un rango de otra magnitud | Está debajo del encabezado de otro parámetro y comparten unidad, o ninguno declara unidad entre paréntesis | Capturar su propio renglón de *Rango estándar de operación* antes de sus mediciones |
 | El rango sale marcado con `*` | Ese parámetro no trae renglón de rango en la orden; se está usando el de configuración | Capturar el renglón *Rango estándar de operación* antes de las mediciones de ese parámetro, o editar la celda antes de imprimir |
 | Un parámetro heredó un rango que no le corresponde | Está debajo de un renglón de rango de otro parámetro y sí es comparable | Capturar su propio renglón de rango antes de sus mediciones |
+| Un ingeniero olvidó su PIN | Las huellas no se pueden revertir: el PIN anterior no se recupera | El administrador le asigna uno nuevo desde **Editar**, y esa persona lo cambia después con *Cambiar mi PIN* |
 | Un ingeniero no puede entrar y su nombre sí está dado de alta | Está inactivo, el PIN cambió, o se agotaron los intentos | Revisar su estado en **Usuarios**; si hay bloqueo, esperar 10 minutos. La bitácora registra el motivo de cada intento fallido |
 | El código maestro no funciona | No se volvió a implementar el `Code.gs` después de cambiarlo, o tiene menos de 6 caracteres | Implementar → Administrar implementaciones → editar → Nueva versión, y usar un código de al menos 6 caracteres |
 | Todos los PIN dejaron de servir de golpe | Se cambió `SAL_PIN` después de dar de alta usuarios | Volver a la sal anterior, o volver a capturar el PIN de cada usuario |
@@ -632,6 +652,7 @@ Dos causas distintas, ambas resueltas:
 
 | Versión | Cambios principales |
 |---|---|
+| 3.6 | **El administrador edita a los usuarios registrados**: botón *Editar* en cada renglón que carga sus datos en el formulario y permite cambiarle el nombre, el rol o el PIN; dejar el PIN vacío conserva el actual. Renombrar mueve el registro existente en lugar de crear uno nuevo, y el servidor rechaza un nombre que ya ocupe otra persona. **Cada usuario cambia su propio PIN** desde el menú lateral, demostrando que el actual es suyo; el administrador no se entera del nuevo. Ambos movimientos quedan en la bitácora |
 | 3.5 | Atiende las tres observaciones de los ingenieros sobre el generador de rutinas. **La tolerancia depende del tipo de equipo**: 5 % en soporte de vida (desfibrilador, máquina de anestesia, ventilador y vaporizador) y 10 % en el resto, en sustitución del criterio por parámetro, que queda disponible con `CRITERIO_TOLERANCIA = 'parametro'`. **Se evalúa también desplegado contra medido**: cuando la orden no trae valor programado —temperatura, presión de vía aérea, flujo— la referencia es el valor medido por el analizador y se evalúa lo que desplegó el equipo, así que esos renglones por fin tienen error y gráfica. **Rangos que no se cargaban**: los expresados como relación (`I:E 4:1-1:9`) se conservan como texto en lugar de intentar convertirlos en números, y los parámetros sin valor programado ya heredan el rango de su encabezado, con verificación de unidad para que un renglón de temperatura no herede el rango de flujo por estar debajo |
 | 3.4.2 | Los iconos pasan a la **raíz del repositorio**, sin la carpeta `iconos/`: era el paso donde se perdían al publicar, y su ausencia impedía la instalación sin explicación visible |
 | 3.4.1 | **Diagnóstico de instalación.** Cuando el navegador no ofrece instalar, no dice cuál requisito falta: simplemente no muestra el icono. Este diagnóstico los revisa uno por uno —HTTPS, manifiesto accesible y completo, iconos que se descargan, service worker activo, `sw.js` alcanzable— y señala en rojo el que falla. Se abre desde el enlace al pie del menú lateral o agregando `?diagnostico=1` a la dirección |

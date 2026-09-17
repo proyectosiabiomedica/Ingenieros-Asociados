@@ -344,6 +344,9 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
                 Instalar aplicación
             </button>
+            <button onclick="abrirCambiarPin()" class="w-full mt-2 text-[11px] font-semibold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg py-1.5 transition-colors">
+                Cambiar mi PIN
+            </button>
             <button onclick="ejecutarDiagnostico()" class="w-full mt-2 text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
                 Diagnóstico de instalación
             </button>
@@ -987,6 +990,44 @@
         </div>
     </div>
 
+    <!-- ============ v3.6: cada quien cambia su propio PIN ============ -->
+    <div id="modalCambiarPin" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Cambiar mi PIN</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Nadie más lo conoce, ni el administrador.</p>
+                </div>
+                <button onclick="cerrarCambiarPin()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-5 flex flex-col gap-3">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">PIN actual</label>
+                    <input type="password" id="pinActual" autocomplete="off"
+                           class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">PIN nuevo</label>
+                    <input type="password" id="pinNuevo" autocomplete="off"
+                           class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Confirmar PIN nuevo</label>
+                    <input type="password" id="pinConfirmar" autocomplete="off"
+                           class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">
+                    Mínimo 4 caracteres; se recomiendan 6. En cuanto lo cambies, el anterior deja de servir.
+                </p>
+                <p id="mensajePin" class="hidden text-xs rounded-lg p-3"></p>
+            </div>
+            <div class="flex justify-end items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button onclick="cerrarCambiarPin()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cancelar</button>
+                <button id="btnGuardarPin" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors">Cambiar PIN</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v3.4.1: diagnóstico de instalación (abrir con ?diagnostico=1) ============ -->
     <div id="panelDiagnostico" class="hidden fixed inset-0 z-[80] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
@@ -1024,7 +1065,11 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-8">
-            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Dar de alta o actualizar</h3>
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <h3 id="tituloFormUsuario" class="text-sm font-bold text-slate-800 uppercase tracking-wide">Dar de alta un usuario</h3>
+                <button id="btnCancelarEdicion" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar edición</button>
+            </div>
+            <p id="avisoEdicionUsuario" class="hidden mb-3 text-xs bg-brand-50 border border-brand-200 text-brand-800 rounded-lg p-3"></p>
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <input type="text" id="usuNombre" placeholder="Nombre completo" class="sm:col-span-2 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                 <input type="password" id="usuPin" placeholder="PIN (mínimo 4)" class="p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
@@ -1035,7 +1080,7 @@
             </div>
             <div class="flex items-center justify-between gap-3 mt-4">
                 <p class="text-[11px] text-slate-400 leading-snug">
-                    Si el nombre ya existe se actualiza: deja el PIN vacío para conservar el actual.
+                    Al editar, deja el PIN vacío para conservar el actual.
                     El PIN no se guarda en claro, se almacena su huella. <strong>Cada persona necesita un PIN distinto</strong>:
                     como el ingreso es solo con PIN, es lo que la identifica en la bitácora.
                 </p>
@@ -1217,7 +1262,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '3.5';
+        const VERSION_APP = '3.6';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1465,6 +1510,106 @@
             promptInstalacion = null;
             document.getElementById('btnInstalarApp').classList.add('hidden');
         });
+
+        /* ============================================================
+           v3.6 — CADA QUIEN CAMBIA SU PROPIO PIN
+
+           El servidor identifica a la persona por el PIN actual que escribe,
+           igual que en el ingreso. No hace falta ser administrador, pero sí
+           demostrar que ese PIN es suyo: así nadie puede cambiarle el PIN a
+           otro, y el administrador no se entera del PIN nuevo.
+           ============================================================ */
+        function mensajePinUI(texto, tipo) {
+            const el = document.getElementById('mensajePin');
+            const estilos = {
+                error: 'bg-red-50 text-red-700 border border-red-200',
+                ok:    'bg-green-50 text-green-700 border border-green-200',
+                info:  'bg-slate-100 text-slate-600 border border-slate-200'
+            };
+            el.className = 'text-xs rounded-lg p-3 ' + (estilos[tipo] || estilos.info);
+            el.innerText = texto;
+            el.classList.toggle('hidden', !texto);
+        }
+
+        function abrirCambiarPin() {
+            ['pinActual', 'pinNuevo', 'pinConfirmar'].forEach(id => document.getElementById(id).value = '');
+            mensajePinUI('', 'info');
+            const m = document.getElementById('modalCambiarPin');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => document.getElementById('pinActual').focus(), 60);
+        }
+
+        function cerrarCambiarPin() {
+            const m = document.getElementById('modalCambiarPin');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            ['pinActual', 'pinNuevo', 'pinConfirmar'].forEach(id => document.getElementById(id).value = '');
+        }
+
+        async function guardarPinNuevo() {
+            const actual = document.getElementById('pinActual').value.trim();
+            const nuevo = document.getElementById('pinNuevo').value.trim();
+            const confirmar = document.getElementById('pinConfirmar').value.trim();
+
+            if (!actual || !nuevo) { mensajePinUI('Escribe tu PIN actual y el nuevo.', 'error'); return; }
+            if (nuevo !== confirmar) { mensajePinUI('El PIN nuevo y su confirmación no coinciden.', 'error'); return; }
+            if (nuevo.length < 4) { mensajePinUI('El PIN nuevo debe tener al menos 4 caracteres. Se recomiendan 6.', 'error'); return; }
+            if (nuevo === actual) { mensajePinUI('El PIN nuevo es igual al actual.', 'error'); return; }
+
+            const btn = document.getElementById('btnGuardarPin');
+            btn.disabled = true; btn.innerText = 'Guardando…';
+            try {
+                if (!hayBackend()) {
+                    await cambiarPinLocal(actual, nuevo);
+                } else {
+                    const r = await fetch(URL_APPS_SCRIPT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            accion: 'cambiarPin', token: TOKEN_API,
+                            pinActual: actual, pinNuevo: nuevo,
+                            dispositivo: idDispositivo(), fecha: new Date().toISOString()
+                        })
+                    });
+                    const j = await r.json().catch(() => null);
+                    if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo cambiar el PIN.');
+                }
+
+                /* Si quien cambió el PIN era administrador, la credencial que
+                   guardamos para las altas quedó obsoleta: se descarta para que
+                   se vuelva a pedir con el PIN nuevo. */
+                if (esAdministrador()) {
+                    olvidarCredencialAdmin();
+                    guardarCredencialAdmin(nombreUsuario(), nuevo);
+                }
+
+                cerrarCambiarPin();
+                registrarEvento('cambio_pin', 'Cambió su PIN de acceso');
+                mostrarAviso('Tu PIN quedó cambiado. El anterior dejó de servir: usa el nuevo la próxima vez que entres.');
+            } catch (err) {
+                mensajePinUI(err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Cambiar PIN';
+            }
+        }
+
+        document.getElementById('btnGuardarPin').addEventListener('click', guardarPinNuevo);
+        document.getElementById('modalCambiarPin').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); guardarPinNuevo(); }
+        });
+
+        // Modo local (sin backend): mismo comportamiento, sobre este navegador
+        async function cambiarPinLocal(actual, nuevo) {
+            const lista = usuariosLocales();
+            const h = await huellaLocal(actual);
+            const u = lista.find(x => x.activo && x.huella === h);
+            if (!u) throw new Error('El PIN actual no es correcto.');
+            const hn = await huellaLocal(nuevo);
+            if (lista.some(x => x !== u && x.huella === hn)) {
+                throw new Error('Ese PIN ya lo tiene otro usuario. Elige uno diferente.');
+            }
+            u.huella = hn;
+            escribirUsuariosLocales(lista);
+        }
 
         /* ============================================================
            v3.4.1 — DIAGNÓSTICO DE INSTALACIÓN
@@ -4594,6 +4739,8 @@
                         '<td class="' + td + ' text-xs text-slate-500">' + esc(fechaCorta(u.creado)) + '</td>' +
                         '<td class="' + td + ' text-xs text-slate-500">' + esc(fechaCorta(u.ultimoAcceso) || 'Nunca') + '</td>' +
                         '<td class="' + td + ' text-right whitespace-nowrap">' +
+                            '<button data-usu-accion="editar" data-usu="' + esc(u.nombre) + '" data-rol="' + esc(u.rol) + '" ' +
+                                'class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-2">Editar</button>' +
                             '<button data-usu-accion="' + (u.activo ? 'desactivar' : 'activar') + '" data-usu="' + esc(u.nombre) + '" ' +
                                 'class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">' +
                                 (u.activo ? 'Desactivar' : 'Activar') + '</button>' +
@@ -4626,29 +4773,64 @@
             }
         }
 
+        /* v3.6: cuál usuario se está editando. Vacío = se va a dar de alta uno
+           nuevo. Se guarda el nombre ORIGINAL porque el administrador puede
+           cambiárselo, y el servidor necesita saber qué renglón tocar. */
+        let usuarioEnEdicion = '';
+
+        function entrarModoEdicion(nombre, rol) {
+            usuarioEnEdicion = nombre;
+            document.getElementById('usuNombre').value = nombre;
+            document.getElementById('usuPin').value = '';
+            document.getElementById('usuRol').value = (rol === 'admin') ? 'admin' : 'usuario';
+            document.getElementById('tituloFormUsuario').innerText = 'Editar usuario';
+            document.getElementById('btnGuardarUsuario').innerText = 'Guardar cambios';
+            document.getElementById('btnCancelarEdicion').classList.remove('hidden');
+            const aviso = document.getElementById('avisoEdicionUsuario');
+            aviso.innerText = 'Editando a "' + nombre + '". Puedes cambiarle el nombre o el rol. ' +
+                              'Si dejas el PIN vacío conserva el que ya tenía; si escribes uno nuevo, el anterior deja de servir de inmediato.';
+            aviso.classList.remove('hidden');
+            mensajeUsuariosUI('', 'info');
+            document.getElementById('usuNombre').focus();
+            document.getElementById('usuNombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function salirModoEdicion() {
+            usuarioEnEdicion = '';
+            document.getElementById('usuNombre').value = '';
+            document.getElementById('usuPin').value = '';
+            document.getElementById('usuRol').value = 'usuario';
+            document.getElementById('tituloFormUsuario').innerText = 'Dar de alta un usuario';
+            document.getElementById('btnGuardarUsuario').innerText = 'Guardar usuario';
+            document.getElementById('btnCancelarEdicion').classList.add('hidden');
+            document.getElementById('avisoEdicionUsuario').classList.add('hidden');
+        }
+
         async function guardarUsuarioDesdeFormulario() {
             const nombre = document.getElementById('usuNombre').value.trim();
             const pin = document.getElementById('usuPin').value;
             const rol = document.getElementById('usuRol').value;
 
             if (nombre.length < 3) { mensajeUsuariosUI('El nombre debe tener al menos 3 caracteres.', 'error'); return; }
+            if (!usuarioEnEdicion && !pin) { mensajeUsuariosUI('Captura un PIN para el usuario nuevo.', 'error'); return; }
 
             const btn = document.getElementById('btnGuardarUsuario');
             btn.disabled = true; btn.innerText = 'Guardando…';
             try {
                 if (!hayBackend()) {
-                    await guardarUsuarioLocal(nombre, pin, rol);
+                    await guardarUsuarioLocal(nombre, pin, rol, usuarioEnEdicion);
                     mensajeUsuariosUI('Usuario guardado solo en este navegador.', 'ok');
                 } else {
                     const j = await peticionAdmin('guardarUsuario', {
-                        usuario: { nombre: nombre, pin: pin, rol: rol, activo: true }
+                        usuario: {
+                            nombre: nombre, nombreOriginal: usuarioEnEdicion,
+                            pin: pin, rol: rol, activo: true
+                        }
                     });
                     mensajeUsuariosUI(j.creado ? ('Usuario "' + nombre + '" dado de alta.')
                                                : ('Usuario "' + nombre + '" actualizado.'), 'ok');
                 }
-                document.getElementById('usuNombre').value = '';
-                document.getElementById('usuPin').value = '';
-                document.getElementById('usuRol').value = 'usuario';
+                salirModoEdicion();
                 cargarListaUsuarios();
             } catch (err) {
                 mensajeUsuariosUI(err.message, 'error');
@@ -4658,6 +4840,7 @@
         }
 
         document.getElementById('btnGuardarUsuario').addEventListener('click', guardarUsuarioDesdeFormulario);
+        document.getElementById('btnCancelarEdicion').addEventListener('click', salirModoEdicion);
         document.getElementById('btnRecargarUsuarios').addEventListener('click', cargarListaUsuarios);
 
         document.getElementById('listaUsuarios').addEventListener('click', async (e) => {
@@ -4665,6 +4848,8 @@
             if (!btn) return;
             const nombre = btn.dataset.usu;
             const accion = btn.dataset.usuAccion;
+
+            if (accion === 'editar') { entrarModoEdicion(nombre, btn.dataset.rol); return; }
 
             try {
                 if (accion === 'eliminar') {
@@ -4706,9 +4891,10 @@
                 return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
             } catch (_) { return 'plano:' + pin; }
         }
-        async function guardarUsuarioLocal(nombre, pin, rol) {
+        async function guardarUsuarioLocal(nombre, pin, rol, nombreOriginal) {
             const lista = usuariosLocales();
-            const i = lista.findIndex(u => u.nombre.toLowerCase() === nombre.toLowerCase());
+            const buscado = (nombreOriginal || nombre).toLowerCase();
+            const i = lista.findIndex(u => u.nombre.toLowerCase() === buscado);
             if (pin) {
                 const h = await huellaLocal(pin);
                 if (lista.some((u, k) => k !== i && u.huella === h)) {
@@ -5513,6 +5699,8 @@
         // Escape cierra la rutina o el modal de oportunidades (nunca el de acceso)
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
+            const mp = document.getElementById('modalCambiarPin');
+            if (!mp.classList.contains('hidden')) { cerrarCambiarPin(); return; }
             const mc = document.getElementById('modalCorreo');
             if (!mc.classList.contains('hidden')) { cerrarModalCorreo(); return; }
             const mr = document.getElementById('modalRutina');
