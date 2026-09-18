@@ -107,6 +107,9 @@
                tabla llevan 'break-inside: avoid', de modo que ninguno se parte
                justo donde va el pie. */
             @page { margin: 25mm 25mm 34mm; }
+            /* v3.9: el calendario de servicios es ancho; se imprime apaisado */
+            @page calendario { size: landscape; margin: 12mm 10mm 20mm; }
+            body.printing-calendario { page: calendario; }
             body { padding: 0 !important; }
             html, body { overflow: visible !important; height: auto !important; background: white !important; display: block !important; }
             .no-print, aside, #btnSidebarToggle, #sidebarOverlay { display: none !important; }
@@ -149,6 +152,30 @@
                 padding: 0 !important;
             }
             body.printing-modal #modalRutina .sticky { position: static !important; }
+
+            /* ===== v3.9: impresión del calendario de servicios =====
+               Mismo principio que la rutina: el resto de la página se oculta y
+               el contenedor deja de ser fixed para que Chrome pagine bien.
+               El calendario es ancho, así que se imprime en horizontal. */
+            body.printing-calendario { }
+            body.printing-calendario main,
+            body.printing-calendario #dashboardContent,
+            body.printing-calendario #clienteContent,
+            body.printing-calendario #modalExportar { display: none !important; }
+
+            body.printing-calendario #calendarioImprimible {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                margin: 0 !important; padding: 0 !important;
+                background: white !important;
+            }
+            body.printing-calendario #calendarioImprimible table { font-size: 8pt; }
+            body.printing-calendario #calendarioImprimible th,
+            body.printing-calendario #calendarioImprimible td {
+                border: 0.2mm solid #cbd5e1; padding: 1.5mm 2mm;
+            }
+            body.printing-calendario #calendarioImprimible tr { break-inside: avoid; page-break-inside: avoid; }
 
             .no-print-modal { display: none !important; }
             .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
@@ -569,12 +596,18 @@
 
             <!-- Pestañas de Mantenimiento -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-6 flex-wrap no-print">
+                <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-5 flex-wrap no-print">
                     <button id="tabPrev" onclick="cambiarPestana('prev')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">
-                        Mantenimiento Preventivo / Calibración
+                        Preventivos
+                    </button>
+                    <button id="tabCal" onclick="cambiarPestana('cal')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
+                        Calibraciones
                     </button>
                     <button id="tabCorr" onclick="cambiarPestana('corr')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
-                        Mantenimiento Correctivo / Asistencia
+                        Correctivos / Asistencias
+                    </button>
+                    <button id="tabEnt" onclick="cambiarPestana('ent')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
+                        Entregas / Materiales
                     </button>
                     <button id="tabCom" onclick="cambiarPestana('com')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
                         Comunicación y Seguimiento
@@ -583,7 +616,7 @@
                 </div>
 
                 <div class="p-6">
-                    <!-- Contenido Pestaña Preventivos -->
+                    <!-- Pestaña Preventivos -->
                     <div id="contentPrev">
                         <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
                             <input type="text" id="filtroTextoPrev" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
@@ -602,8 +635,8 @@
                                     </select>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Próx. Mant:</label>
-                                    <select id="filtroMesPrev" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Próx. Serv.:</label>
+                                    <select id="filtroMesProxPrev" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
                                         <option value="todos">Todos</option>
                                         <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
                                         <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
@@ -611,66 +644,242 @@
                                         <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
                                     </select>
                                 </div>
-                                <button onclick="imprimirTablaPrev()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                <button onclick="imprimirTablaServicio('prev')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     Imprimir Tabla
                                 </button>
-                                <button onclick="exportarCSVPrev()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                <button onclick="exportarCSVServicio('prev')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                     Exportar CSV
                                 </button>
+                                <button onclick="abrirModalExportar('prev')" class="bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    Exportar calendario
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaPrev" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('prev')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('prev')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
                             </div>
                         </div>
                         <div class="overflow-x-auto rounded-lg border border-slate-200">
                             <table class="min-w-full divide-y divide-slate-200">
                                 <thead class="bg-slate-50">
                                     <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo / Marca / Modelo</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie / Inventario</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Área</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-brand-600 uppercase">Próx. Mantenimiento</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-brand-600 uppercase">Próx. Servicio</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase no-print">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody id="tablaPreventivos" class="divide-y divide-slate-100 text-sm bg-white">
+                                <tbody id="tablaPrev" class="divide-y divide-slate-100 text-sm bg-white">
                                     <!-- Inyectado por JS -->
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Contenido Pestaña Correctivos -->
-                    <div id="contentCorr" style="display:none;">
-                        <div class="flex flex-col sm:flex-row gap-4 mb-6 justify-end items-center no-print">
-                            <span id="contadorCorr" class="text-xs font-semibold text-slate-400"></span>
-                            <div class="flex items-center gap-2 w-full sm:w-auto">
-                                <label class="text-xs font-semibold text-slate-500 uppercase">Año:</label>
-                                <select id="filtroAnioCorr" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
-                                    <option value="todos">Todos</option>
-                                </select>
+                    <!-- Pestaña Calibraciones -->
+                    <div id="contentCal" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoCal" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorCal" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioCal" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Ejecución:</label>
+                                    <select id="filtroMesEjecCal" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Próx. Serv.:</label>
+                                    <select id="filtroMesProxCal" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                        <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                                        <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                                        <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                                        <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('cal')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="exportarCSVServicio('cal')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar CSV
+                                </button>
+                                <button onclick="abrirModalExportar('cal')" class="bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    Exportar calendario
+                                </button>
                             </div>
-                            <div class="flex items-center gap-2 w-full sm:w-auto">
-                                <label class="text-xs font-semibold text-slate-500 uppercase">Mes de Ejecución:</label>
-                                <select id="filtroMesCorr" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
-                                    <option value="todos">Todos los meses</option>
-                                </select>
+                        </div>
+                        <div id="barraFacturaCal" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('cal')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('cal')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
                             </div>
                         </div>
                         <div class="overflow-x-auto rounded-lg border border-slate-200">
                             <table class="min-w-full divide-y divide-slate-200">
                                 <thead class="bg-slate-50">
                                     <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo / Marca / Modelo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie / Inventario</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Área</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-brand-600 uppercase">Próx. Servicio</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase no-print">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaCal" class="divide-y divide-slate-100 text-sm bg-white">
+                                    <!-- Inyectado por JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña Correctivos / Asistencias -->
+                    <div id="contentCorr" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoCorr" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorCorr" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioCorr" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Ejecución:</label>
+                                    <select id="filtroMesEjecCorr" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos los meses</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('corr')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="exportarCSVServicio('corr')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar CSV
+                                </button>
+                                <button onclick="abrirModalExportar('corr')" class="bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    Exportar calendario
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaCorr" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('corr')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('corr')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="min-w-full divide-y divide-slate-200">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Marca / Modelo</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
                                     </tr>
                                 </thead>
-                                <tbody id="tablaCorrectivos" class="divide-y divide-slate-100 text-sm bg-white">
+                                <tbody id="tablaCorr" class="divide-y divide-slate-100 text-sm bg-white">
+                                    <!-- Inyectado por JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña Entregas / Materiales -->
+                    <div id="contentEnt" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoEnt" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorEnt" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioEnt" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Ejecución:</label>
+                                    <select id="filtroMesEjecEnt" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos los meses</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('ent')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="exportarCSVServicio('ent')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar CSV
+                                </button>
+                                <button onclick="abrirModalExportar('ent')" class="bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    Exportar calendario
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaEnt" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('ent')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('ent')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="min-w-full divide-y divide-slate-200">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Marca / Modelo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaEnt" class="divide-y divide-slate-100 text-sm bg-white">
                                     <!-- Inyectado por JS -->
                                 </tbody>
                             </table>
@@ -990,6 +1199,114 @@
         </div>
     </div>
 
+    <!-- ============ v3.9: exportación del calendario de servicios ============ -->
+    <div id="modalExportar" class="hidden fixed inset-0 z-[76] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Exportar calendario de servicios</h3>
+                    <p id="expSubtitulo" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="cerrarModalExportar()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="p-5 overflow-y-auto flex flex-col gap-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Periodo</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
+                        <select id="expPeriodo" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="anual">Anual</option>
+                            <option value="semestral">Semestral</option>
+                            <option value="mensual">Mensual</option>
+                        </select>
+                        <select id="expAnio" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                        <select id="expRango" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">Por año calendario: el primer semestre va de enero a junio y el segundo de julio a diciembre.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Tipo de servicio</label>
+                        <select id="expTipo" class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="prev">Preventivos</option>
+                            <option value="cal">Calibraciones</option>
+                            <option value="corr">Correctivos / Asistencias</option>
+                            <option value="ent">Entregas / Materiales</option>
+                            <option value="todos">Todos los servicios</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Nivel de precio</label>
+                        <select id="expNivel" class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="I">Nivel I</option>
+                            <option value="II">Nivel II</option>
+                            <option value="III">Nivel III</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="expResumen" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-600"></div>
+                <p id="expMensaje" class="hidden text-xs rounded-lg p-3"></p>
+            </div>
+
+            <div class="flex flex-wrap justify-end items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button onclick="cerrarModalExportar()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cancelar</button>
+                <button id="btnExportarPDF" class="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors">Exportar a PDF</button>
+                <button id="btnExportarExcel" class="bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors">Exportar a Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor que se imprime cuando se exporta a PDF -->
+    <div id="calendarioImprimible" class="hidden"></div>
+
+    <!-- ============ v3.8: registro de factura ============ -->
+    <div id="modalFactura" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 id="tituloModalFactura" class="text-base font-bold text-slate-800">Registrar factura</h3>
+                    <p id="subtituloModalFactura" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="cerrarModalFactura()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex flex-col gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Número de factura</label>
+                        <input type="text" id="facNumero" placeholder="A-1024"
+                               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Fecha de la factura</label>
+                        <input type="date" id="facFecha"
+                               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Notas (opcional)</label>
+                    <input type="text" id="facNotas" placeholder="Referencia, orden de compra…"
+                           class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <div class="border border-slate-200 rounded-lg overflow-hidden">
+                    <div class="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        Órdenes que cubre esta factura
+                    </div>
+                    <div id="facListaOrdenes" class="max-h-48 overflow-y-auto divide-y divide-slate-100"></div>
+                </div>
+                <p id="facMensaje" class="hidden text-xs rounded-lg p-3"></p>
+            </div>
+            <div class="flex justify-between items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button id="btnEliminarFactura" class="hidden text-xs font-semibold text-red-600 hover:text-red-800">Eliminar factura</button>
+                <div class="flex items-center gap-2 ml-auto">
+                    <button onclick="cerrarModalFactura()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cancelar</button>
+                    <button id="btnGuardarFactura" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors">Guardar factura</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v3.6: cada quien cambia su propio PIN ============ -->
     <div id="modalCambiarPin" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-md rounded-xl shadow-2xl">
@@ -1087,6 +1404,17 @@
                 <button id="btnGuardarUsuario" class="shrink-0 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors">Guardar usuario</button>
             </div>
             <p id="usuMensaje" class="hidden text-xs rounded-lg p-3 mt-3"></p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Tarifario de mantenimiento</h3>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Se captura en la pestaña <span class="font-mono">Precios_Mantenimiento</span> de la hoja de cálculo. Aquí se ve cómo quedó leído.</p>
+                </div>
+                <button onclick="renderTarifario()" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Actualizar</button>
+            </div>
+            <div id="vistaTarifario" class="overflow-x-auto"></div>
         </div>
 
         <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -1262,7 +1590,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '3.6';
+        const VERSION_APP = '3.9';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1353,6 +1681,9 @@
         let clienteActual = '';
         let dataPreventivos = [];
         let dataCorrectivos = [];
+        // v3.7: cada pestaña de servicio tiene su propio conjunto
+        let dataCalibraciones = [];
+        let dataEntregas = [];
 
         // v2.8: paleta de gráficas derivada del logotipo institucional
         const COLOR_INSTITUCIONAL       = '#005DA1';
@@ -1370,6 +1701,11 @@
            sigue funcionando pero sin datos de certificado ni vigencia. */
         const csvUrlPatrones = '';
 
+        /* v3.8: tarifario de mantenimiento (pestaña Precios_Mantenimiento).
+           Igual que el catálogo de patrones: con ORIGEN_DATOS='appsscript' no
+           hace falta llenarla, el backend la sirve con &hoja=precios. */
+        const csvUrlPrecios = '';
+
         // v2.6: origen de datos configurable (CSV publicado o proxy de Apps Script)
         // v2.7: 'fresco' fuerza al backend a saltarse su propia caché
         function urlDatos(hoja, fresco) {
@@ -1381,6 +1717,10 @@
             if (hoja === 'patrones') {
                 if (!csvUrlPatrones) throw new Error('Sin URL publicada para el catálogo de equipos de calibración');
                 return csvUrlPatrones + '&t=' + Date.now();
+            }
+            if (hoja === 'precios') {
+                if (!csvUrlPrecios) throw new Error('Sin URL publicada para el tarifario de mantenimiento');
+                return csvUrlPrecios + '&t=' + Date.now();
             }
             return (hoja === 'dashboard' ? csvUrlDashboard : csvUrlCorpus) + '&t=' + Date.now();
         }
@@ -1842,16 +2182,18 @@
                 promesa.then(v => { progresoCarga.a(pct, etapa); return v; },
                              e => { progresoCarga.a(pct); throw e; });
 
-            const [rDash, rCorpus, rPatrones] = await Promise.allSettled([
+            const [rDash, rCorpus, rPatrones, rPrecios] = await Promise.allSettled([
                 conAvance(descargarHoja('dashboard', forzar === true), 30, 'Indicadores recibidos'),
                 conAvance(descargarHoja('corpus', forzar === true), 55, 'Órdenes de trabajo recibidas'),
-                conAvance(descargarHoja('patrones', forzar === true), 62, 'Catálogo de patrones recibido')
+                conAvance(descargarHoja('patrones', forzar === true), 60, 'Catálogo de patrones recibido'),
+                conAvance(descargarHoja('precios', forzar === true), 63, 'Tarifario recibido')
             ]);
             progresoCarga.a(65, 'Leyendo la información');
 
             const csvTextoDashboard = rDash.status === 'fulfilled' ? rDash.value : null;
             const csvTextoCorpus    = rCorpus.status === 'fulfilled' ? rCorpus.value : null;
             const csvTextoPatrones  = rPatrones.status === 'fulfilled' ? rPatrones.value : null;
+            const csvTextoPrecios   = rPrecios.status === 'fulfilled' ? rPrecios.value : null;
 
             // v3.4: si no hay señal, el service worker sirvió la última copia
             if (!navigator.onLine && csvTextoCorpus) {
@@ -1896,6 +2238,17 @@
                 });
             }
 
+            /* v3.8: tarifario. Su ausencia NO es un error: el panel funciona
+               igual y solo la exportación valorizada queda sin precios. */
+            catalogoPrecios = [];
+            if (csvTextoPrecios) {
+                Papa.parse(csvTextoPrecios, {
+                    header: true, skipEmptyLines: true,
+                    transformHeader: function(h) { return normalizar(h.trim().toLowerCase()); },
+                    complete: function(results) { procesarCatalogoPrecios(results.data); }
+                });
+            }
+
             progresoCarga.a(94, 'Armando el panel');
             document.getElementById('ultimaActualizacion').innerText =
                 'Datos actualizados: ' + new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) +
@@ -1912,6 +2265,9 @@
                 clienteActual = '';
                 mostrarDashboard();
             }
+
+            // v3.8: facturas registradas (para la columna Factura de las pestañas)
+            await cargarFacturas();
 
             progresoCarga.terminar();
 
@@ -2125,8 +2481,22 @@
                 // FIX: clasificación con acentos normalizados; ENTREGA cae en la
                 // pestaña de correctivos/asistencia para que ninguna orden se pierda
                 const tipoNorm = normalizar(obj['Tipo de Servicio'].toLowerCase());
-                obj['esPrev'] = tipoNorm.includes('preventivo') || tipoNorm.includes('calibracion');
-                obj['esCorr'] = tipoNorm.includes('correctivo') || tipoNorm.includes('asistencia') || tipoNorm.includes('entrega');
+                /* v3.7: cuatro tipos de servicio, uno por pestaña. La
+                   clasificación es EXCLUYENTE y por precedencia de lo más
+                   específico a lo más general: una orden de "Preventivo con
+                   calibración" cuenta como calibración y aparece una sola vez,
+                   no en dos pestañas sumando doble en los conteos. */
+                obj['esCalibracion'] = tipoNorm.includes('calibracion');
+                obj['esEntrega']     = !obj['esCalibracion'] &&
+                                       (tipoNorm.includes('entrega') || tipoNorm.includes('material'));
+                obj['esCorrectivo']  = !obj['esCalibracion'] && !obj['esEntrega'] &&
+                                       (tipoNorm.includes('correctivo') || tipoNorm.includes('asistencia'));
+                obj['esPreventivo']  = !obj['esCalibracion'] && !obj['esEntrega'] && !obj['esCorrectivo'] &&
+                                       tipoNorm.includes('preventivo');
+
+                // Compatibilidad con el resto del código (KPIs, oportunidades)
+                obj['esPrev'] = obj['esPreventivo'] || obj['esCalibracion'];
+                obj['esCorr'] = obj['esCorrectivo'] || obj['esEntrega'];
 
                 const dateObj = parsearFechaMantenimiento(obj['FechaEjecucion']);
                 obj['FechaObj'] = dateObj;
@@ -2202,6 +2572,103 @@
              Laboratorio                     → quien calibró (opcional)
            ============================================================ */
         let catalogoPatrones = [];
+
+        /* ============================================================
+           v3.8 — TARIFARIO DE MANTENIMIENTO
+
+           Un renglón por tipo de equipo con tres niveles de precio. El nivel
+           corresponde al convenio del hospital: la misma máquina de anestesia
+           cuesta distinto según el convenio, y al exportar se elige cuál
+           aplicar.
+
+           El emparejamiento es por tipo de equipo, no por equipo del
+           inventario: el tarifario dice "Ventilador" y la orden dice
+           "Ventilador volumétrico Puritan Bennett 840". Se busca primero
+           coincidencia exacta y luego por contención, prefiriendo siempre el
+           nombre MÁS LARGO que coincida, para que "Ventilador neonatal" gane
+           sobre "Ventilador" cuando ambos están en el tarifario.
+           ============================================================ */
+        let catalogoPrecios = [];
+
+        const NIVELES_PRECIO = ['I', 'II', 'III'];
+
+        function aNumeroPrecio(v) {
+            const t = String(v ?? '').replace(/[^\d.,-]/g, '').replace(/,/g, '');
+            if (!t) return null;
+            const n = parseFloat(t);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function procesarCatalogoPrecios(data) {
+            catalogoPrecios = [];
+            if (!data || data.length === 0) return;
+
+            const llaves = Object.keys(data[0]);
+            const cServicio = buscarColumna(llaves, ['tipo de servicio', 'servicio']);
+            const cEquipo   = buscarColumna(llaves, ['tipo de equipo', 'equipo', 'equipo:', 'nombre del equipo']);
+            const cN1 = buscarColumna(llaves, ['nivel i', 'nivel 1', 'nivel i)', 'precio nivel i', 'n1']);
+            const cN2 = buscarColumna(llaves, ['nivel ii', 'nivel 2', 'precio nivel ii', 'n2']);
+            const cN3 = buscarColumna(llaves, ['nivel iii', 'nivel 3', 'precio nivel iii', 'n3']);
+            const cMoneda = buscarColumna(llaves, ['moneda', 'divisa']);
+
+            data.forEach(row => {
+                const equipo = cEquipo ? String(row[cEquipo] || '').trim() : '';
+                if (!equipo) return;
+                catalogoPrecios.push({
+                    servicio: cServicio ? (String(row[cServicio] || '').trim() || 'Preventivo') : 'Preventivo',
+                    equipo: equipo,
+                    precios: {
+                        I:   cN1 ? aNumeroPrecio(row[cN1]) : null,
+                        II:  cN2 ? aNumeroPrecio(row[cN2]) : null,
+                        III: cN3 ? aNumeroPrecio(row[cN3]) : null
+                    },
+                    moneda: cMoneda ? (String(row[cMoneda] || '').trim() || 'MXN') : 'MXN'
+                });
+            });
+
+            if (!cN1 && !cN2 && !cN3) {
+                console.warn('[Tarifario] No se encontraron columnas de nivel (Nivel I / II / III). ' +
+                             'Revisa los encabezados de la pestaña Precios_Mantenimiento.');
+            }
+        }
+
+        /* Busca la tarifa de un equipo. 'servicio' filtra por tipo cuando el
+           tarifario lo declara; si no hay renglón para ese servicio se usa el
+           de Preventivo, que es el caso general. */
+        function tarifaDeEquipo(nombreEquipo, servicio) {
+            const n = normalizar(String(nombreEquipo || '').toLowerCase()).trim();
+            if (!n || !catalogoPrecios.length) return null;
+            const s = normalizar(String(servicio || 'preventivo').toLowerCase());
+
+            const candidatos = catalogoPrecios.filter(t => {
+                const ts = normalizar(t.servicio.toLowerCase());
+                return !s || ts === s || ts === 'preventivo';
+            });
+
+            const exacto = candidatos.find(t => normalizar(t.equipo.toLowerCase()).trim() === n);
+            if (exacto) return exacto;
+
+            // Por contención, prefiriendo el nombre más específico (el más largo)
+            const contenidos = candidatos
+                .filter(t => {
+                    const te = normalizar(t.equipo.toLowerCase()).trim();
+                    return te.length >= 4 && (n.includes(te) || te.includes(n));
+                })
+                .sort((a, b) => b.equipo.length - a.equipo.length);
+
+            return contenidos[0] || null;
+        }
+
+        function precioDeEquipo(nombreEquipo, nivel, servicio) {
+            const t = tarifaDeEquipo(nombreEquipo, servicio);
+            if (!t) return null;
+            const p = t.precios[nivel || 'I'];
+            return (p === null || p === undefined) ? null : p;
+        }
+
+        const fmtMoneda = (n, moneda) => (n === null || n === undefined)
+            ? '—'
+            : new Intl.NumberFormat('es-MX', { style: 'currency', currency: moneda || 'MXN' }).format(n);
 
         function procesarCatalogoPatrones(data) {
             catalogoPatrones = [];
@@ -2510,26 +2977,19 @@
             const elTipo = document.getElementById('clienteTipoServicio');
             elTipo.innerText = maxTipo; elTipo.title = maxTipo;
 
-            dataPreventivos = dataCliente.filter(d => d.esPrev);
-            dataCorrectivos = dataCliente.filter(d => d.esCorr);
+            dataPreventivos   = dataCliente.filter(d => d.esPreventivo);
+            dataCalibraciones = dataCliente.filter(d => d.esCalibracion);
+            dataCorrectivos   = dataCliente.filter(d => d.esCorrectivo);
+            dataEntregas      = dataCliente.filter(d => d.esEntrega);
 
-            document.getElementById('clientePrevCount').innerText = dataPreventivos.length;
-            document.getElementById('clienteCorrCount').innerText = dataCorrectivos.length;
+            /* v3.7: los recuadros de arriba siguen resumiendo por familia
+               —programado contra no programado—, aunque las pestañas de abajo
+               separen calibraciones y entregas. */
+            document.getElementById('clientePrevCount').innerText = dataPreventivos.length + dataCalibraciones.length;
+            document.getElementById('clienteCorrCount').innerText = dataCorrectivos.length + dataEntregas.length;
 
-            // v3.1: primero el año, y los meses se ajustan al año elegido
-            poblarSelectAnios('filtroAnioPrev', dataPreventivos);
-            poblarSelectAnios('filtroAnioCorr', dataCorrectivos);
-
-            document.getElementById('filtroTextoPrev').value = '';
-            document.getElementById('filtroAnioPrev').value = 'todos';
-            document.getElementById('filtroAnioCorr').value = 'todos';
-            document.getElementById('filtroMesPrev').value = 'todos';
-
-            poblarSelectMeses('filtroMesEjecPrev', dataPreventivos, 'todos', 'Todos');
-            poblarSelectMeses('filtroMesCorr', dataCorrectivos, 'todos', 'Todos los meses');
-
-            renderTablaPreventivos();
-            renderTablaCorrectivos();
+            // v3.7: las cuatro pestañas de servicio se preparan igual
+            prepararPestanasServicio();
 
             // v2.6: preparar pestaña de Comunicación y Seguimiento
             document.getElementById('formCanal').classList.add('hidden');
@@ -2587,9 +3047,12 @@
 
         // v2.6: pestañas generalizadas (prev / corr / com)
         function cambiarPestana(tab) {
+            // v3.7: cuatro pestañas de servicio más la de comunicación
             const defs = {
                 prev: ['tabPrev', 'contentPrev'],
+                cal:  ['tabCal',  'contentCal'],
                 corr: ['tabCorr', 'contentCorr'],
+                ent:  ['tabEnt',  'contentEnt'],
                 com:  ['tabCom',  'contentCom']
             };
             Object.entries(defs).forEach(([clave, [idBtn, idCont]]) => {
@@ -2606,64 +3069,651 @@
         /* ============================================================
            TABLA DE PREVENTIVOS
            ============================================================ */
-        function obtenerPreventivosFiltrados() {
-            const textoBusqueda = normalizar(document.getElementById('filtroTextoPrev').value.toLowerCase());
-            const anio = document.getElementById('filtroAnioPrev').value;
-            const mesEjec = document.getElementById('filtroMesEjecPrev').value;
-            const mesPruebas = document.getElementById('filtroMesPrev').value;
+        /* ============================================================
+           v3.7 — LAS CUATRO PESTAÑAS DE SERVICIO
 
-            const filtrados = dataPreventivos.filter(d => {
-                const blob = normalizar((d.ID + ' ' + d.Equipo + ' ' + d.Marca + ' ' + d.Serie + ' ' + d.Modelo + ' ' + d.Inventario + ' ' + d.Area).toLowerCase());
+           Preventivos, Calibraciones, Correctivos/Asistencias y
+           Entregas/Materiales comparten la misma mecánica, así que comparten
+           también el código: una sola definición por pestaña y renderizadores
+           genéricos. Las dos primeras llevan columna de próximo servicio y
+           botón de rutina; las dos últimas no, porque no son periódicas.
+           ============================================================ */
+        /* ============================================================
+           v3.8 — FACTURACIÓN
+
+           Una factura cubre VARIOS servicios: así se factura en la práctica y
+           así lo pide la auditoría financiera. Por eso el registro es la
+           factura —número, fecha y las órdenes que cubre— y no una marca
+           suelta en cada orden.
+
+           De ahí se sigue una regla que el servidor hace valer: una orden no
+           puede quedar en dos facturas. Si al registrar se detecta que alguna
+           ya está en otra, se rechaza el guardado señalando en cuál, porque en
+           una revisión financiera un servicio cobrado dos veces es justo lo
+           que no debe pasar.
+           ============================================================ */
+        let facturas = [];                       // [{id, numero, fecha, ordenes:[...]}]
+        let facturaPorOrden = new Map();         // ID de orden -> factura
+
+        function reconstruirIndiceFacturas() {
+            facturaPorOrden = new Map();
+            facturas.forEach(f => (f.ordenes || []).forEach(o => facturaPorOrden.set(String(o).trim(), f)));
+        }
+
+        async function cargarFacturas() {
+            if (!hayBackend()) { facturas = []; reconstruirIndiceFacturas(); return; }
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'listarFacturas', token: TOKEN_API })
+                });
+                const j = await r.json().catch(() => null);
+                facturas = (j && j.ok && Array.isArray(j.facturas)) ? j.facturas : [];
+            } catch (_) {
+                facturas = [];      // sin señal se muestra sin facturas, no se rompe
+            }
+            reconstruirIndiceFacturas();
+        }
+
+        // Celda de la columna Factura: el folio si ya se facturó, o un guion
+        function htmlCeldaFactura(idOrden) {
+            const f = facturaPorOrden.get(String(idOrden).trim());
+            if (!f) return '<span class="text-slate-300">—</span>';
+            return '<button data-factura="' + esc(f.id) + '" class="btn-ver-factura text-left group">' +
+                       '<span class="block text-xs font-bold text-green-700 group-hover:underline">' + esc(f.numero) + '</span>' +
+                       '<span class="block text-[10px] text-slate-500">' + esc(fechaCortaFactura(f.fecha)) + '</span>' +
+                   '</button>';
+        }
+
+        function fechaCortaFactura(iso) {
+            if (!iso) return '';
+            const d = parsearFechaMantenimiento(iso) || new Date(iso);
+            return isNaN(d) ? String(iso) : d.toLocaleDateString('es-MX');
+        }
+
+        // Órdenes seleccionadas en la pestaña visible
+        function ordenesSeleccionadas(clave) {
+            const cont = document.getElementById('content' + PESTANAS_SERVICIO[clave].suf);
+            if (!cont) return [];
+            return Array.from(cont.querySelectorAll('.chk-orden:checked')).map(x => x.dataset.orden);
+        }
+
+        function actualizarBarraFacturacion(clave) {
+            const n = ordenesSeleccionadas(clave).length;
+            const barra = document.getElementById('barraFactura' + PESTANAS_SERVICIO[clave].suf);
+            if (!barra) return;
+            barra.classList.toggle('hidden', n === 0);
+            const etiqueta = barra.querySelector('.conteo-sel');
+            if (etiqueta) etiqueta.innerText = n === 1 ? '1 orden seleccionada' : n + ' órdenes seleccionadas';
+        }
+
+        const PESTANAS_SERVICIO = {
+            prev: {
+                suf: 'Prev', conProximo: true,
+                datos: () => dataPreventivos,
+                titulo: 'preventivos', archivo: 'Mantenimientos_Preventivos'
+            },
+            cal: {
+                suf: 'Cal', conProximo: true,
+                datos: () => dataCalibraciones,
+                titulo: 'calibraciones', archivo: 'Calibraciones'
+            },
+            corr: {
+                suf: 'Corr', conProximo: false,
+                datos: () => dataCorrectivos,
+                titulo: 'correctivos y asistencias', archivo: 'Correctivos_Asistencias'
+            },
+            ent: {
+                suf: 'Ent', conProximo: false,
+                datos: () => dataEntregas,
+                titulo: 'entregas y materiales', archivo: 'Entregas_Materiales'
+            }
+        };
+
+        /* ============================================================
+           v3.9 — EXPORTACIÓN DEL CALENDARIO DE SERVICIOS
+
+           Un calendario valorizado: un renglón por servicio y una columna por
+           mes del periodo. El precio se coloca EN EL MES en que se realizó el
+           servicio, que es lo que permite leer de un vistazo cuánto se generó
+           cada mes y contra qué factura salió.
+
+           El periodo va por año calendario: el primer semestre es enero-junio
+           y el segundo julio-diciembre.
+
+           El precio sale del tarifario según el nivel elegido, que corresponde
+           al convenio del hospital. Un equipo sin tarifa no se omite: aparece
+           con el precio en blanco, porque esconderlo daría un total que parece
+           completo sin serlo.
+           ============================================================ */
+        const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                              'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+        let claveTabExportar = 'prev';
+
+        function mesesDelPeriodo() {
+            const periodo = document.getElementById('expPeriodo').value;
+            const rango = document.getElementById('expRango').value;
+            if (periodo === 'anual') return [0,1,2,3,4,5,6,7,8,9,10,11];
+            if (periodo === 'semestral') return (rango === '2') ? [6,7,8,9,10,11] : [0,1,2,3,4,5];
+            const m = parseInt(rango, 10);
+            return [Number.isFinite(m) ? m : new Date().getMonth()];
+        }
+
+        function etiquetaPeriodo() {
+            const periodo = document.getElementById('expPeriodo').value;
+            const anio = document.getElementById('expAnio').value;
+            const meses = mesesDelPeriodo();
+            if (periodo === 'anual') return 'Año ' + anio;
+            if (periodo === 'semestral') {
+                return (meses[0] === 0 ? 'Primer' : 'Segundo') + ' semestre ' + anio +
+                       ' (' + MESES_CORTOS[meses[0]] + '–' + MESES_CORTOS[meses[meses.length - 1]] + ')';
+            }
+            return MESES_CORTOS[meses[0]] + ' ' + anio;
+        }
+
+        function poblarRangoExportar() {
+            const periodo = document.getElementById('expPeriodo').value;
+            const sel = document.getElementById('expRango');
+            if (periodo === 'anual') {
+                sel.innerHTML = '<option value="">Todo el año</option>';
+                sel.disabled = true;
+            } else if (periodo === 'semestral') {
+                sel.innerHTML = '<option value="1">Enero – Junio</option><option value="2">Julio – Diciembre</option>';
+                sel.disabled = false;
+            } else {
+                sel.innerHTML = MESES_CORTOS.map((m, i) =>
+                    '<option value="' + i + '">' + MESES_ES[i].charAt(0).toUpperCase() + MESES_ES[i].slice(1) + '</option>').join('');
+                sel.value = String(new Date().getMonth());
+                sel.disabled = false;
+            }
+        }
+
+        // Órdenes de la unidad que caen en el periodo y el tipo elegidos
+        function serviciosParaExportar() {
+            const tipo = document.getElementById('expTipo').value;
+            const anio = document.getElementById('expAnio').value;
+            const meses = mesesDelPeriodo();
+
+            const origen = (tipo === 'todos')
+                ? [].concat(dataPreventivos, dataCalibraciones, dataCorrectivos, dataEntregas)
+                : PESTANAS_SERVICIO[tipo].datos();
+
+            return origen.filter(d => {
+                if (!d.FechaObj) return false;
+                if (String(d.Anio) !== String(anio)) return false;
+                // UTC, igual que el resto del archivo: así el mes coincide con
+                // la columna Mes y no se corre un día por la zona horaria
+                return meses.indexOf(d.FechaObj.getUTCMonth()) > -1;
+            }).sort((a, b) => a.FechaObj - b.FechaObj);
+        }
+
+        /* Arma los renglones del calendario: datos del equipo, factura y el
+           precio colocado en la columna del mes en que se ejecutó. */
+        function construirCalendario() {
+            const nivel = document.getElementById('expNivel').value;
+            const meses = mesesDelPeriodo();
+            const servicios = serviciosParaExportar();
+
+            const filas = servicios.map(d => {
+                const f = facturaPorOrden.get(String(d.ID).trim());
+                const tarifa = tarifaDeEquipo(d.Equipo, d['Tipo de Servicio']);
+                const precio = tarifa ? tarifa.precios[nivel] : null;
+                const mes = d.FechaObj.getUTCMonth();
+                return {
+                    equipo: d.Equipo || '', marca: d.Marca || '', modelo: d.Modelo || '',
+                    serie: d.Serie || '', inventario: d.Inventario || '',
+                    orden: d.ID || '', tipoServicio: d['Tipo de Servicio'] || '',
+                    fechaServicio: d.FechaEjecucionStr || '',
+                    factura: f ? f.numero : '', fechaFactura: f ? fechaCortaFactura(f.fecha) : '',
+                    mes: mes, precio: (precio === undefined ? null : precio),
+                    moneda: tarifa ? tarifa.moneda : 'MXN',
+                    sinTarifa: !tarifa
+                };
+            });
+
+            const totales = {};
+            meses.forEach(m => { totales[m] = 0; });
+            let total = 0, sinTarifa = 0;
+            filas.forEach(r => {
+                if (r.precio === null) { if (r.sinTarifa) sinTarifa++; return; }
+                totales[r.mes] = (totales[r.mes] || 0) + r.precio;
+                total += r.precio;
+            });
+
+            return { filas, meses, totales, total, sinTarifa, nivel };
+        }
+
+        function actualizarResumenExportar() {
+            const cal = construirCalendario();
+            const cont = document.getElementById('expResumen');
+            const moneda = (cal.filas[0] && cal.filas[0].moneda) || 'MXN';
+            if (cal.filas.length === 0) {
+                cont.innerHTML = '<span class="font-semibold text-slate-700">Sin servicios en ese periodo.</span> ' +
+                                 'Cambia el año, el periodo o el tipo de servicio.';
+                return;
+            }
+            cont.innerHTML =
+                '<span class="font-semibold text-slate-700">' + cal.filas.length + ' servicio(s)</span> · ' +
+                etiquetaPeriodo() + ' · importe ' + fmtMoneda(cal.total, moneda) +
+                (cal.sinTarifa
+                    ? '<br><span class="text-amber-700 font-semibold">' + cal.sinTarifa +
+                      ' servicio(s) sin tarifa en el tarifario: saldrán con el precio en blanco y no suman al total.</span>'
+                    : '');
+        }
+
+        function abrirModalExportar(clave) {
+            claveTabExportar = clave;
+            document.getElementById('expTipo').value = clave;
+            document.getElementById('expSubtitulo').innerText =
+                clienteActual + ' · el precio se coloca en el mes en que se realizó el servicio';
+
+            // Años disponibles en el historial de la unidad
+            const anios = aniosDisponibles([].concat(dataPreventivos, dataCalibraciones, dataCorrectivos, dataEntregas))
+                            .filter(a => a !== 'sin año');
+            const selAnio = document.getElementById('expAnio');
+            selAnio.innerHTML = (anios.length ? anios : [String(new Date().getFullYear())])
+                .map(a => '<option value="' + a + '">' + a + '</option>').join('');
+
+            document.getElementById('expPeriodo').value = 'anual';
+            poblarRangoExportar();
+            document.getElementById('expMensaje').classList.add('hidden');
+            actualizarResumenExportar();
+
+            const m = document.getElementById('modalExportar');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+
+        function cerrarModalExportar() {
+            const m = document.getElementById('modalExportar');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+
+        ['expPeriodo', 'expAnio', 'expRango', 'expTipo', 'expNivel'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                if (id === 'expPeriodo') poblarRangoExportar();
+                actualizarResumenExportar();
+            });
+        });
+
+        function mensajeExportarUI(texto, tipo) {
+            const el = document.getElementById('expMensaje');
+            const estilos = {
+                error: 'bg-red-50 text-red-700 border border-red-200',
+                ok:    'bg-green-50 text-green-700 border border-green-200',
+                info:  'bg-slate-100 text-slate-600 border border-slate-200'
+            };
+            el.className = 'text-xs rounded-lg p-3 ' + (estilos[tipo] || estilos.info);
+            el.innerText = texto;
+            el.classList.toggle('hidden', !texto);
+        }
+
+        const ENCABEZADOS_CALENDARIO = ['Equipo', 'Marca', 'Modelo', 'No. de serie', 'No. de orden',
+                                        'Tipo de servicio', 'Fecha del servicio', 'No. de factura', 'Fecha de factura'];
+
+        function nombreArchivoCalendario(ext) {
+            const limpio = (t) => normalizar(String(t || '')).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+            return 'Calendario_' + limpio(clienteActual) + '_' + limpio(etiquetaPeriodo()) +
+                   '_Nivel_' + document.getElementById('expNivel').value + '.' + ext;
+        }
+
+        /* ---------- Exportación a Excel ----------
+           SheetJS se carga solo cuando se exporta: no tiene sentido pesarle la
+           descarga a quien nunca usa esta pantalla. */
+        function cargarSheetJS() {
+            if (window.XLSX) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.'));
+                document.head.appendChild(s);
+            });
+        }
+
+        async function exportarCalendarioExcel() {
+            const cal = construirCalendario();
+            if (cal.filas.length === 0) { mensajeExportarUI('No hay servicios en ese periodo.', 'error'); return; }
+
+            const btn = document.getElementById('btnExportarExcel');
+            btn.disabled = true; btn.innerText = 'Generando…';
+            try {
+                await cargarSheetJS();
+
+                const encabezadoMeses = cal.meses.map(m => MESES_CORTOS[m]);
+                const aoa = [];
+                aoa.push(['Calendario de servicios']);
+                aoa.push([clienteActual]);
+                aoa.push([etiquetaPeriodo() + '  ·  Nivel de precio ' + cal.nivel]);
+                aoa.push([]);
+                aoa.push(ENCABEZADOS_CALENDARIO.concat(encabezadoMeses));
+
+                cal.filas.forEach(r => {
+                    const base = [r.equipo, r.marca, r.modelo, r.serie, r.orden,
+                                  r.tipoServicio, r.fechaServicio, r.factura, r.fechaFactura];
+                    const celdasMes = cal.meses.map(m => (m === r.mes && r.precio !== null) ? r.precio : '');
+                    aoa.push(base.concat(celdasMes));
+                });
+
+                aoa.push([]);
+                aoa.push(['Total'].concat(new Array(ENCABEZADOS_CALENDARIO.length - 1).fill(''))
+                           .concat(cal.meses.map(m => cal.totales[m] || 0)));
+                aoa.push(['Importe del periodo', cal.total]);
+                if (cal.sinTarifa) {
+                    aoa.push([cal.sinTarifa + ' servicio(s) sin tarifa en el tarifario; su precio quedó en blanco y no suma al total.']);
+                }
+
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
+                                 { wch: 26 }, { wch: 16 }, { wch: 14 }, { wch: 14 }]
+                                 .concat(cal.meses.map(() => ({ wch: 12 })));
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Calendario');
+                XLSX.writeFile(libro, nombreArchivoCalendario('xlsx'));
+
+                registrarEvento('exportar_calendario', 'Excel · ' + etiquetaPeriodo() + ' · nivel ' + cal.nivel +
+                                                        ' · ' + cal.filas.length + ' servicio(s)');
+                mensajeExportarUI('Archivo generado.', 'ok');
+            } catch (err) {
+                mensajeExportarUI(err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Exportar a Excel';
+            }
+        }
+
+        /* ---------- Exportación a PDF ----------
+           Se arma el calendario en una hoja aparte y se manda a imprimir: en el
+           diálogo del navegador se elige "Guardar como PDF". Es el mismo camino
+           que ya usa la rutina, y evita cargar otra librería. */
+        function exportarCalendarioPDF() {
+            const cal = construirCalendario();
+            if (cal.filas.length === 0) { mensajeExportarUI('No hay servicios en ese periodo.', 'error'); return; }
+
+            const moneda = (cal.filas[0] && cal.filas[0].moneda) || 'MXN';
+            const th = 'background:#005DA1;color:#fff;font-size:8pt;text-align:left;font-weight:700;';
+            const thMes = th + 'text-align:right;';
+
+            let html =
+                '<div style="font-family:Inter,Arial,sans-serif;color:#0f172a">' +
+                '<h1 style="font-size:15pt;margin:0 0 2mm">Calendario de servicios</h1>' +
+                '<p style="font-size:10pt;margin:0 0 1mm;font-weight:700">' + esc(clienteActual) + '</p>' +
+                '<p style="font-size:9pt;margin:0 0 4mm;color:#475569">' + esc(etiquetaPeriodo()) +
+                '  ·  Nivel de precio ' + esc(cal.nivel) +
+                '  ·  ' + cal.filas.length + ' servicio(s)</p>' +
+                '<table style="width:100%;border-collapse:collapse"><thead><tr>' +
+                ENCABEZADOS_CALENDARIO.map(h => '<th style="' + th + '">' + esc(h) + '</th>').join('') +
+                cal.meses.map(m => '<th style="' + thMes + '">' + MESES_CORTOS[m] + '</th>').join('') +
+                '</tr></thead><tbody>';
+
+            cal.filas.forEach(r => {
+                html += '<tr>' +
+                    [r.equipo, r.marca, r.modelo, r.serie, r.orden, r.tipoServicio,
+                     r.fechaServicio, r.factura || '—', r.fechaFactura || '—']
+                        .map(v => '<td style="font-size:8pt">' + esc(v) + '</td>').join('') +
+                    cal.meses.map(m => '<td style="font-size:8pt;text-align:right;' +
+                        (m === r.mes ? 'font-weight:700;' : 'color:#cbd5e1;') + '">' +
+                        (m === r.mes ? (r.precio === null ? 'sin tarifa' : fmtMoneda(r.precio, moneda)) : '') +
+                        '</td>').join('') +
+                '</tr>';
+            });
+
+            html += '</tbody><tfoot><tr>' +
+                '<td colspan="' + ENCABEZADOS_CALENDARIO.length + '" style="font-size:8.5pt;font-weight:700;background:#f1f5f9">Total por mes</td>' +
+                cal.meses.map(m => '<td style="font-size:8.5pt;text-align:right;font-weight:700;background:#f1f5f9">' +
+                                   fmtMoneda(cal.totales[m] || 0, moneda) + '</td>').join('') +
+                '</tr></tfoot></table>' +
+                '<p style="font-size:10pt;margin:4mm 0 0;text-align:right;font-weight:700">Importe del periodo: ' +
+                fmtMoneda(cal.total, moneda) + '</p>' +
+                (cal.sinTarifa
+                    ? '<p style="font-size:8pt;color:#92400e;margin-top:2mm">' + cal.sinTarifa +
+                      ' servicio(s) sin tarifa en el tarifario: su precio quedó en blanco y no suma al importe.</p>'
+                    : '') +
+                '</div>';
+
+            const cont = document.getElementById('calendarioImprimible');
+            cont.innerHTML = html;
+            cont.classList.remove('hidden');
+            document.body.classList.add('printing-calendario');
+
+            registrarEvento('exportar_calendario', 'PDF · ' + etiquetaPeriodo() + ' · nivel ' + cal.nivel +
+                                                    ' · ' + cal.filas.length + ' servicio(s)');
+
+            const limpiar = () => {
+                document.body.classList.remove('printing-calendario');
+                cont.classList.add('hidden');
+                cont.innerHTML = '';
+                window.removeEventListener('afterprint', limpiar);
+            };
+            window.addEventListener('afterprint', limpiar);
+            setTimeout(() => window.print(), 120);
+        }
+
+        document.getElementById('btnExportarExcel').addEventListener('click', exportarCalendarioExcel);
+        document.getElementById('btnExportarPDF').addEventListener('click', exportarCalendarioPDF);
+
+        /* ---------- Registro de factura ---------- */
+        let facturaEnEdicion = null;      // factura cargada, o null si es nueva
+        let ordenesFacturaActual = [];
+
+        function mensajeFacturaUI(texto, tipo) {
+            const el = document.getElementById('facMensaje');
+            const estilos = {
+                error: 'bg-red-50 text-red-700 border border-red-200',
+                ok:    'bg-green-50 text-green-700 border border-green-200',
+                info:  'bg-slate-100 text-slate-600 border border-slate-200'
+            };
+            el.className = 'text-xs rounded-lg p-3 ' + (estilos[tipo] || estilos.info);
+            el.innerText = texto;
+            el.classList.toggle('hidden', !texto);
+        }
+
+        function detalleOrden(id) {
+            return datosDetalleOrdenes.find(d => String(d.ID) === String(id) && d.Cliente === clienteActual) ||
+                   datosDetalleOrdenes.find(d => String(d.ID) === String(id)) || null;
+        }
+
+        function renderListaOrdenesFactura() {
+            const cont = document.getElementById('facListaOrdenes');
+            if (ordenesFacturaActual.length === 0) {
+                cont.innerHTML = '<p class="px-4 py-3 text-xs text-slate-500 italic">No quedó ninguna orden en esta factura.</p>';
+                return;
+            }
+            cont.innerHTML = ordenesFacturaActual.map(id => {
+                const d = detalleOrden(id);
+                return '<div class="flex items-center justify-between gap-3 px-4 py-2">' +
+                           '<div class="min-w-0">' +
+                               '<p class="text-xs font-bold text-slate-700">' + esc(id) + '</p>' +
+                               '<p class="text-[11px] text-slate-500 truncate">' +
+                                   (d ? esc(d.Equipo + ' · ' + d.FechaEjecucionStr) : 'Orden de otra unidad o ya no disponible') +
+                               '</p>' +
+                           '</div>' +
+                           '<button data-quitar-orden="' + esc(id) + '" class="shrink-0 text-[11px] font-semibold text-red-500 hover:text-red-700">Quitar</button>' +
+                       '</div>';
+            }).join('');
+        }
+
+        document.getElementById('facListaOrdenes').addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-quitar-orden]');
+            if (!btn) return;
+            ordenesFacturaActual = ordenesFacturaActual.filter(o => o !== btn.dataset.quitarOrden);
+            renderListaOrdenesFactura();
+        });
+
+        function abrirModalFactura(clave) {
+            const seleccion = ordenesSeleccionadas(clave);
+            if (seleccion.length === 0) return;
+
+            // Si alguna ya está facturada, se avisa y no se incluye
+            const yaFacturadas = seleccion.filter(o => facturaPorOrden.has(o));
+            ordenesFacturaActual = seleccion.filter(o => !facturaPorOrden.has(o));
+
+            if (ordenesFacturaActual.length === 0) {
+                mostrarAviso('Todas las órdenes seleccionadas ya están facturadas. ' +
+                             'Para revisarlas o corregirlas, haz clic en el folio de la columna Factura.');
+                return;
+            }
+
+            facturaEnEdicion = null;
+            document.getElementById('tituloModalFactura').innerText = 'Registrar factura';
+            document.getElementById('subtituloModalFactura').innerText =
+                clienteActual + ' · una factura puede cubrir varios servicios';
+            document.getElementById('facNumero').value = '';
+            document.getElementById('facFecha').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('facNotas').value = '';
+            document.getElementById('btnEliminarFactura').classList.add('hidden');
+
+            renderListaOrdenesFactura();
+            mensajeFacturaUI(yaFacturadas.length
+                ? ('Se excluyeron ' + yaFacturadas.length + ' orden(es) que ya están en otra factura: ' + yaFacturadas.join(', ') + '.')
+                : '', yaFacturadas.length ? 'info' : 'info');
+
+            const m = document.getElementById('modalFactura');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => document.getElementById('facNumero').focus(), 60);
+        }
+
+        function abrirFacturaExistente(idFactura) {
+            const f = facturas.find(x => x.id === idFactura);
+            if (!f) return;
+            facturaEnEdicion = f;
+            ordenesFacturaActual = (f.ordenes || []).slice();
+
+            document.getElementById('tituloModalFactura').innerText = 'Factura ' + f.numero;
+            document.getElementById('subtituloModalFactura').innerText =
+                (f.cliente || clienteActual) + ' · registrada por ' + (f.registradoPor || 'sin dato');
+            document.getElementById('facNumero').value = f.numero || '';
+            document.getElementById('facFecha').value = (f.fecha || '').slice(0, 10);
+            document.getElementById('facNotas').value = f.notas || '';
+            document.getElementById('btnEliminarFactura').classList.remove('hidden');
+
+            renderListaOrdenesFactura();
+            mensajeFacturaUI('', 'info');
+            const m = document.getElementById('modalFactura');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+
+        function cerrarModalFactura() {
+            const m = document.getElementById('modalFactura');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            facturaEnEdicion = null;
+            ordenesFacturaActual = [];
+        }
+
+        function limpiarSeleccion(clave) {
+            const cont = document.getElementById('content' + PESTANAS_SERVICIO[clave].suf);
+            cont.querySelectorAll('.chk-orden, .chk-todos').forEach(x => { x.checked = false; });
+            actualizarBarraFacturacion(clave);
+        }
+
+        async function guardarFacturaDesdeModal() {
+            const numero = document.getElementById('facNumero').value.trim();
+            const fecha = document.getElementById('facFecha').value;
+            const notas = document.getElementById('facNotas').value.trim();
+
+            if (!numero) { mensajeFacturaUI('Captura el número de factura.', 'error'); return; }
+            if (!fecha) { mensajeFacturaUI('Captura la fecha de la factura.', 'error'); return; }
+            if (ordenesFacturaActual.length === 0) { mensajeFacturaUI('La factura debe cubrir al menos una orden.', 'error'); return; }
+            if (!hayBackend()) { mensajeFacturaUI('La facturación requiere el backend de Apps Script configurado.', 'error'); return; }
+
+            const btn = document.getElementById('btnGuardarFactura');
+            btn.disabled = true; btn.innerText = 'Guardando…';
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        accion: 'guardarFactura', token: TOKEN_API,
+                        usuario: nombreUsuario(),
+                        factura: {
+                            id: facturaEnEdicion ? facturaEnEdicion.id : '',
+                            cliente: facturaEnEdicion ? (facturaEnEdicion.cliente || clienteActual) : clienteActual,
+                            numero: numero, fecha: fecha, notas: notas,
+                            ordenes: ordenesFacturaActual
+                        }
+                    })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo guardar la factura.');
+
+                registrarEvento('factura_registrada',
+                    'Factura ' + numero + ' · ' + ordenesFacturaActual.length + ' orden(es)');
+                const n = ordenesFacturaActual.length;
+                cerrarModalFactura();
+                await cargarFacturas();
+                Object.keys(PESTANAS_SERVICIO).forEach(k => { renderTablaServicio(k); limpiarSeleccion(k); });
+                mostrarAviso('Factura ' + numero + ' registrada con ' + n + ' servicio(s).');
+            } catch (err) {
+                mensajeFacturaUI(err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Guardar factura';
+            }
+        }
+
+        async function eliminarFacturaActual() {
+            if (!facturaEnEdicion) return;
+            if (!confirm('¿Eliminar la factura ' + facturaEnEdicion.numero + '? Las ' +
+                         (facturaEnEdicion.ordenes || []).length + ' orden(es) volverán a aparecer como no facturadas.')) return;
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        accion: 'eliminarFactura', token: TOKEN_API,
+                        usuario: nombreUsuario(), id: facturaEnEdicion.id
+                    })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo eliminar.');
+                const num = facturaEnEdicion.numero;
+                cerrarModalFactura();
+                await cargarFacturas();
+                Object.keys(PESTANAS_SERVICIO).forEach(k => renderTablaServicio(k));
+                mostrarAviso('Factura ' + num + ' eliminada.');
+            } catch (err) {
+                mensajeFacturaUI(err.message, 'error');
+            }
+        }
+
+        document.getElementById('btnGuardarFactura').addEventListener('click', guardarFacturaDesdeModal);
+        document.getElementById('btnEliminarFactura').addEventListener('click', eliminarFacturaActual);
+
+        const elPestana = (clave, base) =>
+            document.getElementById(base + PESTANAS_SERVICIO[clave].suf);
+
+        function obtenerServiciosFiltrados(clave) {
+            const c = PESTANAS_SERVICIO[clave];
+            const textoBusqueda = normalizar(elPestana(clave, 'filtroTexto').value.toLowerCase());
+            const anio = elPestana(clave, 'filtroAnio').value;
+            const mesEjec = elPestana(clave, 'filtroMesEjec').value;
+            const mesProx = c.conProximo ? elPestana(clave, 'filtroMesProx').value : 'todos';
+
+            return c.datos().filter(d => {
+                const blob = normalizar((d.ID + ' ' + d.Equipo + ' ' + d.Marca + ' ' + d.Serie + ' ' +
+                                         d.Modelo + ' ' + d.Inventario + ' ' + d.Area).toLowerCase());
                 const coincideTexto = !textoBusqueda || blob.includes(textoBusqueda);
                 const coincideAnio = anio === 'todos' || d.Anio === anio;
                 const coincideMesEjec = mesEjec === 'todos' || d.Mes === mesEjec;
-                const coincideMes = mesPruebas === 'todos' || d.MesProximoMant.toString() === mesPruebas;
-                return coincideTexto && coincideAnio && coincideMesEjec && coincideMes;
+                const coincideProx = mesProx === 'todos' ||
+                                     (d.MesProximoMant !== undefined && d.MesProximoMant.toString() === mesProx);
+                return coincideTexto && coincideAnio && coincideMesEjec && coincideProx;
             });
-
-            // MEJORA: ordenar por próximo mantenimiento (los sin fecha al final)
-            filtrados.sort((a, b) => {
-                if (!a.ProximoMantDate && !b.ProximoMantDate) return 0;
-                if (!a.ProximoMantDate) return 1;
-                if (!b.ProximoMantDate) return -1;
-                return a.ProximoMantDate - b.ProximoMantDate;
-            });
-            return filtrados;
         }
 
-        // FIX: CSV con todos los campos escapados (comillas dobles internas)
-        function exportarCSVPrev() {
-            const filtrados = obtenerPreventivosFiltrados();
-            if (filtrados.length === 0) return alert("No hay datos para exportar");
-
-            const campo = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-            let csv = "\uFEFFOrden,Equipo,Marca,Modelo,Serie,Inventario,Area,Fecha Ejecucion,Proximo Mantenimiento\n";
-            filtrados.forEach(d => {
-                csv += [d.ID, d.Equipo, d.Marca, d.Modelo, d.Serie, d.Inventario, d.Area, d.FechaEjecucionStr, d.ProximoMantStr].map(campo).join(',') + "\n";
-            });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `Mantenimientos_Preventivos_${clienteActual.replace(/\s+/g, '_')}.csv`;
-            link.click();
-            URL.revokeObjectURL(link.href);
-            registrarEvento('exportar_csv', filtrados.length + ' registros'); // v2.6 bitácora
-        }
-
-        function imprimirTablaPrev() {
-            registrarEvento('imprimir_tabla', 'Preventivos'); // v2.6 bitácora
-            window.print();
-        }
-
-        function renderTablaPreventivos() {
-            const tbody = document.getElementById('tablaPreventivos');
+        function renderTablaServicio(clave) {
+            const c = PESTANAS_SERVICIO[clave];
+            const tbody = elPestana(clave, 'tabla');
+            if (!tbody) return;
             tbody.innerHTML = '';
 
-            const filtrados = obtenerPreventivosFiltrados();
-            document.getElementById('contadorPrev').innerText = filtrados.length + ' de ' + dataPreventivos.length + ' registros';
+            const filtrados = obtenerServiciosFiltrados(clave);
+            elPestana(clave, 'contador').innerText =
+                filtrados.length + ' de ' + c.datos().length + ' registros';
 
             if (filtrados.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">No hay mantenimientos preventivos que coincidan con la búsqueda.</td></tr>`;
+                tbody.innerHTML = '<tr><td colspan="' + (c.conProximo ? 9 : 8) +
+                    '" class="px-4 py-8 text-center text-slate-500">No hay ' + c.titulo +
+                    ' que coincidan con la búsqueda.</td></tr>';
                 return;
             }
 
@@ -2671,42 +3721,109 @@
             // mantenimiento que vence HOY no aparezca como "vencido"
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
-            filtrados.forEach(d => {
-                // MEJORA: alerta visual de mantenimiento vencido
-                const vencido = d.ProximoMantDate && d.ProximoMantDate < hoy;
-                const badgeVencido = vencido ? '<span class="ml-2 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Vencido</span>' : '';
 
+            filtrados.forEach(d => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors';
-                tr.innerHTML = `
-                    <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">${esc(d.ID)}</td>
-                    <td class="px-4 py-3">
-                        <div class="font-semibold text-slate-800">${esc(d.Equipo)}</div>
-                        <div class="text-xs text-slate-500">${esc(d.Marca)} / ${esc(d.Modelo)}</div>
-                    </td>
-                    <td class="px-4 py-3">
-                        <div class="text-slate-800">${esc(d.Serie)}</div>
-                        <div class="text-xs text-slate-500">Inv: ${esc(d.Inventario)}</div>
-                    </td>
-                    <td class="px-4 py-3 text-slate-600">${esc(d.Area)}</td>
-                    <td class="px-4 py-3 text-slate-600">${esc(d.FechaEjecucionStr)}</td>
-                    <td class="px-4 py-3 font-bold ${vencido ? 'text-red-600' : 'text-brand-600'}">${esc(d.ProximoMantStr)}${badgeVencido}</td>
-                    <td class="px-4 py-3 text-right no-print">
-                        <button data-id="${esc(d.ID)}" class="btn-rutina text-brand-600 hover:text-brand-800 hover:bg-brand-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors border border-transparent hover:border-brand-200 shadow-sm bg-white">
-                            Generar Rutina
-                        </button>
-                    </td>
-                `;
+
+                const celdaChk = `<td class="px-3 py-3 no-print"><input type="checkbox" class="chk-orden rounded border-slate-300" data-orden="${esc(d.ID)}"></td>`;
+                const celdaFactura = `<td class="px-4 py-3">${htmlCeldaFactura(d.ID)}</td>`;
+
+                if (c.conProximo) {
+                    const vencido = d.ProximoMantDate && d.ProximoMantDate < hoy;
+                    const badge = vencido
+                        ? '<span class="ml-2 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Vencido</span>'
+                        : '';
+                    tr.innerHTML = celdaChk + `
+                        <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">${esc(d.ID)}</td>
+                        <td class="px-4 py-3">
+                            <div class="font-semibold text-slate-800">${esc(d.Equipo)}</div>
+                            <div class="text-xs text-slate-500">${esc(d.Marca)} / ${esc(d.Modelo)}</div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="text-slate-800">${esc(d.Serie)}</div>
+                            <div class="text-xs text-slate-500">Inv: ${esc(d.Inventario)}</div>
+                        </td>
+                        <td class="px-4 py-3 text-slate-600">${esc(d.Area)}</td>
+                        <td class="px-4 py-3 text-slate-600">${esc(d.FechaEjecucionStr)}</td>
+                        <td class="px-4 py-3 font-bold ${vencido ? 'text-red-600' : 'text-brand-600'}">${esc(d.ProximoMantStr)}${badge}</td>
+                        ` + celdaFactura + `
+                        <td class="px-4 py-3 text-right no-print">
+                            <button data-id="${esc(d.ID)}" class="btn-rutina text-brand-600 hover:text-brand-800 hover:bg-brand-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors border border-transparent hover:border-brand-200 shadow-sm bg-white">
+                                Generar Rutina
+                            </button>
+                        </td>`;
+                } else {
+                    tr.innerHTML = celdaChk + `
+                        <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">${esc(d.ID)}</td>
+                        <td class="px-4 py-3 text-slate-800 font-medium">${esc(d.Equipo)}</td>
+                        <td class="px-4 py-3 text-slate-600">${esc(d.Marca)} / ${esc(d.Modelo)}</td>
+                        <td class="px-4 py-3 text-slate-600">${esc(d.Serie)}</td>
+                        <td class="px-4 py-3 text-slate-500 text-xs">${esc(d['Tipo de Servicio'])}</td>
+                        <td class="px-4 py-3 text-slate-600">${esc(d.FechaEjecucionStr)}</td>
+                        ` + celdaFactura;
+                }
                 tbody.appendChild(tr);
+            });
+
+            // v3.8: al redibujar se pierde la selección; la barra debe reflejarlo
+            const chkTodos = document.getElementById('content' + c.suf);
+            if (chkTodos) {
+                const t = chkTodos.querySelector('.chk-todos');
+                if (t) t.checked = false;
+            }
+            actualizarBarraFacturacion(clave);
+        }
+
+        /* Deja las cuatro pestañas listas al abrir una unidad: llena los años,
+           limpia los filtros y dibuja las tablas. */
+        function prepararPestanasServicio() {
+            Object.keys(PESTANAS_SERVICIO).forEach(clave => {
+                const c = PESTANAS_SERVICIO[clave];
+                poblarSelectAnios('filtroAnio' + c.suf, c.datos());
+                elPestana(clave, 'filtroTexto').value = '';
+                elPestana(clave, 'filtroAnio').value = 'todos';
+                if (c.conProximo) elPestana(clave, 'filtroMesProx').value = 'todos';
+                poblarSelectMeses('filtroMesEjec' + c.suf, c.datos(), 'todos',
+                                  c.conProximo ? 'Todos' : 'Todos los meses');
+                renderTablaServicio(clave);
             });
         }
 
-        // FIX: delegación de eventos en vez de onclick inline (evita romperse con
-        // comillas u otros caracteres en el ID)
-        document.getElementById('tablaPreventivos').addEventListener('click', (e) => {
-            const btn = e.target.closest('button.btn-rutina');
-            if (btn) abrirRutina(btn.dataset.id);
-        });
+        function exportarCSVServicio(clave) {
+            const c = PESTANAS_SERVICIO[clave];
+            const filtrados = obtenerServiciosFiltrados(clave);
+            if (filtrados.length === 0) return alert('No hay datos para exportar');
+
+            const campo = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+            const cabecera = c.conProximo
+                ? 'Orden,Equipo,Marca,Modelo,Serie,Inventario,Area,Fecha Ejecucion,Proximo Servicio'
+                : 'Orden,Equipo,Marca,Modelo,Serie,Inventario,Area,Fecha Ejecucion,Tipo de Servicio';
+            let csv = '\uFEFF' + cabecera + '\n';
+            filtrados.forEach(d => {
+                const fila = [d.ID, d.Equipo, d.Marca, d.Modelo, d.Serie, d.Inventario, d.Area, d.FechaEjecucionStr,
+                              c.conProximo ? d.ProximoMantStr : d['Tipo de Servicio']];
+                csv += fila.map(campo).join(',') + '\n';
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = c.archivo + '_' + clienteActual.replace(/\s+/g, '_') + '.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+            registrarEvento('exportar_csv', c.titulo + ' · ' + filtrados.length + ' registros');
+        }
+
+        function imprimirTablaServicio(clave) {
+            registrarEvento('imprimir_tabla', PESTANAS_SERVICIO[clave].titulo);
+            window.print();
+        }
+
+        // Nombres anteriores, por si quedan llamadas sueltas en el archivo
+        const renderTablaPreventivos = () => renderTablaServicio('prev');
+        const renderTablaCorrectivos = () => renderTablaServicio('corr');
+        const obtenerPreventivosFiltrados = () => obtenerServiciosFiltrados('prev');
+
 
         /* ============================================================
            PARSER ESTRUCTURADO DE MEDICIONES
@@ -3360,7 +4477,11 @@
            MODAL DE RUTINA
            ============================================================ */
         function abrirRutina(id) {
-            const eq = dataPreventivos.find(d => d.ID === id);
+            /* v3.7: la rutina se genera tanto desde Preventivos como desde
+               Calibraciones, así que se busca en ambos conjuntos. Antes solo
+               miraba los preventivos y el botón de calibración no hacía nada. */
+            const eq = dataPreventivos.find(d => d.ID === id) ||
+                       dataCalibraciones.find(d => d.ID === id);
             if (!eq) return;
 
             const modal = document.getElementById('modalRutina');
@@ -4181,56 +5302,48 @@
         /* ============================================================
            TABLA DE CORRECTIVOS
            ============================================================ */
-        function renderTablaCorrectivos() {
-            const tbody = document.getElementById('tablaCorrectivos');
-            tbody.innerHTML = '';
-
-            const anioCorr = document.getElementById('filtroAnioCorr').value;
-            const mesCorr = document.getElementById('filtroMesCorr').value;
-            const filtrados = dataCorrectivos.filter(d =>
-                (anioCorr === 'todos' || d.Anio === anioCorr) &&
-                (mesCorr === 'todos' || d.Mes === mesCorr));
-            document.getElementById('contadorCorr').innerText = filtrados.length + ' de ' + dataCorrectivos.length + ' registros';
-
-            if (filtrados.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">No hay mantenimientos correctivos en el periodo seleccionado.</td></tr>`;
-                return;
-            }
-
-            filtrados.forEach(d => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 transition-colors';
-                tr.innerHTML = `
-                    <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">${esc(d.ID)}</td>
-                    <td class="px-4 py-3 text-slate-800 font-medium">${esc(d.Equipo)}</td>
-                    <td class="px-4 py-3 text-slate-600">${esc(d.Marca)} / ${esc(d.Modelo)}</td>
-                    <td class="px-4 py-3 text-slate-600">${esc(d.Serie)}</td>
-                    <td class="px-4 py-3 text-slate-500 text-xs">${esc(d['Tipo de Servicio'])}</td>
-                    <td class="px-4 py-3 text-slate-600">${esc(d.FechaEjecucionStr)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
         // v2.7: debounce — antes se re-renderizaba la tabla completa en cada tecla
         const debounce = (fn, ms = 180) => {
             let t;
             return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
         };
-        document.getElementById('filtroTextoPrev').addEventListener('input', debounce(renderTablaPreventivos));
-        document.getElementById('filtroAnioPrev').addEventListener('change', () => {
-            poblarSelectMeses('filtroMesEjecPrev', dataPreventivos,
-                              document.getElementById('filtroAnioPrev').value, 'Todos');
-            renderTablaPreventivos();
+        // v3.7: los mismos listeners para las cuatro pestañas de servicio
+        Object.keys(PESTANAS_SERVICIO).forEach(clave => {
+            const c = PESTANAS_SERVICIO[clave];
+            const el = (base) => document.getElementById(base + c.suf);
+
+            el('filtroTexto').addEventListener('input', debounce(() => renderTablaServicio(clave)));
+
+            el('filtroAnio').addEventListener('change', () => {
+                poblarSelectMeses('filtroMesEjec' + c.suf, c.datos(),
+                                  el('filtroAnio').value, c.conProximo ? 'Todos' : 'Todos los meses');
+                renderTablaServicio(clave);
+            });
+            el('filtroMesEjec').addEventListener('change', () => renderTablaServicio(clave));
+
+            if (c.conProximo) el('filtroMesProx').addEventListener('change', () => renderTablaServicio(clave));
+
+            // La rutina solo se genera desde las pestañas con próximo servicio
+            el('tabla').addEventListener('click', (e) => {
+                const btn = e.target.closest('button.btn-rutina');
+                if (btn) { abrirRutina(btn.dataset.id); return; }
+
+                // v3.8: el folio de factura abre la factura completa
+                const fac = e.target.closest('button.btn-ver-factura');
+                if (fac) { abrirFacturaExistente(fac.dataset.factura); return; }
+            });
+
+            // v3.8: selección de órdenes para facturar
+            el('tabla').addEventListener('change', (e) => {
+                if (e.target.classList.contains('chk-orden')) actualizarBarraFacturacion(clave);
+            });
+
+            const chkTodos = document.getElementById('content' + c.suf).querySelector('.chk-todos');
+            if (chkTodos) chkTodos.addEventListener('change', () => {
+                el('tabla').querySelectorAll('.chk-orden').forEach(x => { x.checked = chkTodos.checked; });
+                actualizarBarraFacturacion(clave);
+            });
         });
-        document.getElementById('filtroAnioCorr').addEventListener('change', () => {
-            poblarSelectMeses('filtroMesCorr', dataCorrectivos,
-                              document.getElementById('filtroAnioCorr').value, 'Todos los meses');
-            renderTablaCorrectivos();
-        });
-        document.getElementById('filtroMesEjecPrev').addEventListener('change', renderTablaPreventivos);
-        document.getElementById('filtroMesPrev').addEventListener('change', renderTablaPreventivos);
-        document.getElementById('filtroMesCorr').addEventListener('change', renderTablaCorrectivos);
         document.getElementById('buscadorClientes').addEventListener('input', debounce((e) => generarSidebarClientes(e.target.value)));
         document.getElementById('btnSidebarToggle').addEventListener('click', toggleSidebar);
         document.getElementById('sidebarOverlay').addEventListener('click', toggleSidebar);
@@ -4676,6 +5789,7 @@
             cerrarSidebarMovil();
             registrarEvento('ver_usuarios');
             cargarListaUsuarios();
+            renderTarifario();
         }
 
         /* Llamada al backend con la credencial de administrador. Si la
@@ -4756,6 +5870,55 @@
             const d = new Date(iso);
             return isNaN(d) ? String(iso) : d.toLocaleDateString('es-MX');
         };
+
+        /* v3.8: el tarifario se captura en Sheets, pero conviene verlo desde
+           aquí tal como quedó LEÍDO, y sobre todo saber qué equipos del
+           historial no tienen tarifa: son los que saldrían sin precio en la
+           exportación valorizada. */
+        function renderTarifario() {
+            const cont = document.getElementById('vistaTarifario');
+            if (!cont) return;
+
+            if (!catalogoPrecios.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic p-6">No se leyó ningún renglón del tarifario. ' +
+                    'Crea la pestaña con <span class="font-mono">crearHojasTarifarioYFacturacion()</span> en Apps Script y captura las tarifas.</p>';
+                return;
+            }
+
+            const th = 'px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const td = 'px-4 py-3 text-sm text-slate-700';
+
+            // Equipos del historial sin tarifa
+            const equipos = [...new Set(datosDetalleOrdenes.map(d => d.Equipo).filter(Boolean))];
+            const sinTarifa = equipos.filter(e => !tarifaDeEquipo(e));
+
+            cont.innerHTML =
+                '<table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr>' +
+                    '<th class="' + th + '">Servicio</th><th class="' + th + '">Tipo de equipo</th>' +
+                    '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
+                    '<th class="' + th + ' text-right">Nivel III</th>' +
+                '</tr></thead><tbody class="divide-y divide-slate-100 bg-white">' +
+                catalogoPrecios.map(t =>
+                    '<tr class="hover:bg-slate-50">' +
+                        '<td class="' + td + ' text-xs text-slate-500">' + esc(t.servicio) + '</td>' +
+                        '<td class="' + td + ' font-semibold text-slate-900">' + esc(t.equipo) + '</td>' +
+                        '<td class="' + td + ' text-right font-mono">' + fmtMoneda(t.precios.I, t.moneda) + '</td>' +
+                        '<td class="' + td + ' text-right font-mono">' + fmtMoneda(t.precios.II, t.moneda) + '</td>' +
+                        '<td class="' + td + ' text-right font-mono">' + fmtMoneda(t.precios.III, t.moneda) + '</td>' +
+                    '</tr>').join('') +
+                '</tbody></table>' +
+                (sinTarifa.length
+                    ? '<div class="px-6 py-4 bg-amber-50 border-t border-amber-200">' +
+                          '<p class="text-xs font-bold text-amber-800">' + sinTarifa.length +
+                          ' tipo(s) de equipo del historial no tienen tarifa</p>' +
+                          '<p class="text-[11px] text-amber-700 mt-1 leading-snug">' + esc(sinTarifa.slice(0, 14).join(' · ')) +
+                          (sinTarifa.length > 14 ? ' …' : '') + '</p>' +
+                          '<p class="text-[11px] text-amber-700 mt-1">Saldrían sin precio en la exportación valorizada. ' +
+                          'Basta agregar el tipo genérico: "Ventilador" cubre a "Ventilador volumétrico Puritan Bennett 840".</p>' +
+                      '</div>'
+                    : '<div class="px-6 py-3 bg-green-50 border-t border-green-200 text-xs font-semibold text-green-800">' +
+                          'Todos los equipos del historial tienen tarifa.</div>');
+        }
 
         async function cargarListaUsuarios() {
             const cont = document.getElementById('listaUsuarios');
@@ -5699,6 +6862,8 @@
         // Escape cierra la rutina o el modal de oportunidades (nunca el de acceso)
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
+            const mf = document.getElementById('modalFactura');
+            if (!mf.classList.contains('hidden')) { cerrarModalFactura(); return; }
             const mp = document.getElementById('modalCambiarPin');
             if (!mp.classList.contains('hidden')) { cerrarCambiarPin(); return; }
             const mc = document.getElementById('modalCorreo');

@@ -26,7 +26,7 @@
  *     el mismo día. La copia local es el respaldo, no la fuente.
  * ==========================================================================*/
 
-const VERSION = 'v3.4';
+const VERSION = 'v3.9';
 const CACHE_APP    = 'ia-app-' + VERSION;     // la página y sus iconos
 const CACHE_LIBS   = 'ia-libs-' + VERSION;    // librerías externas
 const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
@@ -47,6 +47,11 @@ const LIBRERIAS = [
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0',
   'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js'
 ];
+
+/* v3.9: SheetJS se carga solo al exportar a Excel, así que no va en la
+   precarga: se guarda en el mismo caché la primera vez que se use, y de ahí
+   en adelante la exportación funciona aunque el hospital bloquee el dominio.
+   (El interceptor de librerías ya cubre cdnjs, así que no hace falta más.) */
 
 /* ------------------------------ INSTALACIÓN ----------------------------- */
 
