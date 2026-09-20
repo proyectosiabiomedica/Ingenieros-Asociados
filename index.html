@@ -431,17 +431,24 @@
 
         <div id="errorBanner" class="hidden max-w-7xl mx-auto px-4 mt-6 fade-in no-print">
             <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-xl shadow-sm">
-                <div class="flex items-center">
-                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <p class="font-bold text-lg">Error al cargar información</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <p class="font-bold text-lg flex-1">Error al cargar información</p>
+                    <!-- v4.2: el error tampoco debe quedarse fijo si ya se resolvió -->
+                    <button onclick="ocultarError()" class="shrink-0 text-red-500 hover:text-red-800 text-xl leading-none" title="Cerrar">&times;</button>
                 </div>
                 <p id="errorTexto" class="mt-2 font-medium">Revisa la consola para más detalles.</p>
             </div>
         </div>
 
         <!-- v2.6: aviso no bloqueante (p. ej. si solo falla la hoja de KPIs) -->
+        <!-- v4.2: el aviso se cierra solo a los 8 segundos y trae su propia X.
+             Antes se quedaba arriba indefinidamente y se iban acumulando. -->
         <div id="avisoBanner" class="hidden max-w-7xl mx-auto px-4 mt-6 fade-in no-print">
-            <div class="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-xl shadow-sm text-sm font-medium" id="avisoTexto"></div>
+            <div class="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-xl shadow-sm text-sm font-medium flex items-start gap-3">
+                <span id="avisoTexto" class="flex-1"></span>
+                <button onclick="ocultarAviso()" class="shrink-0 text-amber-600 hover:text-amber-900 text-lg leading-none -mt-0.5" title="Cerrar">&times;</button>
+            </div>
         </div>
 
         <!-- ================= VISTA DASHBOARD GENERAL ================= -->
@@ -988,6 +995,131 @@
             </div>
 
         </div>
+
+        <!-- v4.2: estas dos vistas vivían FUERA de <main>, colgando del body,
+             que es un flex de altura fija. Al no estar en el contenedor que
+             tiene overflow-y-auto, no había forma de deslizar y la parte de
+             abajo quedaba inalcanzable. Aquí adentro heredan su scroll. -->
+        <!-- ============ v4.0: auditoría financiera ============ -->
+        <div id="auditoriaContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full">
+            <div class="mb-6 no-print">
+                <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Auditoría financiera</h2>
+                <p class="text-sm text-slate-500 mt-1">Lo facturado y lo pendiente de facturar, visto por factura en lugar de orden por orden.</p>
+            </div>
+
+            <!-- Filtros -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6 no-print">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
+                        <select id="audCliente" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Año</label>
+                        <select id="audAnio" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Periodo</label>
+                        <select id="audPeriodo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="anual">Todo el año</option>
+                            <option value="s1">Enero – Junio</option>
+                            <option value="s2">Julio – Diciembre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
+                        <select id="audNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="I">Nivel I</option>
+                            <option value="II">Nivel II</option>
+                            <option value="III">Nivel III</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Buscar</label>
+                        <input type="text" id="audTexto" placeholder="Factura, orden, equipo…"
+                               class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Indicadores -->
+            <div id="audAvisos"></div>
+            <div id="audResumen" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+
+            <!-- Pestañas -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-5 flex-wrap no-print">
+                    <button id="tabAudFac" onclick="cambiarPestanaAuditoria('facturado')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">
+                        Facturas emitidas
+                    </button>
+                    <button id="tabAudPend" onclick="cambiarPestanaAuditoria('pendiente')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
+                        Servicios sin facturar
+                        <span id="audBadgePend" class="hidden bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                    </button>
+                    <div class="ml-auto flex items-center gap-2 py-2.5">
+                        <button onclick="exportarAuditoriaPDF()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Imprimir / PDF</button>
+                        <button onclick="exportarAuditoriaExcel()" class="bg-green-700 hover:bg-green-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Excel</button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="audListaFacturas"></div>
+                    <div id="audListaPendientes" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ v3.1: administración de usuarios ============ -->
+        <div id="adminUsuariosContent" class="hidden p-6 lg:p-10 max-w-5xl mx-auto w-full no-print">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Usuarios de la plataforma</h2>
+                <p class="text-sm text-slate-500 mt-1">Alta y baja de ingenieros con acceso al panel. Cada movimiento queda en la bitácora.</p>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-8">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <h3 id="tituloFormUsuario" class="text-sm font-bold text-slate-800 uppercase tracking-wide">Dar de alta un usuario</h3>
+                    <button id="btnCancelarEdicion" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar edición</button>
+                </div>
+                <p id="avisoEdicionUsuario" class="hidden mb-3 text-xs bg-brand-50 border border-brand-200 text-brand-800 rounded-lg p-3"></p>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <input type="text" id="usuNombre" placeholder="Nombre completo" class="sm:col-span-2 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    <input type="password" id="usuPin" placeholder="PIN (mínimo 4)" class="p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    <select id="usuRol" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                        <option value="usuario">Usuario</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="flex items-center justify-between gap-3 mt-4">
+                    <p class="text-[11px] text-slate-400 leading-snug">
+                        Al editar, deja el PIN vacío para conservar el actual.
+                        El PIN no se guarda en claro, se almacena su huella. <strong>Cada persona necesita un PIN distinto</strong>:
+                        como el ingreso es solo con PIN, es lo que la identifica en la bitácora.
+                    </p>
+                    <button id="btnGuardarUsuario" class="shrink-0 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors">Guardar usuario</button>
+                </div>
+                <p id="usuMensaje" class="hidden text-xs rounded-lg p-3 mt-3"></p>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Tarifario de mantenimiento</h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Se captura en la pestaña <span class="font-mono">Precios_Mantenimiento</span>. Aplica a preventivos y calibraciones.</p>
+                    </div>
+                    <button onclick="renderTarifario()" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Actualizar</button>
+                </div>
+                <div id="vistaTarifario" class="overflow-x-auto"></div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Usuarios registrados</h3>
+                    <button id="btnRecargarUsuarios" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Actualizar lista</button>
+                </div>
+                <div id="listaUsuarios" class="overflow-x-auto"></div>
+            </div>
+        </div>
+
     </main>
 
     <!-- Modal Rutina de Mantenimiento -->
@@ -1400,124 +1532,9 @@
     </div>
 
     <!-- ============ v3.1: Administración de usuarios (solo administrador) ============ -->
-    <!-- ============ v4.0: auditoría financiera ============ -->
-    <div id="auditoriaContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full">
-        <div class="mb-6 no-print">
-            <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Auditoría financiera</h2>
-            <p class="text-sm text-slate-500 mt-1">Lo facturado y lo pendiente de facturar, visto por factura en lugar de orden por orden.</p>
-        </div>
 
-        <!-- Filtros -->
-        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6 no-print">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
-                    <select id="audCliente" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Año</label>
-                    <select id="audAnio" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Periodo</label>
-                    <select id="audPeriodo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
-                        <option value="anual">Todo el año</option>
-                        <option value="s1">Enero – Junio</option>
-                        <option value="s2">Julio – Diciembre</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
-                    <select id="audNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
-                        <option value="I">Nivel I</option>
-                        <option value="II">Nivel II</option>
-                        <option value="III">Nivel III</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Buscar</label>
-                    <input type="text" id="audTexto" placeholder="Factura, orden, equipo…"
-                           class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
-                </div>
-            </div>
-        </div>
 
-        <!-- Indicadores -->
-        <div id="audAvisos"></div>
-        <div id="audResumen" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
-
-        <!-- Pestañas -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-5 flex-wrap no-print">
-                <button id="tabAudFac" onclick="cambiarPestanaAuditoria('facturado')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">
-                    Facturas emitidas
-                </button>
-                <button id="tabAudPend" onclick="cambiarPestanaAuditoria('pendiente')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
-                    Servicios sin facturar
-                    <span id="audBadgePend" class="hidden bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
-                </button>
-                <div class="ml-auto flex items-center gap-2 py-2.5">
-                    <button onclick="exportarAuditoriaPDF()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Imprimir / PDF</button>
-                    <button onclick="exportarAuditoriaExcel()" class="bg-green-700 hover:bg-green-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Excel</button>
-                </div>
-            </div>
-            <div class="p-6">
-                <div id="audListaFacturas"></div>
-                <div id="audListaPendientes" style="display:none;"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="adminUsuariosContent" class="hidden p-6 lg:p-10 max-w-5xl mx-auto w-full no-print">
-        <div class="mb-8">
-            <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Usuarios de la plataforma</h2>
-            <p class="text-sm text-slate-500 mt-1">Alta y baja de ingenieros con acceso al panel. Cada movimiento queda en la bitácora.</p>
-        </div>
-
-        <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-8">
-            <div class="flex items-center justify-between gap-3 mb-4">
-                <h3 id="tituloFormUsuario" class="text-sm font-bold text-slate-800 uppercase tracking-wide">Dar de alta un usuario</h3>
-                <button id="btnCancelarEdicion" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar edición</button>
-            </div>
-            <p id="avisoEdicionUsuario" class="hidden mb-3 text-xs bg-brand-50 border border-brand-200 text-brand-800 rounded-lg p-3"></p>
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <input type="text" id="usuNombre" placeholder="Nombre completo" class="sm:col-span-2 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
-                <input type="password" id="usuPin" placeholder="PIN (mínimo 4)" class="p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
-                <select id="usuRol" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
-                    <option value="usuario">Usuario</option>
-                    <option value="admin">Administrador</option>
-                </select>
-            </div>
-            <div class="flex items-center justify-between gap-3 mt-4">
-                <p class="text-[11px] text-slate-400 leading-snug">
-                    Al editar, deja el PIN vacío para conservar el actual.
-                    El PIN no se guarda en claro, se almacena su huella. <strong>Cada persona necesita un PIN distinto</strong>:
-                    como el ingreso es solo con PIN, es lo que la identifica en la bitácora.
-                </p>
-                <button id="btnGuardarUsuario" class="shrink-0 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors">Guardar usuario</button>
-            </div>
-            <p id="usuMensaje" class="hidden text-xs rounded-lg p-3 mt-3"></p>
-        </div>
-
-        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-                <div>
-                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Tarifario de mantenimiento</h3>
-                    <p class="text-[11px] text-slate-500 mt-0.5">Se captura en la pestaña <span class="font-mono">Precios_Mantenimiento</span> de la hoja de cálculo. Aquí se ve cómo quedó leído.</p>
-                </div>
-                <button onclick="renderTarifario()" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Actualizar</button>
-            </div>
-            <div id="vistaTarifario" class="overflow-x-auto"></div>
-        </div>
-
-        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-                <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Usuarios registrados</h3>
-                <button id="btnRecargarUsuarios" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Actualizar lista</button>
-            </div>
-            <div id="listaUsuarios" class="overflow-x-auto"></div>
-        </div>
-    </div>
+    
 
     <!-- ============ v2.6: Modal de control de acceso ============ -->
     <div id="modalAcceso" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-sm items-center justify-center z-[70] no-print px-4">
@@ -1683,7 +1700,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '4.1';
+        const VERSION_APP = '4.2';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2368,15 +2385,34 @@
             sincronizarComRemoto();
         }
 
+        function ocultarError() {
+            document.getElementById('errorBanner').classList.add('hidden');
+        }
+
         function mostrarError(mensaje) {
             progresoCarga.ocultar();
             document.getElementById('errorBanner').classList.remove('hidden');
             document.getElementById('errorTexto').innerText = mensaje;
         }
 
-        function mostrarAviso(mensaje) {
-            document.getElementById('avisoBanner').classList.remove('hidden');
+        /* v4.2: un aviso es una confirmación pasajera, no un letrero fijo. Se
+           retira solo a los 8 segundos, y cada aviso nuevo reinicia el reloj
+           en lugar de encimarse con el anterior. */
+        let relojAviso = null;
+
+        function mostrarAviso(mensaje, segundos) {
+            const banner = document.getElementById('avisoBanner');
             document.getElementById('avisoTexto').innerText = mensaje;
+            banner.classList.remove('hidden');
+            banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            clearTimeout(relojAviso);
+            relojAviso = setTimeout(ocultarAviso, (segundos || 8) * 1000);
+        }
+
+        function ocultarAviso() {
+            clearTimeout(relojAviso);
+            document.getElementById('avisoBanner').classList.add('hidden');
         }
 
         /* ============================================================
@@ -3320,12 +3356,13 @@
         let pestanaAuditoria = 'facturado';
         let auditoriaExpandida = new Set();
 
-        function mostrarAuditoria() {
+        async function mostrarAuditoria() {
             // v4.1: la información financiera es exclusiva del administrador
             if (!esAdministrador()) {
                 alert('La auditoría financiera es exclusiva del administrador.');
                 return;
             }
+            if (!(await asegurarCredencialAdmin())) return;
             resetSidebarStyles();
             const btn = document.getElementById('btnAuditoria');
             btn.classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -6391,11 +6428,13 @@
             p.classList.toggle('hidden', !texto);
         }
 
-        function mostrarAdminUsuarios() {
+        async function mostrarAdminUsuarios() {
             if (!esAdministrador()) {
                 alert('Este apartado es exclusivo del administrador.');
                 return;
             }
+            // v4.2: si la credencial no está o no sirve, el apartado no se abre
+            if (!(await asegurarCredencialAdmin())) return;
             resetSidebarStyles();
             document.getElementById('btnAdminUsuarios').classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
             document.getElementById('btnAdminUsuarios').classList.remove('text-slate-400');
@@ -6409,16 +6448,51 @@
             renderTarifario();
         }
 
-        /* Llamada al backend con la credencial de administrador. Si la
-           credencial se perdió (por ejemplo, tras reabrir la pestaña) se
-           vuelve a pedir: nunca se guarda de forma permanente. */
+        /* v4.2 — Pide la credencial y LA COMPRUEBA contra el servidor antes de
+           seguir. Antes se guardaba lo que se escribiera y el apartado se abría
+           igual: el rechazo llegaba después, al intentar leer la lista, así que
+           parecía que cualquier código servía para entrar.
+
+           Devuelve true si quedó una credencial válida en la sesión. */
+        async function asegurarCredencialAdmin(forzarPregunta) {
+            const cred = credencialAdmin();
+            if (cred && cred.pin && !forzarPregunta) return true;
+            if (!hayBackend()) return true;   // en modo local no hay a quién preguntar
+
+            const pin = prompt('Escribe tu código de administrador para abrir este apartado:');
+            if (!pin) return false;
+
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        accion: 'validarAdmin', token: TOKEN_API,
+                        adminNombre: nombreUsuario(), adminPin: pin,
+                        dispositivo: idDispositivo(), fecha: new Date().toISOString()
+                    })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) {
+                    olvidarCredencialAdmin();
+                    alert((j && j.error) || 'No se pudo comprobar la credencial. Revisa tu conexión.');
+                    return false;
+                }
+            } catch (err) {
+                alert('No se pudo comprobar la credencial: ' + err.message);
+                return false;
+            }
+
+            guardarCredencialAdmin(nombreUsuario(), pin);
+            return true;
+        }
+
+        /* Llamada al backend con la credencial de administrador ya comprobada. */
         async function peticionAdmin(accion, extra) {
             let cred = credencialAdmin();
             if (!cred || !cred.pin) {
-                const pin = prompt('Confirma tu código de administrador para continuar:');
-                if (!pin) throw new Error('Operación cancelada.');
-                cred = { nombre: nombreUsuario(), pin: pin };
-                guardarCredencialAdmin(cred.nombre, cred.pin);
+                if (!(await asegurarCredencialAdmin())) throw new Error('Operación cancelada.');
+                cred = credencialAdmin();
             }
             const cuerpo = Object.assign({
                 accion: accion, token: TOKEN_API,
@@ -6492,6 +6566,13 @@
            aquí tal como quedó LEÍDO, y sobre todo saber qué equipos del
            historial no tienen tarifa: son los que saldrían sin precio en la
            exportación valorizada. */
+        /* v4.2 — El tarifario se captura en Sheets; aquí basta el resumen.
+           Antes se imprimía la tabla completa y ocupaba toda la pantalla,
+           empujando la lista de usuarios fuera de la vista. Ahora salen tres
+           cifras y la lista de equipos sin tarifa, que es lo accionable; el
+           detalle queda detrás de "Ver detalle" para quien lo necesite. */
+        let tarifarioExpandido = false;
+
         function renderTarifario() {
             const cont = document.getElementById('vistaTarifario');
             if (!cont) return;
@@ -6502,15 +6583,25 @@
                 return;
             }
 
-            const th = 'px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
-            const td = 'px-4 py-3 text-sm text-slate-700';
-
-            // Equipos del historial sin tarifa
-            const equipos = [...new Set(datosDetalleOrdenes.map(d => d.Equipo).filter(Boolean))];
+            // Solo cuentan los equipos de servicios con tarifario
+            const equipos = [...new Set(datosDetalleOrdenes
+                .filter(d => tipoConTarifario(d['Tipo de Servicio']))
+                .map(d => d.Equipo).filter(Boolean))];
             const sinTarifa = equipos.filter(e => !tarifaDeEquipo(e));
+            const conTarifa = equipos.length - sinTarifa.length;
 
-            cont.innerHTML =
-                '<table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr>' +
+            const cifra = (valor, etiqueta, color) =>
+                '<div class="text-center px-4">' +
+                    '<p class="text-2xl font-bold ' + (color || 'text-slate-900') + '">' + valor + '</p>' +
+                    '<p class="text-[10px] uppercase tracking-wide text-slate-500 mt-0.5">' + etiqueta + '</p>' +
+                '</div>';
+
+            const th = 'px-4 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const td = 'px-4 py-2 text-sm text-slate-700';
+
+            const detalle = !tarifarioExpandido ? '' :
+                '<div class="border-t border-slate-200 overflow-x-auto max-h-72 overflow-y-auto">' +
+                '<table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50 sticky top-0"><tr>' +
                     '<th class="' + th + '">Servicio</th><th class="' + th + '">Tipo de equipo</th>' +
                     '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
                     '<th class="' + th + ' text-right">Nivel III</th>' +
@@ -6523,18 +6614,31 @@
                         '<td class="' + td + ' text-right font-mono">' + fmtMoneda(t.precios.II, t.moneda) + '</td>' +
                         '<td class="' + td + ' text-right font-mono">' + fmtMoneda(t.precios.III, t.moneda) + '</td>' +
                     '</tr>').join('') +
-                '</tbody></table>' +
+                '</tbody></table></div>';
+
+            cont.innerHTML =
+                '<div class="flex flex-wrap items-center justify-between gap-4 px-6 py-4">' +
+                    '<div class="flex items-center gap-2 divide-x divide-slate-200">' +
+                        cifra(catalogoPrecios.length, 'tarifas cargadas') +
+                        cifra(conTarifa, 'equipos con tarifa', 'text-green-700') +
+                        cifra(sinTarifa.length, 'sin tarifa', sinTarifa.length ? 'text-amber-600' : 'text-slate-900') +
+                    '</div>' +
+                    '<button onclick="alternarTarifario()" class="text-xs font-semibold text-brand-600 hover:text-brand-800">' +
+                        (tarifarioExpandido ? 'Ocultar detalle' : 'Ver detalle') + '</button>' +
+                '</div>' +
                 (sinTarifa.length
-                    ? '<div class="px-6 py-4 bg-amber-50 border-t border-amber-200">' +
-                          '<p class="text-xs font-bold text-amber-800">' + sinTarifa.length +
-                          ' tipo(s) de equipo del historial no tienen tarifa</p>' +
-                          '<p class="text-[11px] text-amber-700 mt-1 leading-snug">' + esc(sinTarifa.slice(0, 14).join(' · ')) +
-                          (sinTarifa.length > 14 ? ' …' : '') + '</p>' +
-                          '<p class="text-[11px] text-amber-700 mt-1">Saldrían sin precio en la exportación valorizada. ' +
-                          'Basta agregar el tipo genérico: "Ventilador" cubre a "Ventilador volumétrico Puritan Bennett 840".</p>' +
+                    ? '<div class="px-6 py-3 bg-amber-50 border-t border-amber-200">' +
+                          '<p class="text-[11px] text-amber-800 leading-snug"><span class="font-bold">Sin tarifa:</span> ' +
+                          esc(sinTarifa.slice(0, 10).join(' · ')) + (sinTarifa.length > 10 ? ' y ' + (sinTarifa.length - 10) + ' más' : '') +
+                          '. Basta capturar el tipo genérico en la hoja.</p>' +
                       '</div>'
-                    : '<div class="px-6 py-3 bg-green-50 border-t border-green-200 text-xs font-semibold text-green-800">' +
-                          'Todos los equipos del historial tienen tarifa.</div>');
+                    : '') +
+                detalle;
+        }
+
+        function alternarTarifario() {
+            tarifarioExpandido = !tarifarioExpandido;
+            renderTarifario();
         }
 
         async function cargarListaUsuarios() {
