@@ -678,13 +678,61 @@ Al registrar una factura se puede cargar el comprobante y dejar que la plataform
 | Folio fiscal (UUID) | Del Timbre Fiscal Digital |
 | Importe antes de IVA | `Importe` de cada concepto, que es el subtotal por partida |
 
-La asociación con las órdenes se hace **buscando los números de orden dentro de la descripción de cada concepto**, que es donde naturalmente aparecen en un CFDI de servicio. Solo se reconocen números que correspondan a órdenes reales de esa unidad, para no confundir una cantidad o un número de parte con un folio. Si el comprobante ampara una orden que no estaba seleccionada, **se agrega sola**; si un concepto menciona varias, su importe se reparte en partes iguales, que es lo único defendible sin más información.
+#### Cómo se reconoce el servicio
+
+Un concepto real se ve así:
+
+```
+Mantenimiento Preventivo Integral para CENTRAL DE MONITOREO,
+Marca: Philips Modelo: IntelliVue Serie: 5601A11516 Detalle: O.S. 24598
+```
+
+Trae tres datos que pueden identificar la orden, y se usan los tres en este orden de confianza:
+
+1. **El número de O.S.**, comparado contra el folio de la orden
+2. **El número de serie del equipo**, comparado contra la serie de la orden
+3. Cualquier número suelto de cuatro dígitos o más que coincida con un folio
+
+**La comparación de folios ignora los prefijos.** Las órdenes se guardan como `IAB-24237` y la factura las nombra como `O.S. 24237`: es el mismo servicio escrito de dos maneras, y lo que identifica es el número. De ambos lados se toma la última corrida de dígitos y se comparan solo esos:
+
+| Orden | Factura | ¿Empareja? |
+|---|---|---|
+| `IAB-24237` | `O.S. 24237` | Sí |
+| `IAB 024587` | `24587` | Sí, los ceros a la izquierda no estorban |
+| `IAB-24598` | `24599` | No, son folios distintos |
+
+El número de serie queda como respaldo para cuando el concepto no trae la O.S. o viene mal escrita. El resumen indica con cuál de los tres datos se reconoció cada orden.
+
+Si el comprobante ampara una orden que no estaba seleccionada, **se agrega sola**; si un concepto menciona varias, su importe se reparte en partes iguales, que es lo único defendible sin más información.
+
+Cuando un concepto **no** se reconoce, la pantalla dice **qué extrajo** —la O.S. y la serie que leyó— para poder compararlo contra lo que hay capturado. Y si las órdenes existen pero pertenecen a otra unidad, lo indica y sugiere registrar la factura desde ahí, en vez de reportar que no encontró nada.
 
 Funciona con CFDI que declaran el prefijo `cfdi:` y con los que no, porque los nodos se buscan por nombre local.
 
 **Con PDF** se lee lo que se pueda —folio, fecha, subtotal y números de orden— y el resultado **se marca como aproximado**. Conviene decirlo sin rodeos: un PDF no tiene estructura, solo texto cuyo acomodo cambia con cada emisor, y si es una imagen escaneada no hay nada que extraer. Sirve para adelantar trabajo, no para confiar sin revisar. El XML siempre es preferible.
 
 Después de leer, un resumen dice qué se obtuvo, cuántas órdenes quedaron asociadas y qué conceptos no tenían número de orden reconocible. **Si la suma de los importes no coincide con el subtotal del comprobante, se avisa**: suele significar que un concepto quedó sin asociar.
+
+### Carga masiva (v4.4)
+
+En **Auditoría financiera** hay un botón *Cargar facturas (XML)* que acepta varios archivos a la vez. Cada uno se lee, se resuelve contra las órdenes de todo el historial y se propone como factura. **No se escribe nada todavía**: primero aparece una pantalla de revisión.
+
+Arriba, cuatro cifras: archivos leídos, **listas**, **con observación** y **no registrables**. Abajo, una tarjeta por archivo con su folio, fecha, unidad, órdenes con su importe repartido y los motivos de cada marca.
+
+Quedan **marcadas solo las que no tienen impedimento**. Registrar a ciegas un lote de comprobantes es justo lo que no debe poder hacerse en algo que alimenta una auditoría, así que lo que tiene problemas se queda fuera hasta que alguien lo revise.
+
+Motivos por los que una propuesta no se puede registrar:
+
+- El archivo no es un CFDI
+- El folio fiscal ya está en otra factura
+- No se reconoció ninguna orden de servicio en sus conceptos
+- Alguna de sus órdenes ya está facturada
+- **Dos archivos del mismo lote amparan la misma orden** — se marcan los dos, porque desde fuera no hay manera de saber cuál es el correcto
+- Ampara órdenes de más de una unidad
+
+Las observaciones no bloquean, pero conviene leerlas: un concepto sin número de orden reconocible, un comprobante sin folio fiscal, o una suma repartida que no coincide con el subtotal.
+
+El registro se hace **una factura a la vez, en orden**. Mandarlas en paralelo permitiría que dos comprobantes del mismo lote pasaran a la vez el control de duplicados del servidor. Al terminar, la pantalla dice cuántas se registraron y cuáles fallaron, sin cerrarse, para que quede constancia de qué pasó con cada archivo.
 
 ### El mismo CFDI no se registra dos veces
 
@@ -850,6 +898,9 @@ Unidad (o todas), año, periodo (todo el año, enero–junio, julio–diciembre)
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 4.6 | **El emparejamiento se hace por el número del folio, sin prefijos.** Las órdenes se guardan como `IAB-24237` y la factura las nombra como `O.S. 24237`: es el mismo servicio con dos prefijos distintos, así que de ambos lados se compara solo el número. Tolera espacios, guiones y ceros a la izquierda |
+| 4.5 | **El servicio se reconoce también por número de serie.** Hasta la 4.4 la asociación dependía de que el folio con el que la plataforma conoce la orden fuera exactamente el número de O.S. impreso en la factura; cuando no coinciden no reconocía nada y no explicaba por qué. Ahora se usan, en ese orden, el número de O.S., el **número de serie del equipo** —que el concepto del CFDI casi siempre trae— y cualquier folio suelto que coincida. Si un concepto no se reconoce, la pantalla **dice qué extrajo** (O.S. y serie) para poder compararlo; y si las órdenes existen pero son de otra unidad, lo indica en lugar de decir que no hay nada |
+| 4.4 | **Carga masiva de facturas** desde la auditoría financiera: se sueltan todos los XML del mes de una vez, la plataforma arma una propuesta de factura por cada uno y presenta una pantalla de revisión con tres estados —listas, con observación y no registrables— antes de escribir nada. Detecta CFDI ya registrados, órdenes ya facturadas, órdenes repetidas **entre archivos del mismo lote**, comprobantes que amparan órdenes de más de una unidad y archivos que no son CFDI. Solo quedan marcadas las que no tienen impedimento; el registro es secuencial para que el control de duplicados del servidor no pueda saltarse |
 | 4.3 | **Lectura automática del comprobante** al registrar una factura. Con el **XML del CFDI** se llenan solos el folio, la fecha, el folio fiscal (UUID) y el **importe antes de IVA de cada orden**, asociando cada concepto con los números de orden que menciona su descripción; si el comprobante ampara una orden que no estaba seleccionada, se agrega sola. El **PDF** se lee como respaldo y se marca como aproximado, porque no tiene estructura fija. El servidor guarda el UUID y **rechaza registrar dos veces el mismo CFDI**. La suma de los importes se contrasta contra el subtotal del comprobante y se avisa si no cuadra |
 | 4.2 | Correcciones reportadas desde el uso. **Los avisos se retiran solos** a los 8 segundos y traen botón de cierre, igual que el banner de error; antes se quedaban fijos y se iban encimando. **La credencial de administrador se comprueba contra el servidor antes de abrir el apartado**: antes se guardaba cualquier cosa que se escribiera y la pantalla se abría igual, así que parecía que cualquier código servía. **Los paneles de usuarios y auditoría ya se pueden deslizar**: vivían fuera de `<main>`, colgados del `body`, y al no estar en el contenedor con scroll la parte de abajo quedaba inalcanzable. **El tarifario se muestra resumido** —tarifas cargadas, equipos con y sin tarifa— con el detalle detrás de *Ver detalle* |
 | 4.1 | **El tarifario cubre solo preventivos y calibraciones**; correctivos, asistencias, entregas y materiales son de precio variable y su importe **se captura al registrar la factura**, orden por orden. La factura guarda el importe de cada servicio y su nivel de convenio, de modo que la auditoría contrasta, en preventivos y calibraciones, **lo facturado contra lo que el tarifario dice que debía facturarse**, y en los de precio variable va formando la base de precios real. **La auditoría financiera queda restringida al administrador** |

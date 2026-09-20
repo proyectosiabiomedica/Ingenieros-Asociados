@@ -1747,7 +1747,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '4.4';
+        const VERSION_APP = '4.6';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -4193,17 +4193,133 @@
             };
         }
 
-        /* Busca números de orden dentro de un texto. Se comparan contra las
-           órdenes reales de la unidad para no confundir un número de parte o
-           una cantidad con un folio de servicio. */
-        function ordenesEnTexto(texto, universo) {
-            const t = ' ' + String(texto || '').toUpperCase() + ' ';
-            return universo.filter(id => {
-                const s = String(id).toUpperCase();
-                if (s.length < 2) return false;
-                // Delimitado por algo que no sea letra ni dígito
-                return new RegExp('(^|[^A-Z0-9])' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Z0-9]|$)').test(t);
+        /* ============================================================
+           v4.5 — CÓMO SE RECONOCE EL SERVICIO EN EL COMPROBANTE
+
+           Un concepto real se ve así:
+
+             "Mantenimiento Preventivo Integral para CENTRAL DE MONITOREO,
+              Marca: Philips Modelo: IntelliVue Serie: 5601A11516
+              Detalle: O.S. 24598"
+
+           Trae tres datos que pueden identificar la orden, y se usan los tres
+           en ese orden de confianza:
+
+             1. el número de O.S., que es el identificador explícito
+             2. el NÚMERO DE SERIE del equipo, que el concepto casi siempre
+                incluye y que la orden también tiene
+             3. cualquier número suelto que coincida con un folio de orden
+
+           La 4.4 solo hacía lo tercero, así que dependía de que el ID con el
+           que la plataforma conoce la orden fuera exactamente el número de
+           O.S. de la factura. Cuando no coinciden —y con frecuencia no
+           coinciden— no reconocía nada y no explicaba por qué. Ahora la serie
+           sirve de respaldo y, si aun así no se reconoce, se dice qué se
+           extrajo del concepto para poder comparar.
+           ============================================================ */
+
+        const normSerie = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+        /* v4.6 — NÚCLEO NUMÉRICO DEL FOLIO
+
+           La orden se guarda como "IAB-24237" y la factura la nombra como
+           "O.S. 24237": el mismo servicio con dos prefijos distintos. Lo que
+           identifica es el número, así que de ambos lados se toma solo eso.
+
+             "IAB-24237"  → "24237"      "O.S. 24237" → "24237"
+             "IAB 24237"  → "24237"      "24237"      → "24237"
+
+           Se toma la ÚLTIMA corrida de dígitos, que es donde vive el
+           consecutivo; un prefijo con números —"IAB2-24237"— no la estorba.
+           Los ceros a la izquierda se descartan para que "024237" y "24237"
+           sean el mismo folio. */
+        function nucleoFolio(v) {
+            const t = String(v || '').toUpperCase();
+            const corridas = t.match(/\d+/g);
+            if (!corridas || corridas.length === 0) return t.replace(/[^A-Z0-9]/g, '');
+            return corridas[corridas.length - 1].replace(/^0+(?=\d)/, '');
+        }
+
+        const mismoFolio = (a, b) => {
+            const na = nucleoFolio(a), nb = nucleoFolio(b);
+            return na.length >= 2 && na === nb;
+        };
+
+        /* Datos identificadores que trae la descripción de un concepto. */
+        function pistasDeConcepto(texto) {
+            const t = String(texto || '');
+            const pistas = { os: [], series: [], numeros: [] };
+
+            /* "O.S. 24598", "O/S 24598", "OS: 24598", "Orden de servicio 24598".
+               El separador es obligatorio y se exige inicio de palabra: sin eso,
+               el "OS" final de "MARCAPASOS CARDÍACO" se leía como un número de
+               orden y el diagnóstico reportaba una O.S. inexistente. */
+            const reOS = /(?:\bo\s*[.\/-]\s*s\s*[.:]?|\bos\s*[.:#]|\borden(?:\s+de\s+servicio)?\s*[#:.]?)\s*([A-Z0-9-]{2,})/gi;
+            let m;
+            while ((m = reOS.exec(t)) !== null) pistas.os.push(m[1]);
+
+            // "Serie: 5601A11516"
+            const reSerie = /serie\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{3,})/gi;
+            while ((m = reSerie.exec(t)) !== null) pistas.series.push(m[1]);
+
+            // Cualquier número largo suelto, como último recurso
+            (t.match(/\b\d{3,}\b/g) || []).forEach(n => pistas.numeros.push(n));
+
+            return pistas;
+        }
+
+        /* Resuelve un concepto contra las órdenes disponibles.
+           Devuelve [{id, via}] indicando con qué dato se reconoció. */
+        function resolverOrdenesDeConcepto(texto, ordenes) {
+            const pistas = pistasDeConcepto(texto);
+            const halladas = new Map();
+
+            const agregar = (orden, via) => {
+                if (!halladas.has(String(orden.ID))) halladas.set(String(orden.ID), { id: String(orden.ID), via: via });
+            };
+
+            /* 1. Número de O.S. contra el folio de la orden, comparando solo
+               el número: "IAB-24237" y "O.S. 24237" son la misma orden. */
+            pistas.os.forEach(os => {
+                const o = ordenes.find(x => mismoFolio(x.ID, os));
+                if (o) agregar(o, 'número de orden');
             });
+
+            // 2. Número de serie del equipo
+            pistas.series.forEach(se => {
+                const n = normSerie(se);
+                if (n.length < 4) return;
+                const o = ordenes.find(x => normSerie(x.Serie) === n);
+                if (o) agregar(o, 'número de serie');
+            });
+
+            /* 3. Último recurso: cualquier número largo del texto que coincida
+               con el folio de una orden. Se piden 4 dígitos para no emparejar
+               con un modelo o una cantidad. */
+            if (halladas.size === 0) {
+                pistas.numeros.forEach(num => {
+                    if (String(num).replace(/^0+/, '').length < 4) return;
+                    const o = ordenes.find(x => mismoFolio(x.ID, num));
+                    if (o) agregar(o, 'folio en el texto');
+                });
+            }
+
+            return { ordenes: Array.from(halladas.values()), pistas: pistas };
+        }
+
+        // Resumen de lo que se extrajo, para explicar por qué no se reconoció
+        function textoPistas(pistas) {
+            const partes = [];
+            if (pistas.os.length) partes.push('O.S. ' + pistas.os.join(', '));
+            if (pistas.series.length) partes.push('serie ' + pistas.series.join(', '));
+            return partes.join(' · ') || 'sin datos identificables';
+        }
+
+        /* Se conserva para la carga masiva y para cualquier uso previo:
+           devuelve solo los ids reconocidos. */
+        function ordenesEnTexto(texto, universoIds) {
+            const ordenes = datosDetalleOrdenes.filter(d => universoIds.indexOf(String(d.ID)) > -1);
+            return resolverOrdenesDeConcepto(texto, ordenes).ordenes.map(x => x.id);
         }
 
         function mensajeCFDI(html, tipo) {
@@ -4224,64 +4340,84 @@
             if (datos.fecha) document.getElementById('facFecha').value = datos.fecha;
             facturaUUID = datos.uuid || '';
 
-            // Universo de órdenes donde buscar: las de la unidad en curso
-            const universo = datosDetalleOrdenes
-                .filter(d => d.Cliente === clienteActual).map(d => String(d.ID));
+            /* Se buscan primero las órdenes de la unidad abierta. Si el
+               comprobante no coincide con ninguna, se vuelve a intentar contra
+               todo el historial: así se puede avisar que las órdenes existen
+               pero pertenecen a otra unidad, en vez de decir que no hay nada. */
+            const deLaUnidad = datosDetalleOrdenes.filter(d => d.Cliente === clienteActual);
 
-            const asignadas = [];
-            const agregadas = [];
-            const sinAsociar = [];
+            const asignadas = [], agregadas = [], sinAsociar = [], deOtraUnidad = [];
+            const vias = new Set();
 
             (datos.conceptos || []).forEach(c => {
-                const encontradas = ordenesEnTexto(c.descripcion, universo);
-                if (encontradas.length === 0) { sinAsociar.push(c); return; }
+                let r = resolverOrdenesDeConcepto(c.descripcion, deLaUnidad);
 
-                /* Un concepto puede amparar varias órdenes; en ese caso su
-                   importe se reparte en partes iguales, que es lo único
-                   defendible sin más información. */
-                const porOrden = (c.importe !== null) ? redondear(c.importe / encontradas.length) : null;
+                if (r.ordenes.length === 0) {
+                    const global = resolverOrdenesDeConcepto(c.descripcion, datosDetalleOrdenes);
+                    if (global.ordenes.length) {
+                        global.ordenes.forEach(o => {
+                            const d = datosDetalleOrdenes.find(x => String(x.ID) === o.id);
+                            deOtraUnidad.push(o.id + ' (' + (d ? d.Cliente : 'otra unidad') + ')');
+                        });
+                    } else {
+                        sinAsociar.push({ desc: c.descripcion, pistas: r.pistas });
+                    }
+                    return;
+                }
 
-                encontradas.forEach(id => {
-                    let fila = ordenesFacturaActual.find(o => o.id === id);
+                const porOrden = (c.importe !== null) ? redondear(c.importe / r.ordenes.length) : null;
+                r.ordenes.forEach(o => {
+                    vias.add(o.via);
+                    let fila = ordenesFacturaActual.find(x => x.id === o.id);
                     if (!fila) {
-                        if (facturaPorOrden.has(id)) return;      // ya está en otra factura
-                        fila = { id: id, importe: null, tocado: false };
+                        if (facturaPorOrden.has(o.id)) return;      // ya está en otra factura
+                        fila = { id: o.id, importe: null, tocado: false };
                         ordenesFacturaActual.push(fila);
-                        agregadas.push(id);
+                        agregadas.push(o.id);
                     }
                     if (porOrden !== null) { fila.importe = porOrden; fila.tocado = true; }
-                    asignadas.push(id);
+                    asignadas.push(o.id);
                 });
             });
 
             renderListaOrdenesFactura();
 
-            // Resumen honesto de lo que se leyó y lo que no
+            // Resumen honesto de lo que se leyó y de lo que no
             const partes = [];
             partes.push('<p class="font-bold">' + (datos.origen === 'xml' ? 'CFDI leído' : 'PDF leído (aproximado)') + '</p>');
             partes.push('<p>' + esc(datos.numero || 'sin folio') + ' · ' + esc(datos.fecha || 'sin fecha') +
                         (datos.subtotal !== null ? ' · subtotal ' + fmtMoneda(datos.subtotal, 'MXN') : '') + '</p>');
+            if (datos.receptor) partes.push('<p class="opacity-80">Receptor: ' + esc(datos.receptor) + '</p>');
             if (datos.uuid) partes.push('<p class="font-mono text-[10px] opacity-80">' + esc(datos.uuid) + '</p>');
+
             if (asignadas.length) {
                 partes.push('<p>' + asignadas.length + ' orden(es) con importe asignado' +
+                            (vias.size ? ' (por ' + Array.from(vias).join(' y ') + ')' : '') +
                             (agregadas.length ? ', ' + agregadas.length + ' agregada(s) desde el comprobante' : '') + '.</p>');
             }
-            if (sinAsociar.length) {
-                partes.push('<p class="font-semibold">' + sinAsociar.length +
-                            ' concepto(s) sin número de orden reconocible: ' +
-                            esc(sinAsociar.map(c => (c.descripcion || '').slice(0, 45)).join(' · ')) +
-                            '. Captura su importe a mano.</p>');
+
+            if (deOtraUnidad.length) {
+                partes.push('<p class="font-semibold">Este comprobante ampara órdenes de otra unidad: ' +
+                            esc(deOtraUnidad.join(' · ')) + '. Regístralo desde esa unidad.</p>');
             }
 
-            // El subtotal del comprobante debe cuadrar con lo repartido
+            if (sinAsociar.length) {
+                partes.push('<p class="font-semibold">' + sinAsociar.length + ' concepto(s) sin orden reconocible:</p>' +
+                    sinAsociar.map(x =>
+                        '<p class="pl-3">· ' + esc((x.desc || '').slice(0, 60)) +
+                        '<br><span class="opacity-80">se leyó: ' + esc(textoPistas(x.pistas)) + '</span></p>').join(''));
+                partes.push('<p class="opacity-80">Si el número de O.S. de la factura no es el mismo folio con el que ' +
+                            'la plataforma conoce la orden, captura ese concepto a mano.</p>');
+            }
+
             const suma = totalFacturaActual();
-            let tipo = 'ok';
-            if (datos.origen !== 'xml') tipo = 'aviso';
+            let tipo = (datos.origen === 'xml') ? 'ok' : 'aviso';
             if (datos.subtotal !== null && Math.abs(suma - datos.subtotal) > 0.5) {
                 partes.push('<p class="font-bold">La suma de los importes (' + fmtMoneda(suma, 'MXN') +
                             ') no coincide con el subtotal del comprobante (' + fmtMoneda(datos.subtotal, 'MXN') + ').</p>');
                 tipo = 'aviso';
             }
+            if (deOtraUnidad.length || sinAsociar.length) tipo = 'aviso';
             if (datos.origen !== 'xml') {
                 partes.push('<p>Lectura aproximada: el PDF no tiene estructura fija. Verifica folio, fecha e importes antes de guardar.</p>');
             }
@@ -4406,7 +4542,7 @@
 
         /* Convierte un CFDI ya parseado en una propuesta de factura, con sus
            órdenes resueltas y los motivos por los que no podría registrarse. */
-        function armarPropuesta(nombreArchivo, cfdi, universo) {
+        function armarPropuesta(nombreArchivo, cfdi) {
             const prop = {
                 archivo: nombreArchivo, numero: cfdi.numero, fecha: cfdi.fecha,
                 uuid: cfdi.uuid, subtotal: cfdi.subtotal, receptor: cfdi.receptor,
@@ -4414,15 +4550,17 @@
             };
 
             (cfdi.conceptos || []).forEach(c => {
-                const halladas = ordenesEnTexto(c.descripcion, universo);
-                if (halladas.length === 0) {
-                    prop.avisos.push('Concepto sin orden reconocible: ' + (c.descripcion || '').slice(0, 40));
+                // v4.5: reconoce por número de O.S. y, si no, por número de serie
+                const r = resolverOrdenesDeConcepto(c.descripcion, datosDetalleOrdenes);
+                if (r.ordenes.length === 0) {
+                    prop.avisos.push('Concepto sin orden reconocible (' + textoPistas(r.pistas) + '): ' +
+                                     (c.descripcion || '').slice(0, 40));
                     return;
                 }
-                const porOrden = (c.importe !== null) ? redondear(c.importe / halladas.length) : null;
-                halladas.forEach(id => {
-                    if (prop.ordenes.some(o => o.id === id)) return;
-                    prop.ordenes.push({ id: id, importe: porOrden });
+                const porOrden = (c.importe !== null) ? redondear(c.importe / r.ordenes.length) : null;
+                r.ordenes.forEach(o => {
+                    if (prop.ordenes.some(x => x.id === o.id)) return;
+                    prop.ordenes.push({ id: o.id, importe: porOrden, via: o.via });
                 });
             });
 
@@ -4460,13 +4598,12 @@
         }
 
         async function leerLoteCFDI(archivos) {
-            const universo = ordenesDeTodoElHistorial();
             propuestasLote = [];
 
             for (const archivo of archivos) {
                 try {
                     const cfdi = parsearCFDI(await archivo.text());
-                    propuestasLote.push(armarPropuesta(archivo.name, cfdi, universo));
+                    propuestasLote.push(armarPropuesta(archivo.name, cfdi));
                 } catch (err) {
                     propuestasLote.push({
                         archivo: archivo.name, numero: '', fecha: '', uuid: '', subtotal: null,
