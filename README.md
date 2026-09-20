@@ -665,6 +665,31 @@ Al registrar la factura, cada orden lleva su propio importe:
 
 El total se calcula solo y se guarda con la factura, junto con el nivel de convenio aplicado. En la hoja, los importes viven en la misma celda que las órdenes con la forma `601=2800, 602=3000`: se eligió una sola celda con pares, y no dos columnas paralelas, porque dos listas separadas se desalinean en cuanto alguien edita a mano y el importe termina asignado a la orden equivocada.
 
+### Leer la factura en lugar de capturarla
+
+Al registrar una factura se puede cargar el comprobante y dejar que la plataforma llene los datos.
+
+**Con el XML del CFDI** —el camino confiable— se obtienen directamente:
+
+| Dato | De dónde sale |
+|---|---|
+| Número de factura | `Serie` + `Folio` del Comprobante |
+| Fecha | Atributo `Fecha`, solo la parte del día |
+| Folio fiscal (UUID) | Del Timbre Fiscal Digital |
+| Importe antes de IVA | `Importe` de cada concepto, que es el subtotal por partida |
+
+La asociación con las órdenes se hace **buscando los números de orden dentro de la descripción de cada concepto**, que es donde naturalmente aparecen en un CFDI de servicio. Solo se reconocen números que correspondan a órdenes reales de esa unidad, para no confundir una cantidad o un número de parte con un folio. Si el comprobante ampara una orden que no estaba seleccionada, **se agrega sola**; si un concepto menciona varias, su importe se reparte en partes iguales, que es lo único defendible sin más información.
+
+Funciona con CFDI que declaran el prefijo `cfdi:` y con los que no, porque los nodos se buscan por nombre local.
+
+**Con PDF** se lee lo que se pueda —folio, fecha, subtotal y números de orden— y el resultado **se marca como aproximado**. Conviene decirlo sin rodeos: un PDF no tiene estructura, solo texto cuyo acomodo cambia con cada emisor, y si es una imagen escaneada no hay nada que extraer. Sirve para adelantar trabajo, no para confiar sin revisar. El XML siempre es preferible.
+
+Después de leer, un resumen dice qué se obtuvo, cuántas órdenes quedaron asociadas y qué conceptos no tenían número de orden reconocible. **Si la suma de los importes no coincide con el subtotal del comprobante, se avisa**: suele significar que un concepto quedó sin asociar.
+
+### El mismo CFDI no se registra dos veces
+
+El folio fiscal se guarda con la factura y el servidor rechaza registrarlo de nuevo, señalando en qué factura ya está. En una auditoría financiera, el mismo comprobante capturado dos veces duplica el ingreso reportado.
+
 ### Una orden no puede estar en dos facturas
 
 El servidor lo hace valer y rechaza el guardado señalando con qué factura choca. En una revisión financiera, un servicio cobrado dos veces es justo lo que no debe pasar, y un mensaje incómodo al capturar es preferible a un hallazgo de auditoría.
@@ -825,6 +850,7 @@ Unidad (o todas), año, periodo (todo el año, enero–junio, julio–diciembre)
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 4.3 | **Lectura automática del comprobante** al registrar una factura. Con el **XML del CFDI** se llenan solos el folio, la fecha, el folio fiscal (UUID) y el **importe antes de IVA de cada orden**, asociando cada concepto con los números de orden que menciona su descripción; si el comprobante ampara una orden que no estaba seleccionada, se agrega sola. El **PDF** se lee como respaldo y se marca como aproximado, porque no tiene estructura fija. El servidor guarda el UUID y **rechaza registrar dos veces el mismo CFDI**. La suma de los importes se contrasta contra el subtotal del comprobante y se avisa si no cuadra |
 | 4.2 | Correcciones reportadas desde el uso. **Los avisos se retiran solos** a los 8 segundos y traen botón de cierre, igual que el banner de error; antes se quedaban fijos y se iban encimando. **La credencial de administrador se comprueba contra el servidor antes de abrir el apartado**: antes se guardaba cualquier cosa que se escribiera y la pantalla se abría igual, así que parecía que cualquier código servía. **Los paneles de usuarios y auditoría ya se pueden deslizar**: vivían fuera de `<main>`, colgados del `body`, y al no estar en el contenedor con scroll la parte de abajo quedaba inalcanzable. **El tarifario se muestra resumido** —tarifas cargadas, equipos con y sin tarifa— con el detalle detrás de *Ver detalle* |
 | 4.1 | **El tarifario cubre solo preventivos y calibraciones**; correctivos, asistencias, entregas y materiales son de precio variable y su importe **se captura al registrar la factura**, orden por orden. La factura guarda el importe de cada servicio y su nivel de convenio, de modo que la auditoría contrasta, en preventivos y calibraciones, **lo facturado contra lo que el tarifario dice que debía facturarse**, y en los de precio variable va formando la base de precios real. **La auditoría financiera queda restringida al administrador** |
 | 4.0 | **Auditoría financiera**, apartado propio en el menú lateral. Invierte el eje del resto de la plataforma: el renglón es la **factura** y debajo cuelgan los servicios que ampara, con equipo, serie, fecha e importe. Filtros por unidad, año, semestre, nivel de precio y texto libre. Segunda lista de **servicios sin facturar**: lo ejecutado y todavía no cobrado, con su importe estimado. Cuatro indicadores arriba (facturas emitidas, importe facturado, servicios sin facturar e importe pendiente) y exportación a Excel —dos hojas, facturado y pendiente— o a PDF. Señala además las **órdenes sin respaldo**: folios registrados en una factura que ya no existen en el historial |

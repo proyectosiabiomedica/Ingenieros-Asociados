@@ -1057,6 +1057,11 @@
                         <span id="audBadgePend" class="hidden bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
                     </button>
                     <div class="ml-auto flex items-center gap-2 py-2.5">
+                        <!-- v4.4: registrar en una pasada todas las facturas del mes -->
+                        <label class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer">
+                            Cargar facturas (XML)
+                            <input type="file" id="loteCFDI" accept=".xml,text/xml" multiple class="hidden">
+                        </label>
                         <button onclick="exportarAuditoriaPDF()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Imprimir / PDF</button>
                         <button onclick="exportarAuditoriaExcel()" class="bg-green-700 hover:bg-green-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Excel</button>
                     </div>
@@ -1341,6 +1346,33 @@
         </div>
     </div>
 
+    <!-- ============ v4.4: carga masiva de facturas ============ -->
+    <div id="modalLote" class="hidden fixed inset-0 z-[78] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-5xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Carga masiva de facturas</h3>
+                    <p id="loteSubtitulo" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="cerrarModalLote()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div id="loteResumen" class="px-5 pt-4"></div>
+
+            <div class="p-5 pt-3 overflow-y-auto">
+                <div id="loteLista" class="flex flex-col gap-2"></div>
+            </div>
+
+            <div class="flex flex-wrap justify-between items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <p id="loteProgreso" class="text-xs text-slate-500"></p>
+                <div class="flex items-center gap-2 ml-auto">
+                    <button onclick="cerrarModalLote()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cerrar</button>
+                    <button id="btnRegistrarLote" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors disabled:opacity-50">Registrar seleccionadas</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v3.9: exportación del calendario de servicios ============ -->
     <div id="modalExportar" class="hidden fixed inset-0 z-[76] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
@@ -1414,6 +1446,21 @@
                 <button onclick="cerrarModalFactura()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
             </div>
             <div class="p-5 overflow-y-auto flex flex-col gap-3">
+                <!-- v4.3: leer el comprobante evita recapturar a mano lo que ya viene en él -->
+                <div class="border border-dashed border-brand-300 bg-brand-50/50 rounded-lg p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-xs font-bold text-slate-700">Leer la factura</p>
+                            <p class="text-[11px] text-slate-500 leading-snug">El XML del CFDI llena folio, fecha, folio fiscal e importes por orden.</p>
+                        </div>
+                        <label class="shrink-0 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                            Elegir XML o PDF
+                            <input type="file" id="facComprobante" accept=".xml,.pdf,text/xml,application/pdf" class="hidden">
+                        </label>
+                    </div>
+                    <div id="facLecturaCFDI" class="hidden mt-3 text-[11px] rounded-lg p-3"></div>
+                </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Número de factura</label>
@@ -1700,7 +1747,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '4.2';
+        const VERSION_APP = '4.4';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -4068,9 +4115,518 @@
         document.getElementById('btnExportarExcel').addEventListener('click', exportarCalendarioExcel);
         document.getElementById('btnExportarPDF').addEventListener('click', exportarCalendarioPDF);
 
+        /* ============================================================
+           v4.3 — LECTURA AUTOMÁTICA DEL COMPROBANTE
+
+           El CFDI en XML es un documento estructurado: folio, fecha, folio
+           fiscal (UUID), subtotal y el desglose de conceptos vienen en
+           atributos con nombre fijo. De ahí se puede llenar la factura sin
+           recapturar nada, y con el SUBTOTAL —el importe antes de IVA—, que es
+           el que corresponde al servicio.
+
+           El PDF es otra historia y conviene decirlo claro: no tiene
+           estructura, solo texto suelto cuyo acomodo cambia con cada emisor.
+           Se lee lo que se pueda —folio, fecha, subtotal y números de orden— y
+           se marca como lectura aproximada para que se verifique. Si el PDF es
+           una imagen escaneada no hay texto que extraer y no se lee nada.
+
+           La asociación con las órdenes se hace buscando los números de orden
+           dentro de la descripción de cada concepto. Es el enlace natural:
+           el concepto de un CFDI de servicio casi siempre los menciona.
+           ============================================================ */
+
+        // "12,345.67" → 12345.67
+        function aNumeroCFDI(v) {
+            const t = String(v ?? '').replace(/[^\d.-]/g, '');
+            const n = parseFloat(t);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function parsearCFDI(textoXml) {
+            const doc = new DOMParser().parseFromString(textoXml, 'application/xml');
+            if (doc.querySelector('parsererror')) throw new Error('El archivo no es un XML válido.');
+
+            /* Los CFDI usan el prefijo cfdi:, pero hay emisores que no lo
+               ponen. Buscar por nombre local evita depender del prefijo. */
+            const porNombre = (nombre) => {
+                const todos = doc.getElementsByTagName('*');
+                for (let i = 0; i < todos.length; i++) {
+                    if (todos[i].localName === nombre) return todos[i];
+                }
+                return null;
+            };
+            const todosPorNombre = (nombre) => {
+                const out = [];
+                const todos = doc.getElementsByTagName('*');
+                for (let i = 0; i < todos.length; i++) {
+                    if (todos[i].localName === nombre) out.push(todos[i]);
+                }
+                return out;
+            };
+
+            const comp = porNombre('Comprobante');
+            if (!comp) throw new Error('El XML no parece un CFDI: no se encontró el nodo Comprobante.');
+
+            const serie = comp.getAttribute('Serie') || '';
+            const folio = comp.getAttribute('Folio') || '';
+            const fechaAttr = comp.getAttribute('Fecha') || '';
+            const timbre = porNombre('TimbreFiscalDigital');
+            const receptor = porNombre('Receptor');
+            const emisor = porNombre('Emisor');
+
+            const conceptos = todosPorNombre('Concepto').map(c => ({
+                descripcion: c.getAttribute('Descripcion') || '',
+                importe: aNumeroCFDI(c.getAttribute('Importe')),
+                cantidad: aNumeroCFDI(c.getAttribute('Cantidad'))
+            }));
+
+            return {
+                origen: 'xml',
+                numero: (serie + folio).trim() || folio || serie,
+                fecha: fechaAttr ? fechaAttr.slice(0, 10) : '',
+                uuid: timbre ? (timbre.getAttribute('UUID') || '') : '',
+                subtotal: aNumeroCFDI(comp.getAttribute('SubTotal')),
+                total: aNumeroCFDI(comp.getAttribute('Total')),
+                receptor: receptor ? (receptor.getAttribute('Nombre') || receptor.getAttribute('Rfc') || '') : '',
+                emisor: emisor ? (emisor.getAttribute('Nombre') || '') : '',
+                conceptos: conceptos
+            };
+        }
+
+        /* Busca números de orden dentro de un texto. Se comparan contra las
+           órdenes reales de la unidad para no confundir un número de parte o
+           una cantidad con un folio de servicio. */
+        function ordenesEnTexto(texto, universo) {
+            const t = ' ' + String(texto || '').toUpperCase() + ' ';
+            return universo.filter(id => {
+                const s = String(id).toUpperCase();
+                if (s.length < 2) return false;
+                // Delimitado por algo que no sea letra ni dígito
+                return new RegExp('(^|[^A-Z0-9])' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Z0-9]|$)').test(t);
+            });
+        }
+
+        function mensajeCFDI(html, tipo) {
+            const el = document.getElementById('facLecturaCFDI');
+            const estilos = {
+                error: 'bg-red-50 text-red-700 border border-red-200',
+                ok:    'bg-green-50 text-green-800 border border-green-200',
+                aviso: 'bg-amber-50 text-amber-800 border border-amber-200'
+            };
+            el.className = 'mt-3 text-[11px] rounded-lg p-3 ' + (estilos[tipo] || estilos.ok);
+            el.innerHTML = html;
+            el.classList.toggle('hidden', !html);
+        }
+
+        /* Vuelca lo leído sobre el formulario y sobre los importes por orden. */
+        function aplicarComprobante(datos) {
+            if (datos.numero) document.getElementById('facNumero').value = datos.numero;
+            if (datos.fecha) document.getElementById('facFecha').value = datos.fecha;
+            facturaUUID = datos.uuid || '';
+
+            // Universo de órdenes donde buscar: las de la unidad en curso
+            const universo = datosDetalleOrdenes
+                .filter(d => d.Cliente === clienteActual).map(d => String(d.ID));
+
+            const asignadas = [];
+            const agregadas = [];
+            const sinAsociar = [];
+
+            (datos.conceptos || []).forEach(c => {
+                const encontradas = ordenesEnTexto(c.descripcion, universo);
+                if (encontradas.length === 0) { sinAsociar.push(c); return; }
+
+                /* Un concepto puede amparar varias órdenes; en ese caso su
+                   importe se reparte en partes iguales, que es lo único
+                   defendible sin más información. */
+                const porOrden = (c.importe !== null) ? redondear(c.importe / encontradas.length) : null;
+
+                encontradas.forEach(id => {
+                    let fila = ordenesFacturaActual.find(o => o.id === id);
+                    if (!fila) {
+                        if (facturaPorOrden.has(id)) return;      // ya está en otra factura
+                        fila = { id: id, importe: null, tocado: false };
+                        ordenesFacturaActual.push(fila);
+                        agregadas.push(id);
+                    }
+                    if (porOrden !== null) { fila.importe = porOrden; fila.tocado = true; }
+                    asignadas.push(id);
+                });
+            });
+
+            renderListaOrdenesFactura();
+
+            // Resumen honesto de lo que se leyó y lo que no
+            const partes = [];
+            partes.push('<p class="font-bold">' + (datos.origen === 'xml' ? 'CFDI leído' : 'PDF leído (aproximado)') + '</p>');
+            partes.push('<p>' + esc(datos.numero || 'sin folio') + ' · ' + esc(datos.fecha || 'sin fecha') +
+                        (datos.subtotal !== null ? ' · subtotal ' + fmtMoneda(datos.subtotal, 'MXN') : '') + '</p>');
+            if (datos.uuid) partes.push('<p class="font-mono text-[10px] opacity-80">' + esc(datos.uuid) + '</p>');
+            if (asignadas.length) {
+                partes.push('<p>' + asignadas.length + ' orden(es) con importe asignado' +
+                            (agregadas.length ? ', ' + agregadas.length + ' agregada(s) desde el comprobante' : '') + '.</p>');
+            }
+            if (sinAsociar.length) {
+                partes.push('<p class="font-semibold">' + sinAsociar.length +
+                            ' concepto(s) sin número de orden reconocible: ' +
+                            esc(sinAsociar.map(c => (c.descripcion || '').slice(0, 45)).join(' · ')) +
+                            '. Captura su importe a mano.</p>');
+            }
+
+            // El subtotal del comprobante debe cuadrar con lo repartido
+            const suma = totalFacturaActual();
+            let tipo = 'ok';
+            if (datos.origen !== 'xml') tipo = 'aviso';
+            if (datos.subtotal !== null && Math.abs(suma - datos.subtotal) > 0.5) {
+                partes.push('<p class="font-bold">La suma de los importes (' + fmtMoneda(suma, 'MXN') +
+                            ') no coincide con el subtotal del comprobante (' + fmtMoneda(datos.subtotal, 'MXN') + ').</p>');
+                tipo = 'aviso';
+            }
+            if (datos.origen !== 'xml') {
+                partes.push('<p>Lectura aproximada: el PDF no tiene estructura fija. Verifica folio, fecha e importes antes de guardar.</p>');
+            }
+            mensajeCFDI(partes.join(''), tipo);
+        }
+
+        /* ---------- PDF: lectura de respaldo ---------- */
+        function cargarPdfJs() {
+            if (window.pdfjsLib) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const sc = document.createElement('script');
+                sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                sc.onload = () => {
+                    try {
+                        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    } catch (_) {}
+                    resolve();
+                };
+                sc.onerror = () => reject(new Error('No se pudo cargar el lector de PDF. Usa el XML del CFDI, que además es más confiable.'));
+                document.head.appendChild(sc);
+            });
+        }
+
+        async function textoDePdf(archivo) {
+            await cargarPdfJs();
+            const buffer = await archivo.arrayBuffer();
+            const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+            let texto = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const pagina = await pdf.getPage(i);
+                const contenido = await pagina.getTextContent();
+                texto += contenido.items.map(x => x.str).join(' ') + '\n';
+            }
+            return texto;
+        }
+
+        function parsearTextoFactura(texto) {
+            const t = String(texto || '');
+            if (t.replace(/\s/g, '').length < 40) {
+                throw new Error('El PDF no tiene texto que leer: parece una imagen escaneada. Usa el XML del CFDI.');
+            }
+
+            const uuid = (t.match(/[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/) || [''])[0];
+            const folio = (t.match(/folio\s*(?:fiscal)?\s*[:#]?\s*([A-Z]{0,4}[-\s]?\d{1,10})/i) || [])[1] || '';
+            const subtotal = (() => {
+                const m = t.match(/sub\s*-?\s*total\s*[:$]*\s*([\d,]+\.\d{2})/i);
+                return m ? aNumeroCFDI(m[1]) : null;
+            })();
+            let fecha = '';
+            const mIso = t.match(/(20\d{2})-(\d{2})-(\d{2})/);
+            if (mIso) fecha = mIso[0];
+            else {
+                const mDmy = t.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2})/);
+                if (mDmy) fecha = mDmy[3] + '-' + String(mDmy[2]).padStart(2, '0') + '-' + String(mDmy[1]).padStart(2, '0');
+            }
+
+            return {
+                origen: 'pdf',
+                numero: folio.replace(/\s+/g, '').replace(/^-+/, ''),
+                fecha: fecha, uuid: uuid,
+                subtotal: subtotal, total: null, receptor: '', emisor: '',
+                // Sin conceptos estructurados: se usa todo el texto como uno solo
+                conceptos: [{ descripcion: t, importe: subtotal, cantidad: 1 }]
+            };
+        }
+
+        async function leerComprobante(archivo) {
+            mensajeCFDI('<p>Leyendo el comprobante…</p>', 'ok');
+            try {
+                const esXml = /\.xml$/i.test(archivo.name) || archivo.type.indexOf('xml') > -1;
+                const datos = esXml
+                    ? parsearCFDI(await archivo.text())
+                    : parsearTextoFactura(await textoDePdf(archivo));
+
+                if (datos.receptor && clienteActual &&
+                    !normalizar(datos.receptor.toLowerCase()).includes(normalizar(clienteActual.toLowerCase().slice(0, 8)))) {
+                    // No se bloquea: los nombres fiscales rara vez coinciden con los de uso
+                    console.warn('[CFDI] receptor "' + datos.receptor + '" no coincide con "' + clienteActual + '"');
+                }
+                aplicarComprobante(datos);
+            } catch (err) {
+                mensajeCFDI('<p class="font-bold">No se pudo leer el comprobante</p><p>' + esc(err.message) + '</p>', 'error');
+            }
+        }
+
+        document.getElementById('facComprobante').addEventListener('change', (e) => {
+            const archivo = (e.target.files || [])[0];
+            e.target.value = '';
+            if (archivo) leerComprobante(archivo);
+        });
+
+        /* ============================================================
+           v4.4 — CARGA MASIVA DE FACTURAS
+
+           Se cargan todos los XML del mes de una vez. Cada uno se lee, se
+           resuelve contra las órdenes y se propone como factura; después se
+           revisa la lista y se registran las que estén correctas.
+
+           La idea es que la revisión sea corta: la pantalla pone arriba lo
+           que necesita atención y deja marcadas solo las que no tienen
+           problema. Registrar a ciegas un lote de comprobantes es justo lo
+           que no debe poder hacerse en algo que alimenta una auditoría.
+
+           Motivos por los que una propuesta NO se puede registrar:
+             · el archivo no es un CFDI
+             · el folio fiscal ya está en otra factura
+             · ninguna de sus órdenes se reconoció
+             · alguna de sus órdenes ya está facturada
+             · dos archivos del mismo lote amparan la misma orden
+           ============================================================ */
+        let propuestasLote = [];
+
+        function ordenesDeTodoElHistorial() {
+            return datosDetalleOrdenes.map(d => String(d.ID));
+        }
+
+        function clienteDeOrden(id) {
+            const d = datosDetalleOrdenes.find(x => String(x.ID) === String(id));
+            return d ? d.Cliente : '';
+        }
+
+        /* Convierte un CFDI ya parseado en una propuesta de factura, con sus
+           órdenes resueltas y los motivos por los que no podría registrarse. */
+        function armarPropuesta(nombreArchivo, cfdi, universo) {
+            const prop = {
+                archivo: nombreArchivo, numero: cfdi.numero, fecha: cfdi.fecha,
+                uuid: cfdi.uuid, subtotal: cfdi.subtotal, receptor: cfdi.receptor,
+                ordenes: [], cliente: '', errores: [], avisos: [], seleccionada: false
+            };
+
+            (cfdi.conceptos || []).forEach(c => {
+                const halladas = ordenesEnTexto(c.descripcion, universo);
+                if (halladas.length === 0) {
+                    prop.avisos.push('Concepto sin orden reconocible: ' + (c.descripcion || '').slice(0, 40));
+                    return;
+                }
+                const porOrden = (c.importe !== null) ? redondear(c.importe / halladas.length) : null;
+                halladas.forEach(id => {
+                    if (prop.ordenes.some(o => o.id === id)) return;
+                    prop.ordenes.push({ id: id, importe: porOrden });
+                });
+            });
+
+            // Todas las órdenes deben ser de la misma unidad
+            const unidades = [...new Set(prop.ordenes.map(o => clienteDeOrden(o.id)).filter(Boolean))];
+            prop.cliente = unidades[0] || '';
+            if (unidades.length > 1) {
+                prop.errores.push('Ampara órdenes de más de una unidad: ' + unidades.join(' · '));
+            }
+
+            if (!prop.numero) prop.errores.push('El comprobante no trae folio');
+            if (!prop.fecha) prop.errores.push('El comprobante no trae fecha');
+            if (prop.ordenes.length === 0) prop.errores.push('No se reconoció ninguna orden de servicio');
+
+            if (prop.uuid) {
+                const repetida = facturas.find(f => String(f.uuid || '').toUpperCase() === prop.uuid.toUpperCase());
+                if (repetida) prop.errores.push('Este CFDI ya está en la factura ' + repetida.numero);
+            } else {
+                prop.avisos.push('Sin folio fiscal: no se podrá detectar si se registra dos veces');
+            }
+
+            const yaFacturadas = prop.ordenes.filter(o => facturaPorOrden.has(o.id));
+            if (yaFacturadas.length) {
+                prop.errores.push('Órdenes ya facturadas: ' +
+                    yaFacturadas.map(o => o.id + ' (' + facturaPorOrden.get(o.id).numero + ')').join(', '));
+            }
+
+            const suma = prop.ordenes.reduce((a, o) => a + (o.importe || 0), 0);
+            prop.total = suma;
+            if (prop.subtotal !== null && Math.abs(suma - prop.subtotal) > 0.5) {
+                prop.avisos.push('La suma repartida (' + fmtMoneda(suma, 'MXN') +
+                                 ') no coincide con el subtotal (' + fmtMoneda(prop.subtotal, 'MXN') + ')');
+            }
+            return prop;
+        }
+
+        async function leerLoteCFDI(archivos) {
+            const universo = ordenesDeTodoElHistorial();
+            propuestasLote = [];
+
+            for (const archivo of archivos) {
+                try {
+                    const cfdi = parsearCFDI(await archivo.text());
+                    propuestasLote.push(armarPropuesta(archivo.name, cfdi, universo));
+                } catch (err) {
+                    propuestasLote.push({
+                        archivo: archivo.name, numero: '', fecha: '', uuid: '', subtotal: null,
+                        ordenes: [], cliente: '', total: 0, seleccionada: false,
+                        errores: [err.message], avisos: []
+                    });
+                }
+            }
+
+            // Una misma orden en dos archivos del lote: ambos quedan marcados
+            const vistas = new Map();
+            propuestasLote.forEach(p => p.ordenes.forEach(o => {
+                if (!vistas.has(o.id)) vistas.set(o.id, []);
+                vistas.get(o.id).push(p);
+            }));
+            vistas.forEach((props, id) => {
+                if (props.length > 1) props.forEach(p =>
+                    p.errores.push('La orden ' + id + ' aparece en ' + props.length + ' archivos de este lote'));
+            });
+
+            // Quedan marcadas solo las que no tienen impedimento
+            propuestasLote.forEach(p => { p.seleccionada = p.errores.length === 0; });
+            renderLote();
+
+            const m = document.getElementById('modalLote');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+
+        function renderLote() {
+            const listas = propuestasLote;
+            const listos = listas.filter(p => p.errores.length === 0);
+            const conAviso = listos.filter(p => p.avisos.length > 0);
+            const bloqueadas = listas.filter(p => p.errores.length > 0);
+            const importe = listas.filter(p => p.seleccionada).reduce((a, p) => a + p.total, 0);
+
+            document.getElementById('loteSubtitulo').innerText =
+                listas.length + ' archivo(s) leídos · revisa antes de registrar';
+
+            document.getElementById('loteResumen').innerHTML =
+                '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">' +
+                    '<div class="bg-slate-50 border border-slate-200 rounded-lg py-2"><p class="text-xl font-bold text-slate-900">' + listas.length + '</p><p class="text-[10px] uppercase tracking-wide text-slate-500">archivos</p></div>' +
+                    '<div class="bg-green-50 border border-green-200 rounded-lg py-2"><p class="text-xl font-bold text-green-700">' + listos.length + '</p><p class="text-[10px] uppercase tracking-wide text-green-800">listas</p></div>' +
+                    '<div class="bg-amber-50 border border-amber-200 rounded-lg py-2"><p class="text-xl font-bold text-amber-700">' + conAviso.length + '</p><p class="text-[10px] uppercase tracking-wide text-amber-800">con observación</p></div>' +
+                    '<div class="bg-red-50 border border-red-200 rounded-lg py-2"><p class="text-xl font-bold text-red-700">' + bloqueadas.length + '</p><p class="text-[10px] uppercase tracking-wide text-red-800">no registrables</p></div>' +
+                '</div>' +
+                '<p class="text-xs text-slate-600 mt-3">Importe de lo seleccionado: <span class="font-bold">' + fmtMoneda(importe, 'MXN') + '</span></p>';
+
+            document.getElementById('loteLista').innerHTML = listas.map((p, i) => {
+                const bloqueada = p.errores.length > 0;
+                const color = bloqueada ? 'border-red-200 bg-red-50/40'
+                                        : (p.avisos.length ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200');
+                return '<div class="border rounded-lg p-3 ' + color + '">' +
+                    '<div class="flex items-start gap-3">' +
+                        '<input type="checkbox" data-lote="' + i + '" ' + (p.seleccionada ? 'checked' : '') +
+                            (bloqueada ? ' disabled' : '') + ' class="mt-1 rounded border-slate-300">' +
+                        '<div class="min-w-0 flex-1">' +
+                            '<div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">' +
+                                '<span class="font-bold text-slate-900">' + esc(p.numero || 'sin folio') + '</span>' +
+                                '<span class="text-xs text-slate-500">' + esc(p.fecha || 'sin fecha') + '</span>' +
+                                '<span class="text-xs font-semibold text-slate-700">' + esc(p.cliente || 'unidad no identificada') + '</span>' +
+                                '<span class="text-xs text-slate-500">' + p.ordenes.length + ' orden(es)</span>' +
+                                '<span class="ml-auto font-bold ' + (bloqueada ? 'text-slate-400' : 'text-green-700') + '">' +
+                                    fmtMoneda(p.total, 'MXN') + '</span>' +
+                            '</div>' +
+                            '<p class="text-[10px] text-slate-400 mt-0.5 font-mono truncate">' + esc(p.archivo) + '</p>' +
+                            (p.ordenes.length
+                                ? '<p class="text-[11px] text-slate-600 mt-1">' +
+                                  p.ordenes.map(o => esc(o.id) + ' → ' + (o.importe === null ? 'sin importe' : fmtMoneda(o.importe, 'MXN'))).join('  ·  ') +
+                                  '</p>'
+                                : '') +
+                            p.errores.map(e => '<p class="text-[11px] text-red-700 font-semibold mt-1">✕ ' + esc(e) + '</p>').join('') +
+                            p.avisos.map(x => '<p class="text-[11px] text-amber-700 mt-1">· ' + esc(x) + '</p>').join('') +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            document.getElementById('btnRegistrarLote').disabled = listas.filter(p => p.seleccionada).length === 0;
+        }
+
+        document.getElementById('loteLista').addEventListener('change', (e) => {
+            const chk = e.target.closest('[data-lote]');
+            if (!chk) return;
+            propuestasLote[parseInt(chk.dataset.lote, 10)].seleccionada = chk.checked;
+            renderLote();
+        });
+
+        function cerrarModalLote() {
+            const m = document.getElementById('modalLote');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            propuestasLote = [];
+            document.getElementById('loteProgreso').innerText = '';
+        }
+
+        async function registrarLote() {
+            const pendientes = propuestasLote.filter(p => p.seleccionada && p.errores.length === 0);
+            if (pendientes.length === 0) return;
+
+            const btn = document.getElementById('btnRegistrarLote');
+            const prog = document.getElementById('loteProgreso');
+            btn.disabled = true;
+
+            let ok = 0;
+            const fallidas = [];
+
+            /* Una por una y en orden: el servidor valida cada factura contra
+               las ya registradas, así que mandarlas en paralelo permitiría que
+               dos del mismo lote pasaran el control de duplicados a la vez. */
+            for (let i = 0; i < pendientes.length; i++) {
+                const p = pendientes[i];
+                prog.innerText = 'Registrando ' + (i + 1) + ' de ' + pendientes.length + '…';
+                try {
+                    const r = await fetch(URL_APPS_SCRIPT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            accion: 'guardarFactura', token: TOKEN_API, usuario: nombreUsuario(),
+                            factura: {
+                                id: '', cliente: p.cliente, numero: p.numero, fecha: p.fecha,
+                                uuid: p.uuid, nivel: '', notas: 'Carga masiva · ' + p.archivo,
+                                ordenes: p.ordenes
+                            }
+                        })
+                    });
+                    const j = await r.json().catch(() => null);
+                    if (!j || !j.ok) throw new Error((j && j.error) || 'respuesta inesperada del servidor');
+                    ok++;
+                    p.errores.push('Registrada');      // deja de ser seleccionable
+                    p.seleccionada = false;
+                } catch (err) {
+                    fallidas.push(p.numero + ': ' + err.message);
+                    p.errores.push('No se registró: ' + err.message);
+                    p.seleccionada = false;
+                }
+            }
+
+            await cargarFacturas();
+            renderLote();
+            renderAuditoria();
+            registrarEvento('carga_masiva_facturas', ok + ' factura(s) registradas de ' + pendientes.length);
+
+            prog.innerText = ok + ' registrada(s)' + (fallidas.length ? ' · ' + fallidas.length + ' con error' : '');
+            btn.disabled = propuestasLote.filter(p => p.seleccionada).length === 0;
+            if (fallidas.length === 0) {
+                mostrarAviso(ok + ' factura(s) registradas desde el lote.');
+            }
+        }
+
+        document.getElementById('btnRegistrarLote').addEventListener('click', registrarLote);
+
+        document.getElementById('loteCFDI').addEventListener('change', (e) => {
+            const archivos = Array.from(e.target.files || []);
+            e.target.value = '';
+            if (archivos.length) leerLoteCFDI(archivos);
+        });
+
         /* ---------- Registro de factura ---------- */
         let facturaEnEdicion = null;      // factura cargada, o null si es nueva
         let ordenesFacturaActual = [];
+        let facturaUUID = '';             // v4.3: folio fiscal leído del CFDI
 
         function mensajeFacturaUI(texto, tipo) {
             const el = document.getElementById('facMensaje');
@@ -4198,6 +4754,8 @@
             document.getElementById('facNotas').value = '';
             document.getElementById('facNivel').value = 'I';
             document.getElementById('btnEliminarFactura').classList.add('hidden');
+            facturaUUID = '';
+            mensajeCFDI('', 'ok');
 
             sugerirImportes();
             renderListaOrdenesFactura();
@@ -4227,6 +4785,10 @@
             document.getElementById('facNotas').value = f.notas || '';
             document.getElementById('facNivel').value = f.nivel || 'I';
             document.getElementById('btnEliminarFactura').classList.remove('hidden');
+            facturaUUID = f.uuid || '';
+            mensajeCFDI(f.uuid
+                ? '<p class="font-bold">Comprobante asociado</p><p class="font-mono text-[10px]">' + esc(f.uuid) + '</p>'
+                : '', 'ok');
 
             renderListaOrdenesFactura();
             mensajeFacturaUI('', 'info');
@@ -4239,6 +4801,7 @@
             m.classList.add('hidden'); m.classList.remove('flex');
             facturaEnEdicion = null;
             ordenesFacturaActual = [];
+            facturaUUID = '';
         }
 
         function limpiarSeleccion(clave) {
@@ -4271,6 +4834,7 @@
                             cliente: facturaEnEdicion ? (facturaEnEdicion.cliente || clienteActual) : clienteActual,
                             numero: numero, fecha: fecha, notas: notas,
                             nivel: document.getElementById('facNivel').value,
+                            uuid: facturaUUID,
                             ordenes: ordenesFacturaActual.map(o => ({ id: o.id, importe: o.importe }))
                         }
                     })
