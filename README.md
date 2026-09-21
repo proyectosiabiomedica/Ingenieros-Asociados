@@ -818,6 +818,46 @@ Unidad (o todas), año, periodo (todo el año, enero–junio, julio–diciembre)
 - **Excel**: dos hojas, *Facturado* —una línea por servicio, con su factura— y *Sin facturar*, cada una con su total.
 - **PDF**: despliega todas las facturas con su detalle y manda la vista al diálogo de impresión.
 
+## 4.18 Cotizador de materiales y servicios (v4.7)
+
+Apartado *Cotizador* en el menú lateral. Reproduce el formato con el que ya se cotiza, pero cada cotización queda guardada, con folio controlado y estado.
+
+### Puesta en marcha
+
+1. En Apps Script, ejecuta **una vez** `crearHojasCotizador()`. Crea tres pestañas y no toca las que ya existan.
+2. En la pestaña **`Config_Cotizacion`** captura razón social y RFC del emisor, teléfono, correo, sitio web, **banco, titular, número de cuenta y CLABE**, y el nombre que va en la firma. Las condiciones, la garantía, las observaciones por omisión y la lista de marcas ya vienen llenas con el texto de tu formato actual; ajústalas si cambian.
+3. En **`Catalogo_Cotizacion`** captura los materiales y servicios que se cotizan seguido, con su unidad y precio de lista.
+4. Vuelve a implementar el `Code.gs`.
+
+**Por qué los datos bancarios van en la hoja y no en el código:** el `index.html` vive en un repositorio público de GitHub. El número de cuenta se imprime en cada cotización y no es un secreto, pero tampoco tiene por qué quedar publicado en el código fuente. En la hoja además se cambian sin tocar ningún archivo. Mientras falten la razón social, el RFC o la CLABE, el cotizador lo avisa en pantalla.
+
+### El folio
+
+Lo asigna el servidor al guardar, **dentro de un candado**: dos personas cotizando al mismo tiempo no pueden recibir el mismo número. Se toma el mayor entre las cotizaciones registradas y el valor de *Último folio emitido fuera del sistema* en `Config_Cotizacion`, que viene en **2667** para continuar la numeración que se traía en Excel. La primera cotización del sistema sale con el **2668**.
+
+### Armar una cotización
+
+- **Unidad**: opcional. Si se elige una unidad que ya se cotizó antes, se llenan solos su razón social, dirección, RFC y "atención a" con los de su cotización más reciente; si es la primera vez, se toma la dirección de sus órdenes.
+- **Partidas**: se eligen del catálogo o se agregan libres, y todo es editable —descripción, unidad, cantidad y precio—. El importe, el subtotal, el IVA, el total y el importe con letra se recalculan al escribir.
+- **Fecha y vigencia**: la vigencia se calcula sola con los días configurados (20 por omisión).
+- **Observaciones**: vienen precargadas con las de `Config_Cotizacion` y se pueden cambiar en cada cotización.
+
+*Guardar* la registra; *Guardar e imprimir* además la manda al diálogo de impresión, donde se elige *Guardar como PDF*.
+
+### El importe con letra
+
+Sigue las reglas del español que suelen fallar en las conversiones automáticas: *MIL* y no *UN MIL*, *CIEN* solo cuando es exacto y *CIENTO* en los demás casos, *VEINTIÚN MIL*, *UN PESO* en singular y *UN MILLÓN DE PESOS* en millones redondos. Se verificó contra los textos de los documentos reales: `VEINTINUEVE MIL PESOS 00/100 M.N.` y `VEINTINUEVE MIL SETECIENTOS DIECINUEVE PESOS 20/100 M.N.`
+
+### Seguimiento
+
+La lista muestra folio, fecha, cliente, partidas, total y estado, con búsqueda y filtro. El estado se cambia directamente en la lista: **Emitida, Enviada, Aceptada, Rechazada, Vencida**. Desde cada renglón se puede reimprimir, editar —conserva el folio— o **duplicar**, que crea una cotización nueva con otro folio a partir de una anterior. Todo movimiento queda en la bitácora.
+
+### Sobre la segunda hoja
+
+El formato original lleva los **logotipos** de las marcas. Esas imágenes son propiedad de cada fabricante, así que no se reproducen: se listan los **nombres**, que comunican lo mismo. La lista se edita en `Config_Cotizacion`.
+
+Tampoco se incluye la **firma autógrafa**: el documento deja la línea con el nombre para firmar. Si se quiere la firma impresa, se puede agregar después como imagen en la configuración.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -898,6 +938,7 @@ Unidad (o todas), año, periodo (todo el año, enero–junio, julio–diciembre)
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 4.7 | **Cotizador de materiales y servicios** con el formato institucional de dos hojas: encabezado con folio, fecha, vigencia y condiciones; partidas; subtotal, IVA, total e **importe con letra**; observaciones; y segunda hoja con marcas, condiciones, garantía y datos bancarios. El **folio lo asigna el servidor bajo candado** y continúa la numeración que se traía (2667 → 2668). Cada cotización se guarda y se puede reimprimir, editar, duplicar y seguir por estado (emitida, enviada, aceptada, rechazada, vencida). Catálogo de materiales y servicios en `Catalogo_Cotizacion`; los datos del emisor y los bancarios viven en `Config_Cotizacion`, **no en el código** |
 | 4.6 | **El emparejamiento se hace por el número del folio, sin prefijos.** Las órdenes se guardan como `IAB-24237` y la factura las nombra como `O.S. 24237`: es el mismo servicio con dos prefijos distintos, así que de ambos lados se compara solo el número. Tolera espacios, guiones y ceros a la izquierda |
 | 4.5 | **El servicio se reconoce también por número de serie.** Hasta la 4.4 la asociación dependía de que el folio con el que la plataforma conoce la orden fuera exactamente el número de O.S. impreso en la factura; cuando no coinciden no reconocía nada y no explicaba por qué. Ahora se usan, en ese orden, el número de O.S., el **número de serie del equipo** —que el concepto del CFDI casi siempre trae— y cualquier folio suelto que coincida. Si un concepto no se reconoce, la pantalla **dice qué extrajo** (O.S. y serie) para poder compararlo; y si las órdenes existen pero son de otra unidad, lo indica en lugar de decir que no hay nada |
 | 4.4 | **Carga masiva de facturas** desde la auditoría financiera: se sueltan todos los XML del mes de una vez, la plataforma arma una propuesta de factura por cada uno y presenta una pantalla de revisión con tres estados —listas, con observación y no registrables— antes de escribir nada. Detecta CFDI ya registrados, órdenes ya facturadas, órdenes repetidas **entre archivos del mismo lote**, comprobantes que amparan órdenes de más de una unidad y archivos que no son CFDI. Solo quedan marcadas las que no tienen impedimento; el registro es secuencial para que el control de duplicados del servidor no pueda saltarse |
