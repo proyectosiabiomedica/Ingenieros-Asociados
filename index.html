@@ -193,7 +193,8 @@
             body.printing-cotizacion #piePaginaImpresion { display: none !important; }
             @page cotizacion { size: letter portrait; margin: 10mm 12mm 12mm; }
             body.printing-cotizacion { page: cotizacion; }
-            .cot-hoja { break-after: page; page-break-after: always; }
+            /* v4.8: cada hoja mide exactamente una hoja carta y nunca se parte */
+            .cot-hoja { break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
             .cot-hoja:last-child { break-after: auto; page-break-after: auto; }
 
             .no-print-modal { display: none !important; }
@@ -1079,6 +1080,12 @@
                             <input type="date" id="cotFecha" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                         </div>
                         <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
+                            <select id="cotNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                                <option value="I">Nivel I</option><option value="II">Nivel II</option><option value="III">Nivel III</option>
+                            </select>
+                        </div>
+                        <div>
                             <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Condiciones</label>
                             <select id="cotCondiciones" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                                 <option>CRÉDITO</option><option>CONTADO</option><option>ANTICIPO 50%</option>
@@ -1102,9 +1109,25 @@
                     </div>
                 </div>
 
+                <!-- v4.8: los tres textos del documento, editables en cada cotización -->
                 <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mb-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Textos del documento</h3>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Vienen con los predeterminados. Lo que cambies aquí aplica solo a esta cotización.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="restablecerTextosCot()" class="text-xs font-semibold text-slate-500 hover:text-slate-800">Restablecer predeterminados</button>
+                            <button id="btnTextosDefault" onclick="guardarTextosComoDefault()" class="hidden text-xs font-semibold text-brand-600 hover:text-brand-800">Guardar como predeterminados</button>
+                        </div>
+                    </div>
                     <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Observaciones</label>
-                    <textarea id="cotObservaciones" rows="4" class="w-full mt-1 p-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
+                    <textarea id="cotObservaciones" rows="4" class="w-full mt-1 mb-3 p-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Condiciones importantes</label>
+                    <textarea id="cotCondImportantes" rows="7" class="w-full mt-1 mb-3 p-3 border border-slate-300 rounded-lg text-xs outline-none focus:border-brand-500"></textarea>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Garantía</label>
+                    <textarea id="cotGarantia" rows="3" class="w-full mt-1 p-3 border border-slate-300 rounded-lg text-xs outline-none focus:border-brand-500"></textarea>
+                    <p class="text-[11px] text-slate-400 mt-2">Un renglón por línea. Si un texto es largo, la segunda hoja reduce la letra para que quepa completa.</p>
                 </div>
 
                 <p id="cotMensaje" class="hidden text-xs rounded-lg p-3 mb-4"></p>
@@ -1866,7 +1889,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '4.7';
+        const VERSION_APP = '4.8';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2908,6 +2931,7 @@
             const cN2 = buscarColumna(llaves, ['nivel ii', 'nivel 2', 'precio nivel ii', 'n2']);
             const cN3 = buscarColumna(llaves, ['nivel iii', 'nivel 3', 'precio nivel iii', 'n3']);
             const cMoneda = buscarColumna(llaves, ['moneda', 'divisa']);
+            const cUnidad = buscarColumna(llaves, ['unidad']);        // v4.8
 
             data.forEach(row => {
                 const equipo = cEquipo ? String(row[cEquipo] || '').trim() : '';
@@ -2920,7 +2944,8 @@
                         II:  cN2 ? aNumeroPrecio(row[cN2]) : null,
                         III: cN3 ? aNumeroPrecio(row[cN3]) : null
                     },
-                    moneda: cMoneda ? (String(row[cMoneda] || '').trim() || 'MXN') : 'MXN'
+                    moneda: cMoneda ? (String(row[cMoneda] || '').trim() || 'MXN') : 'MXN',
+                    unidad: cUnidad ? String(row[cUnidad] || '').trim() : ''
                 });
             });
 
@@ -4734,8 +4759,45 @@
             });
         }
 
+        /* v4.8 — El catálogo del cotizador sale de Precios_Mantenimiento, la
+           misma hoja que alimenta facturación y auditoría. Cada renglón trae sus
+           tres niveles; en los conceptos que solo tienen Nivel I, ese precio vale
+           para los tres. La hoja Catalogo_Cotizacion de la 4.7, si existe, se
+           suma al final para no perder lo que ya se hubiera capturado ahí. */
+        let catalogoCotizacionLegado = [];
+
+        function conceptosDelCotizador() {
+            const desdeTarifario = catalogoPrecios.map(t => {
+                const esMant = tipoConTarifario(t.servicio);
+                const serv = normalizar(t.servicio.toLowerCase());
+                let descripcion = t.equipo;
+                if (esMant && serv.includes('calibracion')) descripcion = 'Calibración de ' + t.equipo;
+                else if (esMant) descripcion = 'Mantenimiento preventivo integral para ' + t.equipo;
+                return {
+                    grupo: esMant ? (serv.includes('calibracion') ? 'Calibraciones' : 'Mantenimientos preventivos')
+                                  : (t.servicio || 'Conceptos'),
+                    descripcion: descripcion,
+                    unidad: t.unidad || (esMant ? 'Servicio' : 'Pieza'),
+                    precios: t.precios
+                };
+            });
+            const legado = catalogoCotizacionLegado.map(c => ({
+                grupo: c.tipo || 'Conceptos', descripcion: c.descripcion, unidad: c.unidad,
+                precios: { I: c.precio, II: null, III: null }
+            }));
+            return desdeTarifario.concat(legado);
+        }
+
+        // Precio de un concepto en un nivel; si el nivel está vacío, se usa el I
+        function precioConcepto(concepto, nivel) {
+            const p = concepto.precios || {};
+            const v = p[nivel];
+            if (v !== null && v !== undefined && v !== '') return Number(v) || 0;
+            return Number(p.I) || 0;
+        }
+
         function procesarCatalogoCotizacion(data) {
-            catalogoCotizacion = [];
+            catalogoCotizacionLegado = [];
             if (!data || !data.length) return;
             const llaves = Object.keys(data[0]);
             const cTipo = buscarColumna(llaves, ['tipo']);
@@ -4745,7 +4807,7 @@
             data.forEach(r => {
                 const desc = cDesc ? String(r[cDesc] || '').trim() : '';
                 if (!desc) return;
-                catalogoCotizacion.push({
+                catalogoCotizacionLegado.push({
                     tipo: cTipo ? String(r[cTipo] || '').trim() : '',
                     descripcion: desc,
                     unidad: cUni ? (String(r[cUni] || '').trim() || 'Pieza') : 'Pieza',
@@ -4887,14 +4949,24 @@
             selCli.innerHTML = '<option value="">— Cliente nuevo —</option>' +
                 clientesUnicos.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
 
+            // v4.8: el catálogo sale de la hoja única, agrupado por tipo
+            catalogoCotizacion = conceptosDelCotizador();
+            const nivel = document.getElementById('cotNivel').value || 'I';
+            const grupos = {};
+            catalogoCotizacion.forEach((c, i) => { (grupos[c.grupo] = grupos[c.grupo] || []).push(i); });
             const selCat = document.getElementById('cotCatalogo');
             selCat.innerHTML = '<option value="">Partida libre</option>' +
-                catalogoCotizacion.map((c, i) =>
-                    '<option value="' + i + '">' + esc((c.tipo ? c.tipo + ' · ' : '') + c.descripcion) +
-                    (c.precio ? ' — ' + fmtMoneda(c.precio, 'MXN') : '') + '</option>').join('');
+                Object.keys(grupos).map(g =>
+                    '<optgroup label="' + esc(g) + '">' +
+                    grupos[g].map(i => {
+                        const c = catalogoCotizacion[i];
+                        const pr = precioConcepto(c, nivel);
+                        return '<option value="' + i + '">' + esc(c.descripcion) + (pr ? ' — ' + fmtMoneda(pr, 'MXN') : '') + '</option>';
+                    }).join('') + '</optgroup>').join('');
         }
 
         function abrirFormulario(c, esDuplicado) {
+            document.getElementById('cotNivel').value = (c && c.nivel) || 'I';
             poblarSelectsCotizador();
             cotizacionEnEdicion = (c && !esDuplicado) ? c : null;
 
@@ -4911,6 +4983,11 @@
             document.getElementById('cotCondiciones').value = (c && c.condiciones) || 'CRÉDITO';
             document.getElementById('cotFecha').value = (cotizacionEnEdicion && c.fecha) || new Date().toISOString().slice(0, 10);
             document.getElementById('cotObservaciones').value = (c && c.observaciones) || valorConfig('Observaciones');
+            // v4.8: cada cotización conserva sus propios textos
+            document.getElementById('cotCondImportantes').value = (c && c.condicionesImportantes) || valorConfig('Condiciones importantes');
+            document.getElementById('cotGarantia').value = (c && c.garantia) || valorConfig('Garantía');
+            document.getElementById('cotNivel').value = (c && c.nivel) || 'I';
+            document.getElementById('btnTextosDefault').classList.toggle('hidden', !esAdministrador());
 
             partidasCot = c ? (c.partidas || []).map(p => ({ ...p })) : [];
             renderPartidas();
@@ -4949,14 +5026,69 @@
             }
         });
 
+        /* v4.8 — Al cambiar el nivel se reprecian las partidas que vinieron del
+           catálogo y cuyo precio NO se tocó a mano. Lo corregido a mano manda. */
+        document.getElementById('cotNivel').addEventListener('change', () => {
+            const nivel = document.getElementById('cotNivel').value;
+            let repreciadas = 0;
+            partidasCot.forEach(p => {
+                if (p.tocado || p.origen === null || p.origen === undefined || p.origen === '') return;
+                const base = catalogoCotizacion[parseInt(p.origen, 10)];
+                if (!base) return;
+                p.precio = precioConcepto(base, nivel);
+                repreciadas++;
+            });
+            poblarSelectsCotizador();
+            renderPartidas();
+            if (repreciadas) mensajeCotUI(repreciadas + ' partida(s) del catálogo se repreciaron al Nivel ' + nivel +
+                                          '. Las que corregiste a mano conservan su precio.', 'info');
+        });
+
+        function restablecerTextosCot() {
+            document.getElementById('cotObservaciones').value = valorConfig('Observaciones');
+            document.getElementById('cotCondImportantes').value = valorConfig('Condiciones importantes');
+            document.getElementById('cotGarantia').value = valorConfig('Garantía');
+            mensajeCotUI('Textos restablecidos a los predeterminados.', 'info');
+        }
+
+        /* Cambia los predeterminados para TODAS las cotizaciones nuevas. Solo el
+           administrador, y el servidor vuelve a verificarlo. Las cotizaciones ya
+           emitidas no cambian: cada una guardó su propia copia del texto. */
+        async function guardarTextosComoDefault() {
+            if (!esAdministrador()) return;
+            if (!confirm('¿Usar estos textos como predeterminados para todas las cotizaciones nuevas? ' +
+                         'Las ya emitidas conservan el texto con que salieron.')) return;
+            try {
+                const j = await peticionAdmin('guardarTextosCotizacion', {
+                    textos: {
+                        'Observaciones': document.getElementById('cotObservaciones').value,
+                        'Condiciones importantes': document.getElementById('cotCondImportantes').value,
+                        'Garantía': document.getElementById('cotGarantia').value
+                    }
+                });
+                configCotizacion['Observaciones'] = document.getElementById('cotObservaciones').value;
+                configCotizacion['Condiciones importantes'] = document.getElementById('cotCondImportantes').value;
+                configCotizacion['Garantía'] = document.getElementById('cotGarantia').value;
+                try { sessionStorage.removeItem('ia_csv_config_cot'); } catch (_) {}
+                registrarEvento('textos_cotizacion', 'Actualizó los textos predeterminados');
+                mensajeCotUI('Textos guardados como predeterminados (' + (j.cambiados || []).join(', ') + ').', 'ok');
+            } catch (err) {
+                mensajeCotUI(err.message, 'error');
+            }
+        }
+
         function agregarPartida() {
             const idx = document.getElementById('cotCatalogo').value;
             const base = idx === '' ? null : catalogoCotizacion[parseInt(idx, 10)];
+            const nivel = document.getElementById('cotNivel').value || 'I';
             partidasCot.push({
                 descripcion: base ? base.descripcion : '',
                 unidad: base ? base.unidad : 'Pieza',
                 cantidad: 1,
-                precio: base ? base.precio : 0
+                precio: base ? precioConcepto(base, nivel) : 0,
+                // v4.8: se recuerda de qué concepto vino, para repreciar al cambiar de nivel
+                origen: base ? idx : null,
+                tocado: false
             });
             renderPartidas();
             setTimeout(() => {
@@ -5012,6 +5144,7 @@
             const i = parseInt(el.dataset.p, 10);
             const campo = el.dataset.pCampo;
             partidasCot[i][campo] = (campo === 'cantidad' || campo === 'precio') ? (parseFloat(el.value) || 0) : el.value;
+            if (campo === 'precio') partidasCot[i].tocado = true;
             const celda = document.querySelector('[data-p-importe="' + i + '"]');
             if (celda) celda.innerText = fmtMoneda((Number(partidasCot[i].cantidad) || 0) * (Number(partidasCot[i].precio) || 0), 'MXN');
             renderTotalesCot();
@@ -5060,9 +5193,13 @@
                 atencion: document.getElementById('cotAtencion').value.trim(),
                 condiciones: document.getElementById('cotCondiciones').value,
                 partidas: partidas.map(p => ({ descripcion: String(p.descripcion).trim(), unidad: p.unidad,
-                                               cantidad: Number(p.cantidad) || 0, precio: Number(p.precio) || 0 })),
+                                               cantidad: Number(p.cantidad) || 0, precio: Number(p.precio) || 0,
+                                               origen: (p.origen === undefined ? null : p.origen), tocado: !!p.tocado })),
                 subtotal: t.subtotal, iva: t.iva, total: t.total,
-                observaciones: document.getElementById('cotObservaciones').value
+                observaciones: document.getElementById('cotObservaciones').value,
+                condicionesImportantes: document.getElementById('cotCondImportantes').value,
+                garantia: document.getElementById('cotGarantia').value,
+                nivel: document.getElementById('cotNivel').value
             };
 
             const botones = [document.getElementById('btnGuardarCot'), document.getElementById('btnGuardarImprimirCot')];
@@ -5130,98 +5267,142 @@
         document.getElementById('cotBuscar').addEventListener('input', () => renderListaCotizaciones());
         document.getElementById('cotFiltroEstado').addEventListener('change', renderListaCotizaciones);
 
-        /* ---------- Formato impreso ---------- */
+        /* ---------- Formato impreso ----------
+           v4.8 — PAGINACIÓN MEDIDA
+
+           En la 4.7 la primera hoja era un solo recuadro con un espacio fijo
+           para las partidas. Con más de cuatro o cinco partidas largas el
+           recuadro no cabía en la hoja: el navegador lo partía, y los totales y
+           las observaciones caían sueltos en la hoja siguiente, sin encabezado.
+
+           Ahora cada hoja tiene la altura exacta de una hoja carta y NUNCA se
+           parte. Las partidas se reparten midiéndolas de verdad: se arma la
+           hoja en un contenedor invisible con el ancho de impresión, se agrega
+           una partida a la vez y, si ya no cabe, pasa completa a la hoja
+           siguiente, que repite el encabezado. Los totales, el importe con
+           letra y las observaciones van juntos en la última hoja de partidas;
+           si no caben ahí, pasan juntos a una hoja propia.
+
+           La hoja de condiciones se mide igual: si los textos editados son
+           largos, se reduce la letra poco a poco hasta que quepan completos.
+           ============================================================ */
+        const COT_ANCHO_MM = 191;     // carta 215.9 mm menos 12 + 12 de margen
+        const COT_ALTO_MM  = 254;     // carta 279.4 mm menos 10 + 12, con holgura
+
         function imprimirCotizacion(c) {
             const logo = (document.getElementById('logoInstitucional') || {}).src || '';
             const B = 'border:0.35mm solid #000;';
             const lineas = (t) => esc(String(t || '')).split('\n').filter(x => x.trim()).map(x => x + '<br>').join('');
-            const fila = (et, val, extra) => '<tr><td style="' + B + 'padding:1mm 2mm;font-size:8.5pt;' + (extra || '') + '">' + et + '</td></tr>' +
-                                             '<tr><td style="' + B + 'padding:1mm 2mm;font-size:9pt;font-weight:700;">' + val + '</td></tr>';
             const telefono = valorConfig('Teléfono'), correo = valorConfig('Correo'), sitio = valorConfig('Sitio web');
-            const pie = (hoja) => '<p style="text-align:center;font-size:8pt;font-style:italic;color:#1f3a8a;margin-top:4mm">' +
-                (telefono ? 'Teléfono oficina: ' + esc(telefono) + '&nbsp;&nbsp;&nbsp;&nbsp;' : '') +
-                (correo ? 'Correo electrónico: ' + esc(correo) + '&nbsp;&nbsp;&nbsp;&nbsp;' : '') +
-                (sitio ? '¡Visítanos en ' + esc(sitio) + '!' : '') +
-                '<br>Hoja ' + hoja + '</p>';
-
-            const partidasHtml = (c.partidas || []).map(p =>
-                '<tr>' +
-                    '<td style="padding:2mm;font-size:9pt;vertical-align:top;">' + esc(p.descripcion) + '</td>' +
-                    '<td style="padding:2mm;font-size:9pt;text-align:center;vertical-align:top;">' + esc(p.unidad) + '</td>' +
-                    '<td style="padding:2mm;font-size:9pt;text-align:center;vertical-align:top;">' + (Number(p.cantidad) || 0) + '</td>' +
-                    '<td style="padding:2mm;font-size:9pt;text-align:right;vertical-align:top;">' + fmtMoneda(p.precio, 'MXN') + '</td>' +
-                    '<td style="padding:2mm;font-size:9pt;text-align:right;vertical-align:top;">' + fmtMoneda((Number(p.cantidad) || 0) * (Number(p.precio) || 0), 'MXN') + '</td>' +
-                '</tr>').join('');
-
             const tasa = Math.round((parseFloat(valorConfig('IVA', '0.16')) || 0.16) * 100);
+            const textoCond = c.condicionesImportantes || valorConfig('Condiciones importantes');
+            const textoGar = c.garantia || valorConfig('Garantía');
 
-            const hoja1 =
-                '<div class="cot-hoja" style="font-family:Arial,Helvetica,sans-serif;color:#000;' + B + 'padding:3mm;">' +
-                  '<p style="text-align:right;font-weight:700;font-size:11pt;margin:0 0 2mm">COTIZACIÓN</p>' +
-                  '<table style="width:100%;border-collapse:separate;border-spacing:2mm 0"><tr>' +
-                    '<td style="width:38%;vertical-align:top">' +
-                      (logo ? '<img src="' + logo + '" style="width:100%;max-height:30mm;object-fit:contain;display:block;margin-bottom:2mm">' : '') +
-                      '<table style="width:100%;border-collapse:collapse">' +
-                        '<tr><td style="' + B + 'padding:1mm 2mm;font-size:8.5pt;font-weight:700">RAZÓN SOCIAL:</td></tr>' +
-                        '<tr><td style="' + B + 'padding:1mm 2mm;font-size:8.5pt">' + esc(valorConfig('Razón social del emisor')) + '</td></tr>' +
-                        '<tr><td style="' + B + 'padding:1mm 2mm;font-size:8.5pt"><b>R.F.C. :</b> ' + esc(valorConfig('RFC del emisor')) + '</td></tr>' +
-                      '</table>' +
-                    '</td>' +
-                    '<td style="width:38%;vertical-align:top;' + B + 'padding:2mm;font-size:8.5pt;line-height:1.35">' +
-                      '<b>CLIENTE</b><br>' + esc(c.razonSocial) + '<br><br>' +
-                      (c.direccion ? '<b>DIRECCIÓN:</b> ' + esc(c.direccion) + '<br><br>' : '') +
-                      (c.rfc ? '<b>R.F.C.:</b> ' + esc(c.rfc) + '<br>' : '') +
-                      (c.atencion ? '<b>ATENCIÓN A</b>: ' + esc(c.atencion) : '') +
-                    '</td>' +
-                    '<td style="width:24%;vertical-align:top"><table style="width:100%;border-collapse:collapse">' +
-                      fila('FOLIO', '<span style="color:#dc2626;font-size:11pt">' + esc(c.folio) + '</span>') +
-                      fila('FECHA', '<span style="font-weight:400">' + esc(fechaLargaCot(c.fecha)) + '</span>') +
-                      fila('VIGENCIA', '<span style="font-weight:400">' + esc(fechaLargaCot(c.vigencia)) + '</span>') +
-                      fila('CONDICIONES', esc(c.condiciones)) +
-                    '</table></td>' +
-                  '</tr></table>' +
+            const celdaEt = (et, val) =>
+                '<tr><td style="' + B + 'padding:0.8mm 2mm;font-size:8pt;">' + et + '</td></tr>' +
+                '<tr><td style="' + B + 'padding:0.8mm 2mm;font-size:8.5pt;font-weight:700;">' + val + '</td></tr>';
 
-                  '<table style="width:100%;border-collapse:collapse;margin-top:2mm;min-height:120mm">' +
-                    '<thead><tr>' +
-                      ['DESCRIPCIÓN', 'UNIDAD', 'UNIDADES', 'PRECIO', 'IMPORTE'].map((h, i) =>
-                        '<th style="' + B + 'padding:1mm 2mm;font-size:8.5pt;font-weight:400;text-align:left;' +
-                        (i === 0 ? 'width:48%' : '') + '">' + h + '</th>').join('') +
-                    '</tr></thead><tbody>' + partidasHtml +
-                    '<tr><td colspan="5" style="height:' + Math.max(20, 110 - (c.partidas || []).length * 12) + 'mm"></td></tr>' +
-                    '</tbody></table>' +
+            const pie = (n, total) =>
+                '<div style="text-align:center;font-size:7.5pt;font-style:italic;color:#1f3a8a;padding-top:2mm">' +
+                (telefono ? 'Teléfono oficina: ' + esc(telefono) + '&nbsp;&nbsp;&nbsp;' : '') +
+                (correo ? 'Correo electrónico: ' + esc(correo) + '&nbsp;&nbsp;&nbsp;' : '') +
+                (sitio ? '¡Visítanos en ' + esc(sitio) + '!' : '') +
+                '<br>Hoja ' + n + ' de ' + total + '</div>';
 
-                  '<table style="margin-left:auto;font-size:10pt;margin-top:2mm">' +
-                    '<tr><td style="padding:0.5mm 4mm">SUBTOTAL</td><td>$</td><td style="text-align:right;padding-left:10mm">' + fmtMoneda(c.subtotal, 'MXN').replace('$', '') + '</td></tr>' +
-                    '<tr><td style="padding:0.5mm 4mm">I.V.A. ' + tasa + '%</td><td>$</td><td style="text-align:right;padding-left:10mm">' + fmtMoneda(c.iva, 'MXN').replace('$', '') + '</td></tr>' +
-                    '<tr><td style="padding:0.5mm 4mm">TOTAL</td><td><b>$</b></td><td style="text-align:right;padding-left:10mm"><b>' + fmtMoneda(c.total, 'MXN').replace('$', '') + '</b></td></tr>' +
+            const encabezado = () =>
+                '<p style="text-align:right;font-weight:700;font-size:11pt;margin:0 0 1.5mm">COTIZACIÓN</p>' +
+                '<table style="width:100%;border-collapse:separate;border-spacing:1.5mm 0"><tr>' +
+                  '<td style="width:37%;vertical-align:top">' +
+                    (logo ? '<img src="' + logo + '" style="width:100%;max-height:24mm;object-fit:contain;display:block;margin-bottom:1.5mm">' : '') +
+                    '<table style="width:100%;border-collapse:collapse">' +
+                      '<tr><td style="' + B + 'padding:0.8mm 2mm;font-size:8pt;font-weight:700">RAZÓN SOCIAL:</td></tr>' +
+                      '<tr><td style="' + B + 'padding:0.8mm 2mm;font-size:8pt">' + esc(valorConfig('Razón social del emisor')) + '</td></tr>' +
+                      '<tr><td style="' + B + 'padding:0.8mm 2mm;font-size:8pt"><b>R.F.C. :</b> ' + esc(valorConfig('RFC del emisor')) + '</td></tr>' +
+                    '</table>' +
+                  '</td>' +
+                  '<td style="width:39%;vertical-align:top;' + B + 'padding:1.5mm 2mm;font-size:8pt;line-height:1.35">' +
+                    '<b>CLIENTE</b><br>' + esc(c.razonSocial) + '<br>' +
+                    (c.direccion ? '<b>DIRECCIÓN:</b> ' + esc(c.direccion) + '<br>' : '') +
+                    (c.rfc ? '<b>R.F.C.:</b> ' + esc(c.rfc) + '<br>' : '') +
+                    (c.atencion ? '<b>ATENCIÓN A</b>: ' + esc(c.atencion) : '') +
+                  '</td>' +
+                  '<td style="width:24%;vertical-align:top"><table style="width:100%;border-collapse:collapse">' +
+                    celdaEt('FOLIO', '<span style="color:#dc2626;font-size:10.5pt">' + esc(c.folio) + '</span>') +
+                    celdaEt('FECHA', '<span style="font-weight:400">' + esc(fechaLargaCot(c.fecha)) + '</span>') +
+                    celdaEt('VIGENCIA', '<span style="font-weight:400">' + esc(fechaLargaCot(c.vigencia)) + '</span>') +
+                    celdaEt('CONDICIONES', esc(c.condiciones)) +
+                  '</table></td>' +
+                '</tr></table>';
+
+            const filaPartida = (p) =>
+                '<tr style="break-inside:avoid">' +
+                  '<td style="padding:1.5mm 2mm;font-size:8.5pt;vertical-align:top;">' + esc(p.descripcion) + '</td>' +
+                  '<td style="padding:1.5mm 2mm;font-size:8.5pt;text-align:center;vertical-align:top;">' + esc(p.unidad) + '</td>' +
+                  '<td style="padding:1.5mm 2mm;font-size:8.5pt;text-align:center;vertical-align:top;">' + (Number(p.cantidad) || 0) + '</td>' +
+                  '<td style="padding:1.5mm 2mm;font-size:8.5pt;text-align:right;vertical-align:top;white-space:nowrap">' + fmtMoneda(p.precio, 'MXN') + '</td>' +
+                  '<td style="padding:1.5mm 2mm;font-size:8.5pt;text-align:right;vertical-align:top;white-space:nowrap">' +
+                    fmtMoneda((Number(p.cantidad) || 0) * (Number(p.precio) || 0), 'MXN') + '</td>' +
+                '</tr>';
+
+            const tablaPartidas = (lista, continua) =>
+                '<table style="width:100%;border-collapse:collapse;margin-top:2mm">' +
+                  '<thead><tr>' +
+                    ['DESCRIPCIÓN', 'UNIDAD', 'UNIDADES', 'PRECIO', 'IMPORTE'].map((h, i) =>
+                      '<th style="' + B + 'padding:0.8mm 2mm;font-size:8pt;font-weight:400;text-align:left;' +
+                      (i === 0 ? 'width:50%' : '') + '">' + h + '</th>').join('') +
+                  '</tr></thead><tbody>' +
+                  (continua ? '<tr><td colspan="5" style="font-size:7.5pt;font-style:italic;color:#475569;padding:1mm 2mm">… continúa de la hoja anterior</td></tr>' : '') +
+                  lista.map(filaPartida).join('') +
+                '</tbody></table>';
+
+            const cierre = () =>
+                '<div style="break-inside:avoid">' +
+                  '<table style="margin-left:auto;font-size:9.5pt;margin-top:2mm">' +
+                    '<tr><td style="padding:0.4mm 4mm">SUBTOTAL</td><td>$</td><td style="text-align:right;padding-left:10mm">' + fmtMoneda(c.subtotal, 'MXN').replace('$', '') + '</td></tr>' +
+                    '<tr><td style="padding:0.4mm 4mm">I.V.A. ' + tasa + '%</td><td>$</td><td style="text-align:right;padding-left:10mm">' + fmtMoneda(c.iva, 'MXN').replace('$', '') + '</td></tr>' +
+                    '<tr><td style="padding:0.4mm 4mm">TOTAL</td><td><b>$</b></td><td style="text-align:right;padding-left:10mm"><b>' + fmtMoneda(c.total, 'MXN').replace('$', '') + '</b></td></tr>' +
                   '</table>' +
-                  '<p style="font-size:7.5pt;font-weight:700;margin:3mm 0">IMPORTE TOTAL DE LA PROPUESTA: &nbsp;&nbsp; $ &nbsp;' +
-                    fmtMoneda(c.total, 'MXN').replace('$', '') + ' &nbsp;&nbsp; ( ' + esc(numeroALetras(c.total)) + ')</p>' +
-
+                  '<p style="font-size:7.5pt;font-weight:700;margin:2mm 0">IMPORTE TOTAL DE LA PROPUESTA: &nbsp; $ &nbsp;' +
+                    fmtMoneda(c.total, 'MXN').replace('$', '') + ' &nbsp; ( ' + esc(numeroALetras(c.total)) + ')</p>' +
                   '<table style="width:100%;border-collapse:collapse">' +
-                    '<tr><td style="' + B + 'padding:1mm 2mm;font-size:9pt;font-weight:700;color:#dc2626">OBSERVACIONES:</td></tr>' +
-                    '<tr><td style="' + B + 'padding:1.5mm 2mm;font-size:8pt;font-weight:700;height:18mm;vertical-align:top">' +
-                      lineas(c.observaciones) + '</td></tr>' +
+                    '<tr><td style="' + B + 'padding:0.8mm 2mm;font-size:8.5pt;font-weight:700;color:#dc2626">OBSERVACIONES:</td></tr>' +
+                    '<tr><td style="' + B + 'padding:1.5mm 2mm;font-size:7.8pt;font-weight:700;min-height:12mm;vertical-align:top">' +
+                      (lineas(c.observaciones) || '&nbsp;') + '</td></tr>' +
                   '</table>' +
-                  pie(1) +
+                '</div>';
+
+            /* Hoja de partidas: altura fija. El recuadro ocupa la hoja entera y
+               el cierre se empuja al fondo, como en el formato original. */
+            const hojaPartidas = (lista, conCierre, continua, n, total) =>
+                '<div class="cot-hoja" style="font-family:Arial,Helvetica,sans-serif;color:#000;box-sizing:border-box;' +
+                  'width:' + COT_ANCHO_MM + 'mm;height:' + COT_ALTO_MM + 'mm;overflow:hidden;display:flex;flex-direction:column;">' +
+                  '<div style="' + B + 'padding:2.5mm;box-sizing:border-box;flex:1;display:flex;flex-direction:column;min-height:0">' +
+                    encabezado() +
+                    '<div style="flex:1;min-height:0">' + tablaPartidas(lista, continua) + '</div>' +
+                    (conCierre ? cierre() : '<p style="text-align:right;font-size:7.5pt;font-style:italic;color:#475569;margin:1mm 0 0">continúa en la hoja siguiente…</p>') +
+                  '</div>' +
+                  pie(n, total) +
                 '</div>';
 
             const marcas = valorConfig('Marcas');
-            const hoja2 =
-                '<div class="cot-hoja" style="font-family:Arial,Helvetica,sans-serif;color:#000;padding:3mm">' +
-                  (marcas ? '<p style="text-align:center;font-weight:700;font-size:12pt;text-decoration:underline;margin:0 0 3mm">' +
+            const hojaCondiciones = (n, total, escala) =>
+                '<div class="cot-hoja" style="font-family:Arial,Helvetica,sans-serif;color:#000;box-sizing:border-box;' +
+                  'width:' + COT_ANCHO_MM + 'mm;height:' + COT_ALTO_MM + 'mm;overflow:hidden;display:flex;flex-direction:column;' +
+                  'font-size:' + (8 * escala).toFixed(2) + 'pt;padding:2mm">' +
+                  '<div style="flex:1;min-height:0">' +
+                  (marcas ? '<p style="text-align:center;font-weight:700;font-size:1.45em;text-decoration:underline;margin:0 0 2.5mm">' +
                             'CONTAMOS CON LOS CURSOS Y LAS REFACCIONES ORIGINALES PARA OFRECER SOLUCIONES EN LAS SIGUIENTES MARCAS.</p>' +
-                            '<p style="text-align:center;font-size:10pt;font-weight:700;color:#1f3a8a;line-height:1.7;margin:0 0 6mm">' +
+                            '<p style="text-align:center;font-size:1.2em;font-weight:700;color:#1f3a8a;line-height:1.6;margin:0 0 4mm">' +
                             esc(marcas).split(',').map(x => x.trim()).filter(Boolean).join(' &nbsp;·&nbsp; ') + '</p>' : '') +
-                  '<p style="font-size:8pt;font-weight:700;color:#dc2626;margin:0 0 3mm">CONDICIONES IMPORTANTES</p>' +
-                  '<div style="font-size:8pt;line-height:1.55;margin-bottom:5mm">' + lineas(valorConfig('Condiciones importantes')) + '</div>' +
-                  '<div style="' + B + 'padding:2mm;font-size:7.5pt;line-height:1.45;margin-bottom:6mm"><b>GARANTÍA</b>: ' +
-                    esc(valorConfig('Garantía')) + '</div>' +
-                  '<p style="text-align:center;font-size:9pt;margin:0">Atentamente</p>' +
-                  '<div style="height:18mm"></div>' +
-                  '<p style="text-align:center;font-size:9pt;margin:0 0 5mm;border-top:0.3mm solid #000;width:70mm;margin-left:auto;margin-right:auto;padding-top:1mm">' +
+                  '<p style="font-weight:700;color:#dc2626;margin:0 0 2mm">CONDICIONES IMPORTANTES</p>' +
+                  '<div style="line-height:1.5;margin-bottom:4mm">' + lineas(textoCond) + '</div>' +
+                  (textoGar ? '<div style="' + B + 'padding:2mm;font-size:0.95em;line-height:1.4;margin-bottom:5mm"><b>GARANTÍA</b>: ' +
+                    lineas(textoGar).replace(/<br>$/, '') + '</div>' : '') +
+                  '<p style="text-align:center;font-size:1.1em;margin:0">Atentamente</p>' +
+                  '<div style="height:14mm"></div>' +
+                  '<p style="text-align:center;font-size:1.1em;margin:0 0 4mm;border-top:0.3mm solid #000;width:70mm;margin-left:auto;margin-right:auto;padding-top:1mm">' +
                     esc(valorConfig('Firma (nombre)')) + '</p>' +
-                  '<table style="width:100%;border-collapse:collapse;font-size:8.5pt"><tr>' +
+                  '<table style="width:100%;border-collapse:collapse;font-size:1.05em;break-inside:avoid"><tr>' +
                     '<td style="' + B + 'padding:2mm;width:42%;vertical-align:top;line-height:1.5">' +
                       '<b><u>DATOS BANCARIOS</u></b><br>Cuenta en Pesos Mexicanos a nombre de :<br>' +
                       '<b>' + esc(valorConfig('Titular de la cuenta')) + '</b><br>' +
@@ -5235,14 +5416,65 @@
                       '<span style="color:#dc2626;font-weight:700">' + esc(valorConfig('Aviso de depósito')) + '</span>' +
                     '</td>' +
                   '</tr></table>' +
-                  pie(2) +
+                  '</div>' +
+                  pie(n, total) +
                 '</div>';
 
+            /* ---- Medición: se arma cada hoja en un contenedor invisible con el
+               ancho real de impresión y se comprueba si su contenido desborda. */
+            const medidor = document.createElement('div');
+            medidor.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;width:' + COT_ANCHO_MM + 'mm';
+            document.body.appendChild(medidor);
+
+            const desborda = (html) => {
+                medidor.innerHTML = html;
+                const hoja = medidor.querySelector('.cot-hoja');
+                const caja = hoja.firstElementChild;
+                // el recuadro interior crece con flex; si su contenido pide más, desborda
+                return caja.scrollHeight > caja.clientHeight + 1 || hoja.scrollHeight > hoja.clientHeight + 1;
+            };
+
+            const partidas = (c.partidas || []);
+            const paginas = [];
+            let actual = [];
+            partidas.forEach(p => {
+                const prueba = actual.concat([p]);
+                if (actual.length && desborda(hojaPartidas(prueba, false, paginas.length > 0, 1, 1))) {
+                    paginas.push(actual);
+                    actual = [p];
+                } else {
+                    actual = prueba;
+                }
+            });
+            paginas.push(actual);
+
+            // El cierre va en la última hoja de partidas; si no cabe, en una propia
+            let cierreAparte = false;
+            const ultima = paginas[paginas.length - 1];
+            if (desborda(hojaPartidas(ultima, true, paginas.length > 1, 1, 1))) {
+                cierreAparte = true;
+            }
+
+            // Hoja de condiciones: se reduce la letra hasta que quepa
+            let escala = 1;
+            while (escala > 0.7 && desborda(hojaCondiciones(1, 1, escala))) escala -= 0.05;
+
+            document.body.removeChild(medidor);
+
+            const totalHojas = paginas.length + (cierreAparte ? 1 : 0) + 1;
+            let html = '';
+            paginas.forEach((lista, i) => {
+                const esUltima = i === paginas.length - 1;
+                html += hojaPartidas(lista, esUltima && !cierreAparte, i > 0, i + 1, totalHojas);
+            });
+            if (cierreAparte) html += hojaPartidas([], true, true, paginas.length + 1, totalHojas);
+            html += hojaCondiciones(totalHojas, totalHojas, escala);
+
             const cont = document.getElementById('cotizacionImprimible');
-            cont.innerHTML = hoja1 + hoja2;
+            cont.innerHTML = html;
             cont.classList.remove('hidden');
             document.body.classList.add('printing-cotizacion');
-            registrarEvento('imprimir_cotizacion', 'Folio ' + c.folio);
+            registrarEvento('imprimir_cotizacion', 'Folio ' + c.folio + ' · ' + totalHojas + ' hoja(s)');
 
             const limpiar = () => {
                 document.body.classList.remove('printing-cotizacion');
@@ -8062,10 +8294,15 @@
                     '</tr>').join('') +
                 '</tbody></table></div>';
 
+            // v4.8: la hoja ahora también trae conceptos del cotizador
+            const tarifasMant = catalogoPrecios.filter(t => tipoConTarifario(t.servicio)).length;
+            const conceptos = catalogoPrecios.length - tarifasMant;
+
             cont.innerHTML =
                 '<div class="flex flex-wrap items-center justify-between gap-4 px-6 py-4">' +
                     '<div class="flex items-center gap-2 divide-x divide-slate-200">' +
-                        cifra(catalogoPrecios.length, 'tarifas cargadas') +
+                        cifra(tarifasMant, 'tarifas de mantenimiento') +
+                        cifra(conceptos, 'conceptos del cotizador', 'text-brand-600') +
                         cifra(conTarifa, 'equipos con tarifa', 'text-green-700') +
                         cifra(sinTarifa.length, 'sin tarifa', sinTarifa.length ? 'text-amber-600' : 'text-slate-900') +
                     '</div>' +

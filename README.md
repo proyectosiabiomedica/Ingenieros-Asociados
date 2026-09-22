@@ -826,7 +826,7 @@ Apartado *Cotizador* en el menú lateral. Reproduce el formato con el que ya se 
 
 1. En Apps Script, ejecuta **una vez** `crearHojasCotizador()`. Crea tres pestañas y no toca las que ya existan.
 2. En la pestaña **`Config_Cotizacion`** captura razón social y RFC del emisor, teléfono, correo, sitio web, **banco, titular, número de cuenta y CLABE**, y el nombre que va en la firma. Las condiciones, la garantía, las observaciones por omisión y la lista de marcas ya vienen llenas con el texto de tu formato actual; ajústalas si cambian.
-3. En **`Catalogo_Cotizacion`** captura los materiales y servicios que se cotizan seguido, con su unidad y precio de lista.
+3. Los conceptos que se cotizan van en **`Precios_Mantenimiento`**, el mismo catálogo del tarifario (ver *Catálogo único de precios* más abajo).
 4. Vuelve a implementar el `Code.gs`.
 
 **Por qué los datos bancarios van en la hoja y no en el código:** el `index.html` vive en un repositorio público de GitHub. El número de cuenta se imprime en cada cotización y no es un secreto, pero tampoco tiene por qué quedar publicado en el código fuente. En la hoja además se cambian sin tocar ningún archivo. Mientras falten la razón social, el RFC o la CLABE, el cotizador lo avisa en pantalla.
@@ -851,6 +851,43 @@ Sigue las reglas del español que suelen fallar en las conversiones automáticas
 ### Seguimiento
 
 La lista muestra folio, fecha, cliente, partidas, total y estado, con búsqueda y filtro. El estado se cambia directamente en la lista: **Emitida, Enviada, Aceptada, Rechazada, Vencida**. Desde cada renglón se puede reimprimir, editar —conserva el folio— o **duplicar**, que crea una cotización nueva con otro folio a partir de una anterior. Todo movimiento queda en la bitácora.
+
+### Catálogo único de precios (v4.8)
+
+Una sola hoja, **`Precios_Mantenimiento`**, contiene todo lo que tiene precio, y de ella se alimentan la facturación, la exportación, la auditoría y el cotizador. Un precio se captura una vez.
+
+| Tipo de servicio | Tipo de equipo / concepto | Nivel I | Nivel II | Nivel III | Unidad |
+|---|---|---|---|---|---|
+| Preventivo | Monitor de signos vitales | 5880 | 6200 | 6600 | Servicio |
+| Calibración | Desfibrilador | 1900 | 2300 | 2800 | Servicio |
+| Material | Sensor de SpO2 adulto reutilizable | 1850 | | | Pieza |
+| Equipo | Fototerapia de colchón Natus Neoblu | 25000 | | | Pieza |
+
+- Los renglones **Preventivo** y **Calibración** son el tarifario: se usan en la facturación y la auditoría, y en el cotizador aparecen como *"Mantenimiento preventivo integral para…"* y *"Calibración de…"*.
+- Cualquier otro tipo —Material, Refacción, Servicio, Equipo, el que se necesite— es un **concepto del cotizador**. No interfiere con el tarifario.
+- En los conceptos **basta el Nivel I**: si II o III quedan vacíos, ese precio vale para los tres.
+- En el cotizador, el catálogo aparece **agrupado por tipo**.
+
+Si la hoja se creó antes de esta versión, `unificarCatalogoPrecios()` —que también corre dentro de `crearHojasCotizador()`— le agrega la columna *Unidad* sin tocar lo capturado. La pestaña `Catalogo_Cotizacion` de la 4.7 ya no hace falta; si existe, sus renglones se siguen sumando al catálogo, así que no se pierde nada.
+
+### Nivel de precio en la cotización (v4.8)
+
+Cada cotización tiene su **nivel de precio**, según el convenio del cliente. Las partidas que se agregan del catálogo toman el precio de ese nivel. Si después se cambia el nivel, **se reprecian las partidas que vinieron del catálogo**, pero **lo que se corrigió a mano conserva su precio**: una corrección manual es una decisión, y un cambio de nivel no debe deshacerla. La pantalla avisa cuántas se repreciaron.
+
+### Textos del documento (v4.8)
+
+Observaciones, condiciones importantes y garantía **se editan en cada cotización**. Vienen con los predeterminados de `Config_Cotizacion` y lo que se cambie aplica solo a esa cotización: cada una guarda su propia copia, así que reimprimir una cotización de hace meses muestra exactamente los textos con que salió, aunque los predeterminados hayan cambiado después.
+
+- **Restablecer predeterminados** devuelve los tres textos a su valor por omisión.
+- **Guardar como predeterminados** —solo el administrador— convierte los textos editados en los nuevos predeterminados para todas las cotizaciones siguientes. El servidor vuelve a verificar la credencial.
+
+### Paginación (v4.8)
+
+**Ninguna hoja se corta.** Cada hoja mide exactamente una hoja carta y su recuadro nunca se parte entre dos hojas de papel. Las partidas se reparten **midiéndolas de verdad**: se arma la hoja en un contenedor invisible con el ancho real de impresión, se agrega una partida a la vez y, si ya no cabe, pasa completa a la siguiente hoja, que **repite el encabezado** e indica *"continúa de la hoja anterior"*.
+
+El **cierre** —subtotal, IVA, total, importe con letra y observaciones— va siempre junto, al fondo de la última hoja de partidas; si no cabe ahí, pasa completo a una hoja propia. La **hoja de condiciones** se mide igual: si los textos editados son largos, reduce la letra poco a poco hasta que quepan completos. Todas las hojas llevan *Hoja n de N*.
+
+Verificado con 1, 9 y 25 partidas de descripción larga: el número de hojas armadas coincide con el de páginas del PDF y todas las partidas aparecen impresas.
 
 ### Sobre la segunda hoja
 
@@ -938,6 +975,7 @@ Tampoco se incluye la **firma autógrafa**: el documento deja la línea con el n
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 4.8 | **Las hojas de la cotización ya no se cortan**: cada hoja mide exactamente una hoja carta y las partidas se reparten midiéndolas; si no caben, pasan completas a la hoja siguiente, que repite el encabezado, y el cierre —totales, importe con letra y observaciones— nunca se separa. **Observaciones, condiciones importantes y garantía se editan desde la app** en cada cotización, con los predeterminados como punto de partida; el administrador puede guardar los textos editados como nuevos predeterminados. **Catálogo único de precios**: `Precios_Mantenimiento` contiene los mantenimientos preventivos y calibraciones en tres niveles y también los conceptos del cotizador, y alimenta a la vez facturación, auditoría y cotizador. Selector de **nivel de precio** en la cotización, que reprecia lo que vino del catálogo sin tocar lo corregido a mano |
 | 4.7 | **Cotizador de materiales y servicios** con el formato institucional de dos hojas: encabezado con folio, fecha, vigencia y condiciones; partidas; subtotal, IVA, total e **importe con letra**; observaciones; y segunda hoja con marcas, condiciones, garantía y datos bancarios. El **folio lo asigna el servidor bajo candado** y continúa la numeración que se traía (2667 → 2668). Cada cotización se guarda y se puede reimprimir, editar, duplicar y seguir por estado (emitida, enviada, aceptada, rechazada, vencida). Catálogo de materiales y servicios en `Catalogo_Cotizacion`; los datos del emisor y los bancarios viven en `Config_Cotizacion`, **no en el código** |
 | 4.6 | **El emparejamiento se hace por el número del folio, sin prefijos.** Las órdenes se guardan como `IAB-24237` y la factura las nombra como `O.S. 24237`: es el mismo servicio con dos prefijos distintos, así que de ambos lados se compara solo el número. Tolera espacios, guiones y ceros a la izquierda |
 | 4.5 | **El servicio se reconoce también por número de serie.** Hasta la 4.4 la asociación dependía de que el folio con el que la plataforma conoce la orden fuera exactamente el número de O.S. impreso en la factura; cuando no coinciden no reconocía nada y no explicaba por qué. Ahora se usan, en ese orden, el número de O.S., el **número de serie del equipo** —que el concepto del CFDI casi siempre trae— y cualquier folio suelto que coincida. Si un concepto no se reconoce, la pantalla **dice qué extrajo** (O.S. y serie) para poder compararlo; y si las órdenes existen pero son de otra unidad, lo indica en lugar de decir que no hay nada |
