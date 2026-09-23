@@ -365,6 +365,12 @@
                     Cotizador
                 </div>
             </button>
+            <button onclick="mostrarCatalogos()" id="btnCatalogos" class="hidden w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    Catálogos
+                </div>
+            </button>
             <button onclick="mostrarAuditoria()" id="btnAuditoria" class="hidden w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
                 <div class="flex items-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -1022,6 +1028,111 @@
              que es un flex de altura fija. Al no estar en el contenedor que
              tiene overflow-y-auto, no había forma de deslizar y la parte de
              abajo quedaba inalcanzable. Aquí adentro heredan su scroll. -->
+        <!-- ============ v4.9: catálogos de clientes y de precios ============ -->
+        <div id="catalogosContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Catálogos</h2>
+                <p class="text-sm text-slate-500 mt-1">Clientes y precios que alimentan el cotizador, la facturación y la auditoría. Se capturan aquí, sin abrir la hoja de cálculo.</p>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-5">
+                    <button id="tabCatCli" onclick="cambiarPestanaCatalogo('clientes')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">Clientes</button>
+                    <button id="tabCatPre" onclick="cambiarPestanaCatalogo('precios')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Precios y prestaciones</button>
+                </div>
+
+                <!-- Clientes -->
+                <div id="catPanelClientes" class="p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                        <div class="lg:col-span-3">
+                            <input type="text" id="catBuscarCli" placeholder="Buscar razón social, RFC o unidad…"
+                                   class="w-full mb-3 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                            <div id="catListaClientes" class="overflow-x-auto"></div>
+                        </div>
+                        <div class="lg:col-span-2 border border-slate-200 rounded-xl p-5 bg-slate-50/50 self-start">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 id="catTituloCli" class="text-sm font-bold text-slate-800 uppercase tracking-wide">Nuevo cliente</h3>
+                                <button id="catCancelarCli" onclick="limpiarFormCliente()" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar</button>
+                            </div>
+                            <div class="flex flex-col gap-2.5">
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Razón social *</label>
+                                    <input id="cliRazon" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">R.F.C.</label>
+                                        <input id="cliRFC" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm uppercase outline-none focus:border-brand-500"></div>
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de convenio</label>
+                                        <select id="cliNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                                            <option value="I">Nivel I</option><option value="II">Nivel II</option><option value="III">Nivel III</option></select></div>
+                                </div>
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Dirección fiscal</label>
+                                    <textarea id="cliDireccion" rows="2" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea></div>
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Atención a</label>
+                                    <input id="cliAtencion" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Correo</label>
+                                        <input id="cliCorreo" type="email" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</label>
+                                        <input id="cliTelefono" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                </div>
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad en las órdenes de trabajo</label>
+                                    <select id="cliUnidad" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                                    <p class="text-[10px] text-slate-400 mt-1">Enlaza al cliente con su historial de servicios, facturas y calendario.</p></div>
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Notas</label>
+                                    <input id="cliNotas" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                <p id="cliMensaje" class="hidden text-xs rounded-lg p-2.5"></p>
+                                <button id="btnGuardarCliente" onclick="guardarClienteDesdeForm()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors">Guardar cliente</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Precios -->
+                <div id="catPanelPrecios" class="p-6" style="display:none">
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                        <div class="lg:col-span-3">
+                            <div class="flex gap-2 mb-3">
+                                <input type="text" id="catBuscarPre" placeholder="Buscar concepto…"
+                                       class="flex-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                                <select id="catFiltroServ" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                            </div>
+                            <div id="catListaPrecios" class="overflow-x-auto max-h-[70vh] overflow-y-auto"></div>
+                        </div>
+                        <div class="lg:col-span-2 border border-slate-200 rounded-xl p-5 bg-slate-50/50 self-start">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 id="catTituloPre" class="text-sm font-bold text-slate-800 uppercase tracking-wide">Nuevo concepto</h3>
+                                <button id="catCancelarPre" onclick="limpiarFormPrecio()" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar</button>
+                            </div>
+                            <div class="flex flex-col gap-2.5">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tipo</label>
+                                        <input id="preServicio" list="listaTiposPrecio" placeholder="Preventivo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                                        <datalist id="listaTiposPrecio"></datalist></div>
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
+                                        <input id="preUnidad" placeholder="Servicio, Pieza…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                </div>
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Concepto o tipo de equipo *</label>
+                                    <textarea id="preConcepto" rows="2" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
+                                    <p class="text-[10px] text-slate-400 mt-1">En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.</p></div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel I</label>
+                                        <input id="preN1" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel II</label>
+                                        <input id="preN2" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
+                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel III</label>
+                                        <input id="preN3" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
+                                </div>
+                                <p class="text-[10px] text-slate-400">Si el precio es igual en los tres niveles, captúralo solo en Nivel I: se copia a los vacíos al guardar.</p>
+                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Notas</label>
+                                    <input id="preNotas" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                                <p id="preMensaje" class="hidden text-xs rounded-lg p-2.5"></p>
+                                <button id="btnGuardarPrecio" onclick="guardarPrecioDesdeForm()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors">Guardar concepto</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ============ v4.7: cotizador de materiales y servicios ============ -->
         <div id="cotizadorContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
             <div class="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -1056,7 +1167,7 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad (opcional)</label>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Cliente del catálogo</label>
                             <select id="cotCliente" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                         </div>
                         <div class="md:col-span-2">
@@ -1092,7 +1203,8 @@
                             </select>
                         </div>
                     </div>
-                    <p class="text-[11px] text-slate-400 mt-2">Al elegir una unidad se llenan sus datos con los de su última cotización, si existe.</p>
+                    <p class="text-[11px] text-slate-400 mt-2">Al elegir un cliente del catálogo se llenan sus datos fiscales y su nivel de convenio. Para uno nuevo, captúralo aquí y, si eres administrador, guárdalo en el catálogo.</p>
+                    <button id="btnGuardarClienteDesdeCot" onclick="guardarClienteDesdeCotizacion()" class="hidden mt-2 text-xs font-semibold text-brand-600 hover:text-brand-800">+ Guardar estos datos como cliente del catálogo</button>
                 </div>
 
                 <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-4">
@@ -1889,7 +2001,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '4.8';
+        const VERSION_APP = '4.9';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -3265,6 +3377,7 @@
             document.getElementById('adminUsuariosContent').classList.add('hidden');
             document.getElementById('auditoriaContent').classList.add('hidden');
             document.getElementById('cotizadorContent').classList.add('hidden');
+            document.getElementById('catalogosContent').classList.add('hidden');
             document.getElementById('dashboardContent').style.display = 'block';
             cerrarSidebarMovil();
             renderizarDashboard(document.getElementById('monthFilter').value || 'todos');
@@ -3294,6 +3407,7 @@
             document.getElementById('adminUsuariosContent').classList.add('hidden');
             document.getElementById('auditoriaContent').classList.add('hidden');
             document.getElementById('cotizadorContent').classList.add('hidden');
+            document.getElementById('catalogosContent').classList.add('hidden');
             const btns = document.getElementById('listaClientesSidebar').querySelectorAll('button');
             btns.forEach(b => {
                 if (b.innerText === clienteNombre) {
@@ -3567,6 +3681,7 @@
             document.getElementById('clienteContent').style.display = 'none';
             document.getElementById('adminUsuariosContent').classList.add('hidden');
             document.getElementById('cotizadorContent').classList.add('hidden');
+            document.getElementById('catalogosContent').classList.add('hidden');
             document.getElementById('auditoriaContent').classList.remove('hidden');
             cerrarSidebarMovil();
             registrarEvento('ver_auditoria');
@@ -4816,6 +4931,373 @@
             });
         }
 
+        /* ============================================================
+           v4.9 — CATÁLOGOS DE CLIENTES Y DE PRECIOS DESDE LA APP
+
+           Hasta la 4.8 los precios se capturaban abriendo la hoja de
+           cálculo, y los datos fiscales del cliente salían de su última
+           cotización, si la había. Ahora las dos cosas se administran aquí.
+
+           Clientes: la ficha trae razón social, RFC, dirección, atención a,
+           contacto, la UNIDAD con la que aparece en las órdenes —que es el
+           enlace con su historial, sus facturas y su calendario— y su NIVEL
+           de convenio, que el cotizador aplica solo al elegirlo.
+
+           Precios: se dan de alta, se corrigen y se eliminan conceptos de
+           Precios_Mantenimiento. Al guardar se vuelve a descargar el
+           tarifario, así que el cotizador, la facturación y la auditoría lo
+           ven en ese momento, sin recargar la página.
+
+           Consultar ambos catálogos es para todos; modificarlos, solo con
+           credencial de administrador, y el servidor lo vuelve a comprobar.
+           ============================================================ */
+        let catalogoClientes = [];
+        let clienteEnEdicion = null;
+        let preciosAdmin = [];
+        let precioEnEdicion = null;
+        let pestanaCatalogo = 'clientes';
+
+        async function cargarCatalogoClientes() {
+            if (!hayBackend()) { catalogoClientes = []; return; }
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'listarClientes', token: TOKEN_API })
+                });
+                const j = await r.json().catch(() => null);
+                catalogoClientes = (j && j.ok) ? j.clientes : [];
+            } catch (_) { catalogoClientes = []; }
+            catalogoClientes.sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, 'es'));
+        }
+
+        async function cargarPreciosAdmin() {
+            const j = await peticionAdmin('listarPreciosAdmin', {});
+            preciosAdmin = j.precios || [];
+        }
+
+        /* Después de tocar precios se vuelve a bajar el tarifario, con el caché
+           del servidor saltado, para que todo lo que depende de él se entere. */
+        async function refrescarTarifario() {
+            try {
+                const texto = await descargarHoja('precios', true);
+                Papa.parse(texto, {
+                    header: true, skipEmptyLines: true,
+                    transformHeader: h => normalizar(h.trim().toLowerCase()),
+                    complete: r => procesarCatalogoPrecios(r.data)
+                });
+            } catch (_) { /* si falla, se verá en la siguiente carga */ }
+        }
+
+        async function mostrarCatalogos() {
+            if (!esAdministrador()) { alert('Los catálogos se administran con rol de administrador.'); return; }
+            if (!(await asegurarCredencialAdmin())) return;
+            resetSidebarStyles();
+            const btn = document.getElementById('btnCatalogos');
+            btn.classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
+            btn.classList.remove('text-slate-400');
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('clienteContent').style.display = 'none';
+            ['adminUsuariosContent', 'auditoriaContent', 'cotizadorContent'].forEach(id =>
+                document.getElementById(id).classList.add('hidden'));
+            document.getElementById('catalogosContent').classList.remove('hidden');
+            cerrarSidebarMovil();
+            registrarEvento('ver_catalogos');
+
+            // Unidades disponibles para enlazar clientes con su historial
+            document.getElementById('cliUnidad').innerHTML = '<option value="">— Sin enlazar —</option>' +
+                clientesUnicos.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+
+            document.getElementById('catListaClientes').innerHTML = '<p class="text-sm text-slate-500 italic">Cargando…</p>';
+            await cargarCatalogoClientes();
+            limpiarFormCliente();
+            renderClientesCatalogo();
+
+            try { await cargarPreciosAdmin(); }
+            catch (err) { preciosAdmin = []; mensajeCatUI('preMensaje', err.message, 'error'); }
+            limpiarFormPrecio();
+            renderPreciosCatalogo();
+        }
+
+        function cambiarPestanaCatalogo(cual) {
+            pestanaCatalogo = cual;
+            const cli = cual === 'clientes';
+            document.getElementById('tabCatCli').classList.toggle('tab-active', cli);
+            document.getElementById('tabCatCli').classList.toggle('tab-inactive', !cli);
+            document.getElementById('tabCatPre').classList.toggle('tab-active', !cli);
+            document.getElementById('tabCatPre').classList.toggle('tab-inactive', cli);
+            document.getElementById('catPanelClientes').style.display = cli ? 'block' : 'none';
+            document.getElementById('catPanelPrecios').style.display = cli ? 'none' : 'block';
+        }
+
+        function mensajeCatUI(id, texto, tipo) {
+            const el = document.getElementById(id);
+            const estilos = { error: 'bg-red-50 text-red-700 border border-red-200',
+                              ok: 'bg-green-50 text-green-700 border border-green-200',
+                              info: 'bg-slate-100 text-slate-600 border border-slate-200' };
+            el.className = 'text-xs rounded-lg p-2.5 ' + (estilos[tipo] || estilos.info);
+            el.innerText = texto;
+            el.classList.toggle('hidden', !texto);
+        }
+
+        /* ---------- Clientes ---------- */
+        function renderClientesCatalogo() {
+            const cont = document.getElementById('catListaClientes');
+            const q = normalizar(document.getElementById('catBuscarCli').value.toLowerCase()).trim();
+            const lista = catalogoClientes.filter(c => !q ||
+                normalizar((c.razonSocial + ' ' + c.rfc + ' ' + c.unidad + ' ' + c.atencion).toLowerCase()).includes(q));
+
+            if (!lista.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">' +
+                    (catalogoClientes.length ? 'Ningún cliente coincide.' : 'Todavía no hay clientes. Captura el primero con el formulario.') + '</p>';
+                return;
+            }
+            const th = 'px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
+                '<th class="' + th + '">Cliente</th><th class="' + th + '">RFC</th><th class="' + th + '">Unidad</th>' +
+                '<th class="' + th + '">Nivel</th><th class="' + th + '"></th></tr></thead><tbody class="divide-y divide-slate-100">' +
+                lista.map(c =>
+                    '<tr class="hover:bg-slate-50">' +
+                        '<td class="px-3 py-2"><p class="font-semibold text-slate-800">' + esc(c.razonSocial) + '</p>' +
+                            '<p class="text-[11px] text-slate-500">' + esc(c.atencion || c.correo || '') + '</p></td>' +
+                        '<td class="px-3 py-2 font-mono text-xs text-slate-600">' + esc(c.rfc || '—') + '</td>' +
+                        '<td class="px-3 py-2 text-xs text-slate-600">' + (c.unidad ? esc(c.unidad)
+                            : '<span class="text-amber-600">sin enlazar</span>') + '</td>' +
+                        '<td class="px-3 py-2 text-xs font-bold text-slate-700">' + esc(c.nivel || 'I') + '</td>' +
+                        '<td class="px-3 py-2 text-right whitespace-nowrap">' +
+                            '<button data-cli-editar="' + esc(c.id) + '" class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-1">Editar</button>' +
+                            '<button data-cli-eliminar="' + esc(c.id) + '" class="text-xs font-semibold text-red-500 hover:text-red-700 px-1">Eliminar</button>' +
+                        '</td>' +
+                    '</tr>').join('') +
+                '</tbody></table>';
+        }
+
+        function limpiarFormCliente() {
+            clienteEnEdicion = null;
+            ['cliRazon', 'cliRFC', 'cliDireccion', 'cliAtencion', 'cliCorreo', 'cliTelefono', 'cliNotas']
+                .forEach(id => { document.getElementById(id).value = ''; });
+            document.getElementById('cliNivel').value = 'I';
+            document.getElementById('cliUnidad').value = '';
+            document.getElementById('catTituloCli').innerText = 'Nuevo cliente';
+            document.getElementById('btnGuardarCliente').innerText = 'Guardar cliente';
+            document.getElementById('catCancelarCli').classList.add('hidden');
+            mensajeCatUI('cliMensaje', '', 'info');
+        }
+
+        function editarClienteCatalogo(id) {
+            const c = catalogoClientes.find(x => x.id === id);
+            if (!c) return;
+            clienteEnEdicion = c;
+            document.getElementById('cliRazon').value = c.razonSocial;
+            document.getElementById('cliRFC').value = c.rfc;
+            document.getElementById('cliDireccion').value = c.direccion;
+            document.getElementById('cliAtencion').value = c.atencion;
+            document.getElementById('cliCorreo').value = c.correo;
+            document.getElementById('cliTelefono').value = c.telefono;
+            document.getElementById('cliNotas').value = c.notas;
+            document.getElementById('cliNivel').value = c.nivel || 'I';
+            const selU = document.getElementById('cliUnidad');
+            if (c.unidad && !Array.from(selU.options).some(o => o.value === c.unidad)) {
+                selU.insertAdjacentHTML('beforeend', '<option value="' + esc(c.unidad) + '">' + esc(c.unidad) + '</option>');
+            }
+            selU.value = c.unidad || '';
+            document.getElementById('catTituloCli').innerText = 'Editar cliente';
+            document.getElementById('btnGuardarCliente').innerText = 'Guardar cambios';
+            document.getElementById('catCancelarCli').classList.remove('hidden');
+            mensajeCatUI('cliMensaje', '', 'info');
+        }
+
+        function datosFormCliente() {
+            return {
+                id: clienteEnEdicion ? clienteEnEdicion.id : '',
+                razonSocial: document.getElementById('cliRazon').value.trim(),
+                rfc: document.getElementById('cliRFC').value.trim().toUpperCase(),
+                direccion: document.getElementById('cliDireccion').value.trim(),
+                atencion: document.getElementById('cliAtencion').value.trim(),
+                correo: document.getElementById('cliCorreo').value.trim(),
+                telefono: document.getElementById('cliTelefono').value.trim(),
+                unidad: document.getElementById('cliUnidad').value,
+                nivel: document.getElementById('cliNivel').value,
+                notas: document.getElementById('cliNotas').value.trim()
+            };
+        }
+
+        async function enviarCliente(datos) {
+            const j = await peticionAdmin('guardarCliente', { cliente: datos });
+            await cargarCatalogoClientes();
+            return j;
+        }
+
+        async function guardarClienteDesdeForm() {
+            const d = datosFormCliente();
+            if (!d.razonSocial) { mensajeCatUI('cliMensaje', 'La razón social es obligatoria.', 'error'); return; }
+            const btn = document.getElementById('btnGuardarCliente');
+            btn.disabled = true;
+            try {
+                const j = await enviarCliente(d);
+                limpiarFormCliente();
+                renderClientesCatalogo();
+                mensajeCatUI('cliMensaje', j.nuevo ? 'Cliente dado de alta.' : 'Cliente actualizado.', 'ok');
+            } catch (err) {
+                mensajeCatUI('cliMensaje', err.message, 'error');
+            } finally { btn.disabled = false; }
+        }
+
+        document.getElementById('catListaClientes').addEventListener('click', async (e) => {
+            const ed = e.target.closest('[data-cli-editar]');
+            if (ed) { editarClienteCatalogo(ed.dataset.cliEditar); return; }
+            const el = e.target.closest('[data-cli-eliminar]');
+            if (!el) return;
+            const c = catalogoClientes.find(x => x.id === el.dataset.cliEliminar);
+            if (!c || !confirm('¿Eliminar a "' + c.razonSocial + '" del catálogo? Sus cotizaciones y facturas no se borran.')) return;
+            try {
+                await peticionAdmin('eliminarCliente', { id: c.id });
+                await cargarCatalogoClientes();
+                if (clienteEnEdicion && clienteEnEdicion.id === c.id) limpiarFormCliente();
+                renderClientesCatalogo();
+            } catch (err) { alert(err.message); }
+        });
+        document.getElementById('catBuscarCli').addEventListener('input', () => renderClientesCatalogo());
+
+        /* ---------- Precios ---------- */
+        function renderPreciosCatalogo() {
+            const cont = document.getElementById('catListaPrecios');
+            const tipos = [...new Set(preciosAdmin.map(x => x.servicio))].sort((a, b) => a.localeCompare(b, 'es'));
+
+            // Filtro por tipo y sugerencias del campo Tipo
+            const sel = document.getElementById('catFiltroServ');
+            const actual = sel.value || 'todos';
+            sel.innerHTML = '<option value="todos">Todos los tipos</option>' +
+                tipos.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('');
+            sel.value = tipos.indexOf(actual) > -1 ? actual : 'todos';
+            document.getElementById('listaTiposPrecio').innerHTML =
+                [...new Set(['Preventivo', 'Calibración', 'Servicio', 'Material', 'Refacción', 'Equipo'].concat(tipos))]
+                    .map(t => '<option value="' + esc(t) + '">').join('');
+
+            const q = normalizar(document.getElementById('catBuscarPre').value.toLowerCase()).trim();
+            const lista = preciosAdmin.filter(x =>
+                (sel.value === 'todos' || x.servicio === sel.value) &&
+                (!q || normalizar(x.concepto.toLowerCase()).includes(q)));
+
+            if (!lista.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">' +
+                    (preciosAdmin.length ? 'Ningún concepto coincide.' : 'Sin conceptos todavía.') + '</p>';
+                return;
+            }
+            const th = 'px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50 sticky top-0"><tr>' +
+                '<th class="' + th + ' text-left">Tipo</th><th class="' + th + ' text-left">Concepto</th>' +
+                '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
+                '<th class="' + th + ' text-right">Nivel III</th><th class="' + th + '"></th></tr></thead>' +
+                '<tbody class="divide-y divide-slate-100">' +
+                lista.map(x =>
+                    '<tr class="hover:bg-slate-50">' +
+                        '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + esc(x.servicio) + '</td>' +
+                        '<td class="px-3 py-2"><p class="text-slate-800">' + esc(x.concepto) + '</p>' +
+                            (x.unidad ? '<p class="text-[10px] text-slate-400">' + esc(x.unidad) + '</p>' : '') + '</td>' +
+                        ['n1', 'n2', 'n3'].map(k => '<td class="px-3 py-2 text-right font-mono text-xs whitespace-nowrap">' +
+                            fmtMoneda(x[k], x.moneda) + '</td>').join('') +
+                        '<td class="px-3 py-2 text-right whitespace-nowrap">' +
+                            '<button data-pre-editar="' + esc(x.id) + '" class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-1">Editar</button>' +
+                            '<button data-pre-eliminar="' + esc(x.id) + '" class="text-xs font-semibold text-red-500 hover:text-red-700 px-1">Eliminar</button>' +
+                        '</td>' +
+                    '</tr>').join('') +
+                '</tbody></table>';
+        }
+
+        function limpiarFormPrecio() {
+            precioEnEdicion = null;
+            ['preServicio', 'preUnidad', 'preConcepto', 'preN1', 'preN2', 'preN3', 'preNotas']
+                .forEach(id => { document.getElementById(id).value = ''; });
+            document.getElementById('catTituloPre').innerText = 'Nuevo concepto';
+            document.getElementById('btnGuardarPrecio').innerText = 'Guardar concepto';
+            document.getElementById('catCancelarPre').classList.add('hidden');
+            mensajeCatUI('preMensaje', '', 'info');
+        }
+
+        function editarPrecioCatalogo(id) {
+            const x = preciosAdmin.find(p => p.id === id);
+            if (!x) return;
+            precioEnEdicion = x;
+            document.getElementById('preServicio').value = x.servicio;
+            document.getElementById('preUnidad').value = x.unidad;
+            document.getElementById('preConcepto').value = x.concepto;
+            document.getElementById('preN1').value = x.n1 === null ? '' : x.n1;
+            document.getElementById('preN2').value = x.n2 === null ? '' : x.n2;
+            document.getElementById('preN3').value = x.n3 === null ? '' : x.n3;
+            document.getElementById('preNotas').value = x.notas;
+            document.getElementById('catTituloPre').innerText = 'Editar concepto';
+            document.getElementById('btnGuardarPrecio').innerText = 'Guardar cambios';
+            document.getElementById('catCancelarPre').classList.remove('hidden');
+            mensajeCatUI('preMensaje', '', 'info');
+        }
+
+        async function guardarPrecioDesdeForm() {
+            const concepto = document.getElementById('preConcepto').value.trim();
+            if (!concepto) { mensajeCatUI('preMensaje', 'Escribe el concepto o el tipo de equipo.', 'error'); return; }
+            let n1 = document.getElementById('preN1').value, n2 = document.getElementById('preN2').value,
+                n3 = document.getElementById('preN3').value;
+            if (n1 === '' && n2 === '' && n3 === '') { mensajeCatUI('preMensaje', 'Captura al menos el precio de Nivel I.', 'error'); return; }
+            // Precio único: el Nivel I se copia a los niveles vacíos
+            if (n1 !== '') { if (n2 === '') n2 = n1; if (n3 === '') n3 = n1; }
+
+            const btn = document.getElementById('btnGuardarPrecio');
+            btn.disabled = true;
+            try {
+                const j = await peticionAdmin('guardarPrecio', { precio: {
+                    id: precioEnEdicion ? precioEnEdicion.id : '',
+                    servicio: document.getElementById('preServicio').value.trim() || 'Preventivo',
+                    concepto: concepto,
+                    unidad: document.getElementById('preUnidad').value.trim(),
+                    n1: n1, n2: n2, n3: n3, moneda: 'MXN',
+                    notas: document.getElementById('preNotas').value.trim()
+                } });
+                await cargarPreciosAdmin();
+                await refrescarTarifario();
+                limpiarFormPrecio();
+                renderPreciosCatalogo();
+                mensajeCatUI('preMensaje', j.nuevo ? 'Concepto agregado.' : 'Concepto actualizado.', 'ok');
+            } catch (err) {
+                mensajeCatUI('preMensaje', err.message, 'error');
+            } finally { btn.disabled = false; }
+        }
+
+        document.getElementById('catListaPrecios').addEventListener('click', async (e) => {
+            const ed = e.target.closest('[data-pre-editar]');
+            if (ed) { editarPrecioCatalogo(ed.dataset.preEditar); return; }
+            const el = e.target.closest('[data-pre-eliminar]');
+            if (!el) return;
+            const x = preciosAdmin.find(p => p.id === el.dataset.preEliminar);
+            if (!x || !confirm('¿Eliminar "' + x.concepto + '" (' + x.servicio + ')? Las facturas y cotizaciones ya emitidas conservan su importe.')) return;
+            try {
+                await peticionAdmin('eliminarPrecio', { id: x.id });
+                await cargarPreciosAdmin();
+                await refrescarTarifario();
+                if (precioEnEdicion && precioEnEdicion.id === x.id) limpiarFormPrecio();
+                renderPreciosCatalogo();
+            } catch (err) { alert(err.message); }
+        });
+        document.getElementById('catBuscarPre').addEventListener('input', () => renderPreciosCatalogo());
+        document.getElementById('catFiltroServ').addEventListener('change', () => renderPreciosCatalogo());
+
+        /* ---------- Alta rápida desde el cotizador ---------- */
+        async function guardarClienteDesdeCotizacion() {
+            const razon = document.getElementById('cotRazonSocial').value.trim();
+            if (!razon) { mensajeCotUI('Escribe al menos la razón social del cliente.', 'error'); return; }
+            try {
+                const j = await enviarCliente({
+                    id: '', razonSocial: razon,
+                    rfc: document.getElementById('cotRFC').value.trim().toUpperCase(),
+                    direccion: document.getElementById('cotDireccion').value.trim(),
+                    atencion: document.getElementById('cotAtencion').value.trim(),
+                    correo: '', telefono: '', unidad: '', nivel: document.getElementById('cotNivel').value || 'I', notas: ''
+                });
+                poblarSelectsCotizador();
+                document.getElementById('cotCliente').value = j.id;
+                document.getElementById('btnGuardarClienteDesdeCot').classList.add('hidden');
+                mensajeCotUI('Cliente agregado al catálogo.', 'ok');
+            } catch (err) { mensajeCotUI(err.message, 'error'); }
+        }
+
         async function cargarDatosCotizador() {
             const leer = async (hoja, procesar) => {
                 try {
@@ -4829,7 +5311,8 @@
             };
             await Promise.all([
                 leer('config_cot', procesarConfigCotizacion),
-                leer('catalogo_cot', procesarCatalogoCotizacion)
+                leer('catalogo_cot', procesarCatalogoCotizacion),
+                cargarCatalogoClientes()                       // v4.9
             ]);
 
             if (hayBackend()) {
@@ -4854,6 +5337,7 @@
             document.getElementById('clienteContent').style.display = 'none';
             document.getElementById('adminUsuariosContent').classList.add('hidden');
             document.getElementById('auditoriaContent').classList.add('hidden');
+            document.getElementById('catalogosContent').classList.add('hidden');
             document.getElementById('cotizadorContent').classList.remove('hidden');
             cerrarSidebarMovil();
             registrarEvento('ver_cotizador');
@@ -4945,9 +5429,17 @@
         }
 
         function poblarSelectsCotizador() {
+            /* v4.9: los clientes salen del catálogo, no de los nombres de unidad.
+               Esta función también se llama al cambiar de nivel, para rotular
+               los precios del catálogo; por eso se CONSERVA el cliente elegido.
+               Sin eso, elegir un cliente cambiaba el nivel, el nivel
+               reconstruía el selector y la cotización se guardaba sin cliente. */
             const selCli = document.getElementById('cotCliente');
-            selCli.innerHTML = '<option value="">— Cliente nuevo —</option>' +
-                clientesUnicos.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+            const clienteElegido = selCli.value;
+            selCli.innerHTML = '<option value="">— Capturar a mano —</option>' +
+                catalogoClientes.map(c => '<option value="' + esc(c.id) + '">' + esc(c.razonSocial) +
+                    (c.rfc ? ' · ' + esc(c.rfc) : '') + '</option>').join('');
+            if (clienteElegido && catalogoClientes.some(c => c.id === clienteElegido)) selCli.value = clienteElegido;
 
             // v4.8: el catálogo sale de la hoja única, agrupado por tipo
             catalogoCotizacion = conceptosDelCotizador();
@@ -4975,7 +5467,13 @@
             document.getElementById('cotFolioForm').innerText =
                 cotizacionEnEdicion ? 'Folio ' + c.folio : 'El folio se asigna al guardar';
 
-            document.getElementById('cotCliente').value = (c && c.cliente) || '';
+            /* v4.9: se busca al cliente en el catálogo por su id y, para las
+               cotizaciones anteriores a la 4.9, por RFC o razón social. */
+            const enCat = c ? (catalogoClientes.find(x => x.id === c.clienteId) ||
+                               catalogoClientes.find(x => c.rfc && x.rfc === c.rfc) ||
+                               catalogoClientes.find(x => x.razonSocial === c.razonSocial)) : null;
+            document.getElementById('cotCliente').value = enCat ? enCat.id : '';
+            actualizarBotonAltaCliente();
             document.getElementById('cotRazonSocial').value = (c && c.razonSocial) || '';
             document.getElementById('cotDireccion').value = (c && c.direccion) || '';
             document.getElementById('cotRFC').value = (c && c.rfc) || '';
@@ -5008,23 +5506,32 @@
 
         /* Al elegir una unidad se prellenan sus datos fiscales con los de su
            cotización más reciente: no hay otro lugar de donde tomar el RFC. */
+        /* v4.9 — Elegir un cliente del catálogo llena sus datos fiscales y
+           aplica su NIVEL de convenio, lo que reprecia las partidas del
+           catálogo que no se hayan corregido a mano. */
         document.getElementById('cotCliente').addEventListener('change', (e) => {
-            const cli = e.target.value;
-            if (!cli) return;
-            const previa = cotizaciones.filter(c => c.cliente === cli)
-                .sort((a, b) => (parseInt(b.folio, 10) || 0) - (parseInt(a.folio, 10) || 0))[0];
-            if (previa) {
-                document.getElementById('cotRazonSocial').value = previa.razonSocial;
-                document.getElementById('cotDireccion').value = previa.direccion;
-                document.getElementById('cotRFC').value = previa.rfc;
-                document.getElementById('cotAtencion').value = previa.atencion;
-            } else {
-                if (!document.getElementById('cotRazonSocial').value) document.getElementById('cotRazonSocial').value = cli;
-                const orden = datosDetalleOrdenes.find(d => d.Cliente === cli && d.Direccion &&
-                                                           d.Direccion !== 'Dirección no registrada');
-                if (orden && !document.getElementById('cotDireccion').value) document.getElementById('cotDireccion').value = orden.Direccion;
+            const c = catalogoClientes.find(x => x.id === e.target.value);
+            if (c) {
+                document.getElementById('cotRazonSocial').value = c.razonSocial;
+                document.getElementById('cotDireccion').value = c.direccion;
+                document.getElementById('cotRFC').value = c.rfc;
+                document.getElementById('cotAtencion').value = c.atencion;
+                const selNivel = document.getElementById('cotNivel');
+                if (c.nivel && selNivel.value !== c.nivel) {
+                    selNivel.value = c.nivel;
+                    selNivel.dispatchEvent(new Event('change'));
+                }
             }
+            actualizarBotonAltaCliente();
         });
+
+        // El alta rápida solo se ofrece al administrador y si el cliente no está
+        function actualizarBotonAltaCliente() {
+            const btn = document.getElementById('btnGuardarClienteDesdeCot');
+            if (!btn) return;
+            const sinCatalogo = !document.getElementById('cotCliente').value;
+            btn.classList.toggle('hidden', !(sinCatalogo && esAdministrador() && hayBackend()));
+        }
 
         /* v4.8 — Al cambiar el nivel se reprecian las partidas que vinieron del
            catálogo y cuyo precio NO se tocó a mano. Lo corregido a mano manda. */
@@ -5186,7 +5693,12 @@
                 folio: cotizacionEnEdicion ? cotizacionEnEdicion.folio : '',
                 fecha: fecha,
                 vigencia: sumarDias(fecha, vigenciaDias),
-                cliente: document.getElementById('cotCliente').value,
+                // v4.9: se guarda la unidad del cliente (enlace con sus órdenes) y su id
+                cliente: (() => {
+                    const c = catalogoClientes.find(x => x.id === document.getElementById('cotCliente').value);
+                    return c ? (c.unidad || c.razonSocial) : '';
+                })(),
+                clienteId: document.getElementById('cotCliente').value,
                 razonSocial: razon,
                 direccion: document.getElementById('cotDireccion').value.trim(),
                 rfc: document.getElementById('cotRFC').value.trim().toUpperCase(),
@@ -8086,10 +8598,13 @@
             // v4.1: la auditoría financiera también es solo del administrador
             const btnAud = document.getElementById('btnAuditoria');
             if (btnAud) btnAud.classList.toggle('hidden', !admin);
+            const btnCat = document.getElementById('btnCatalogos');     // v4.9
+            if (btnCat) btnCat.classList.toggle('hidden', !admin);
 
             if (!admin) {
                 document.getElementById('adminUsuariosContent').classList.add('hidden');
                 document.getElementById('auditoriaContent').classList.add('hidden');
+                document.getElementById('catalogosContent').classList.add('hidden');
             }
         }
 
@@ -8119,6 +8634,7 @@
             document.getElementById('clienteContent').style.display = 'none';
             document.getElementById('auditoriaContent').classList.add('hidden');
             document.getElementById('cotizadorContent').classList.add('hidden');
+            document.getElementById('catalogosContent').classList.add('hidden');
             document.getElementById('adminUsuariosContent').classList.remove('hidden');
             cerrarSidebarMovil();
             registrarEvento('ver_usuarios');

@@ -895,6 +895,38 @@ El formato original lleva los **logotipos** de las marcas. Esas imágenes son pr
 
 Tampoco se incluye la **firma autógrafa**: el documento deja la línea con el nombre para firmar. Si se quiere la firma impresa, se puede agregar después como imagen en la configuración.
 
+## 4.19 Catálogos de clientes y precios (v4.9)
+
+Apartado **Catálogos** en el menú lateral, exclusivo del administrador. Todo lo que antes se capturaba abriendo la hoja de cálculo ahora se hace desde aquí. Consultarlos es para todos —el cotizador los usa—; modificarlos exige credencial de administrador, y el servidor la vuelve a comprobar en cada cambio.
+
+**Puesta en marcha:** ejecuta una vez `crearHojasCotizador()` —es seguro aunque ya exista lo demás— para crear la pestaña `Clientes`. La hoja de precios se prepara sola la primera vez que se abre el catálogo.
+
+### Clientes
+
+La ficha lleva razón social, RFC, dirección fiscal, *atención a*, correo, teléfono, notas y dos datos que hacen el trabajo:
+
+- **Unidad en las órdenes de trabajo**: el nombre con el que ese cliente aparece en las órdenes. Es el enlace con su historial, sus facturas y su calendario, y es lo que se guarda como cliente de cada cotización.
+- **Nivel de convenio**: I, II o III. El cotizador lo aplica solo al elegir al cliente.
+
+Validaciones: la razón social es obligatoria, el RFC debe tener formato válido (12 caracteres persona moral, 13 persona física) y **no puede repetirse**, salvo los genéricos del SAT (`XAXX010101000`, `XEXX010101000`). Eliminar un cliente no borra sus cotizaciones ni sus facturas.
+
+### Precios y prestaciones
+
+Alta, edición y baja de los renglones de `Precios_Mantenimiento`: tipo (preventivo, calibración, servicio, material, refacción, equipo…), concepto, unidad, precio en los tres niveles y notas.
+
+- **Precio único**: si un concepto cuesta lo mismo en los tres niveles, basta capturar el Nivel I; se copia a los vacíos al guardar.
+- **Sin duplicados**: el mismo concepto dos veces en el mismo tipo volvería ambiguo el precio, así que se rechaza y se pide editar el existente.
+- **Efecto inmediato**: al guardar, el tarifario se vuelve a descargar saltando el caché del servidor. El cotizador, la facturación y la auditoría ven el cambio en ese momento, sin recargar.
+- Las facturas y cotizaciones **ya emitidas conservan su importe**: el catálogo afecta lo que viene, no reescribe lo pasado.
+
+**Sobre la hoja:** se edita por **nombre de encabezado**, no por posición, y gana una columna **ID** para identificar cada renglón. Así se puede seguir ordenando, filtrando o agregando columnas en Sheets sin que la plataforma edite el renglón equivocado. Los renglones capturados antes reciben su ID automáticamente, sin mover nada.
+
+### En el cotizador
+
+El campo *Cliente del catálogo* lista a los clientes dados de alta. Al elegir uno se llenan razón social, dirección, RFC y *atención a*, y **se aplica su nivel de convenio**, lo que reprecia las partidas del catálogo que no se hayan corregido a mano. Si el cliente no está, se capturan sus datos a mano y el administrador puede guardarlo en el catálogo con *+ Guardar estos datos como cliente del catálogo*, sin salir de la cotización.
+
+Cada cotización guarda el enlace con su cliente (columna *Cliente ID*), de modo que al editarla o duplicarla lo encuentra aunque después se le cambie la razón social.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -975,6 +1007,7 @@ Tampoco se incluye la **firma autógrafa**: el documento deja la línea con el n
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 4.9 | **Catálogos administrados desde la plataforma.** Apartado *Catálogos* (solo administrador) con dos pestañas. **Clientes**: razón social, RFC, dirección, atención a, correo, teléfono, la unidad con la que aparece en las órdenes y su nivel de convenio; valida el formato del RFC y que no se repita. **Precios y prestaciones**: alta, edición y baja de los conceptos de `Precios_Mantenimiento` sin abrir la hoja; al guardar se vuelve a descargar el tarifario y el cotizador, la facturación y la auditoría lo ven de inmediato. En el **cotizador**, el cliente se elige del catálogo: se llenan sus datos fiscales y se aplica su nivel, repreciando las partidas del catálogo. Alta rápida de un cliente nuevo desde la propia cotización |
 | 4.8 | **Las hojas de la cotización ya no se cortan**: cada hoja mide exactamente una hoja carta y las partidas se reparten midiéndolas; si no caben, pasan completas a la hoja siguiente, que repite el encabezado, y el cierre —totales, importe con letra y observaciones— nunca se separa. **Observaciones, condiciones importantes y garantía se editan desde la app** en cada cotización, con los predeterminados como punto de partida; el administrador puede guardar los textos editados como nuevos predeterminados. **Catálogo único de precios**: `Precios_Mantenimiento` contiene los mantenimientos preventivos y calibraciones en tres niveles y también los conceptos del cotizador, y alimenta a la vez facturación, auditoría y cotizador. Selector de **nivel de precio** en la cotización, que reprecia lo que vino del catálogo sin tocar lo corregido a mano |
 | 4.7 | **Cotizador de materiales y servicios** con el formato institucional de dos hojas: encabezado con folio, fecha, vigencia y condiciones; partidas; subtotal, IVA, total e **importe con letra**; observaciones; y segunda hoja con marcas, condiciones, garantía y datos bancarios. El **folio lo asigna el servidor bajo candado** y continúa la numeración que se traía (2667 → 2668). Cada cotización se guarda y se puede reimprimir, editar, duplicar y seguir por estado (emitida, enviada, aceptada, rechazada, vencida). Catálogo de materiales y servicios en `Catalogo_Cotizacion`; los datos del emisor y los bancarios viven en `Config_Cotizacion`, **no en el código** |
 | 4.6 | **El emparejamiento se hace por el número del folio, sin prefijos.** Las órdenes se guardan como `IAB-24237` y la factura las nombra como `O.S. 24237`: es el mismo servicio con dos prefijos distintos, así que de ambos lados se compara solo el número. Tolera espacios, guiones y ceros a la izquierda |
