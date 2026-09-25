@@ -93,6 +93,21 @@
         ::selection { background: var(--ia-celeste); color: #002C4D; }
         ::-webkit-scrollbar-thumb { background: #94b8d1; }
 
+        /* v5.0: sin sesión y sin red, la información se consulta pero no se
+           guarda ni se imprime. Se apagan las acciones en lugar de dejar que
+           fallen al pulsarlas. Fuera de @media print: esto rige en pantalla. */
+        body.solo-lectura .btn-rutina,
+        body.solo-lectura #btnRefrescar,
+        body.solo-lectura .chk-orden,
+        body.solo-lectura .chk-todos,
+        body.solo-lectura #btnCotizador,
+        body.solo-lectura #btnAuditoria,
+        body.solo-lectura #btnCatalogos {
+            pointer-events: none;
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
         @media print {
             /* v2.8: MARGEN PREDETERMINADO DE 25 mm POR LADO.
                Se declara en @page para que el margen se respete en TODAS las
@@ -2001,13 +2016,72 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '4.9';
+        const VERSION_APP = '5.0';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
 
-        // Debe coincidir con TOKEN en Code.gs.
-        const TOKEN_API = 'aLHnixAKEqXmC8c';
+        /* ============================================================
+           v5.0 — YA NO HAY TOKEN EN EL FRONTEND
+
+           Hasta la 4.9 aquí vivía TOKEN_API, un valor fijo que autorizaba
+           todas las llamadas al backend. Este archivo se publica en GitHub
+           Pages: ese valor era legible por cualquiera, y con él se podía
+           llamar al endpoint sin pasar por el PIN.
+
+           Ahora la única credencial es el PIN de la persona. Al entrar, el
+           servidor devuelve un TOKEN DE SESIÓN con vencimiento, y ese token
+           —no un secreto incrustado— es el que acompaña cada petición.
+
+           Vive en localStorage para sobrevivir a recargas y al cierre de la
+           aplicación instalada dentro de sus 6 horas. No es un secreto
+           reutilizable: vence, se puede cerrar desde el servidor, y cambiar
+           el PIN lo invalida.
+           ============================================================ */
+        const LLAVE_SESION = 'ia_sesion_token';
+
+        function sesionGuardada() {
+            try {
+                const s = JSON.parse(localStorage.getItem(LLAVE_SESION) || 'null');
+                if (!s || !s.token) return null;
+                if (s.expira && Date.parse(s.expira) < Date.now()) return null;
+                return s;
+            } catch (_) { return null; }
+        }
+
+        function tokenSesion() {
+            const s = sesionGuardada();
+            return s ? s.token : '';
+        }
+
+        function guardarTokenSesion(token, expira, adminHasta) {
+            try {
+                localStorage.setItem(LLAVE_SESION, JSON.stringify({
+                    token: token, expira: expira || '', adminHasta: adminHasta || ''
+                }));
+            } catch (_) {}
+        }
+
+        function marcarElevacion(hasta) {
+            const s = sesionGuardada();
+            if (!s) return;
+            guardarTokenSesion(s.token, s.expira, hasta);
+        }
+
+        function elevacionVigente() {
+            const s = sesionGuardada();
+            return !!(s && s.adminHasta && Date.parse(s.adminHasta) > Date.now());
+        }
+
+        function olvidarSesion() {
+            try { localStorage.removeItem(LLAVE_SESION); } catch (_) {}
+        }
+
+        /* Cuerpo común de toda petición al backend. Antes llevaba el token
+           fijo; ahora lleva el de la sesión. */
+        function sobreBackend(extra) {
+            return Object.assign({ sesion: tokenSesion(), dispositivo: idDispositivo() }, extra || {});
+        }
 
         // Origen de los datos de las hojas:
         //  'csv'        → CSV publicados (comportamiento original)
@@ -2121,8 +2195,9 @@
         // v2.7: 'fresco' fuerza al backend a saltarse su propia caché
         function urlDatos(hoja, fresco) {
             if (ORIGEN_DATOS === 'appsscript' && hayBackend()) {
+                // v5.0: el proxy de datos también va firmado con la sesión
                 return URL_APPS_SCRIPT + '?accion=datos&hoja=' + hoja +
-                       '&token=' + encodeURIComponent(TOKEN_API) +
+                       '&sesion=' + encodeURIComponent(tokenSesion()) +
                        (fresco ? '&fresco=1' : '') + '&t=' + Date.now();
             }
             if (hoja === 'patrones') {
@@ -2319,7 +2394,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({
-                            accion: 'cambiarPin', token: TOKEN_API,
+                            accion: 'cambiarPin', sesion: tokenSesion(),
                             pinActual: actual, pinNuevo: nuevo,
                             dispositivo: idDispositivo(), fecha: new Date().toISOString()
                         })
@@ -2328,17 +2403,15 @@
                     if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo cambiar el PIN.');
                 }
 
-                /* Si quien cambió el PIN era administrador, la credencial que
-                   guardamos para las altas quedó obsoleta: se descarta para que
-                   se vuelva a pedir con el PIN nuevo. */
-                if (esAdministrador()) {
-                    olvidarCredencialAdmin();
-                    guardarCredencialAdmin(nombreUsuario(), nuevo);
-                }
-
+                /* v5.0: el servidor cierra las sesiones de quien cambia su PIN
+                   —incluida esta—, así que hay que volver a entrar. Es lo
+                   correcto: si el PIN se cambió por sospecha, la sesión abierta
+                   en otro equipo debe morir con él. */
                 cerrarCambiarPin();
+                olvidarSesion();
                 registrarEvento('cambio_pin', 'Cambió su PIN de acceso');
-                mostrarAviso('Tu PIN quedó cambiado. El anterior dejó de servir: usa el nuevo la próxima vez que entres.');
+                mostrarAviso('Tu PIN quedó cambiado. Por seguridad se cerraron tus sesiones: vuelve a entrar con el PIN nuevo.', 12);
+                setTimeout(pedirIngresoDeNuevo, 2500);
             } catch (err) {
                 mensajePinUI(err.message, 'error');
             } finally {
@@ -2581,6 +2654,15 @@
             };
         })();
 
+        /* v5.0 — Una respuesta de sesión vencida llega como JSON en lugar del
+           CSV esperado. Se detecta aquí para pedir el ingreso una sola vez,
+           en lugar de fallar con un error de análisis incomprensible. */
+        function esRespuestaSesionVencida(texto) {
+            const t = String(texto || '').trim();
+            if (t.charAt(0) !== '{') return false;
+            try { return JSON.parse(t).error === 'sesion_invalida'; } catch (_) { return false; }
+        }
+
         async function cargarDatos(forzar) {
             progresoCarga.iniciar(forzar === true ? 'Solicitando información actualizada' : 'Conectando');
             document.getElementById('errorBanner').classList.add('hidden');
@@ -2608,6 +2690,13 @@
             const csvTextoCorpus    = rCorpus.status === 'fulfilled' ? rCorpus.value : null;
             const csvTextoPatrones  = rPatrones.status === 'fulfilled' ? rPatrones.value : null;
             const csvTextoPrecios   = rPrecios.status === 'fulfilled' ? rPrecios.value : null;
+
+            // v5.0: si la sesión murió, se pide el ingreso en vez de fallar raro
+            if (esRespuestaSesionVencida(csvTextoCorpus) || esRespuestaSesionVencida(csvTextoDashboard)) {
+                progresoCarga.ocultar();
+                pedirIngresoDeNuevo();
+                return;
+            }
 
             // v3.4: si no hay señal, el service worker sirvió la última copia
             if (!navigator.onLine && csvTextoCorpus) {
@@ -3584,7 +3673,7 @@
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'listarFacturas', token: TOKEN_API })
+                    body: JSON.stringify({ accion: 'listarFacturas', sesion: tokenSesion() })
                 });
                 const j = await r.json().catch(() => null);
                 facturas = (j && j.ok && Array.isArray(j.facturas)) ? j.facturas : [];
@@ -4962,7 +5051,7 @@
             try {
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'listarClientes', token: TOKEN_API })
+                    body: JSON.stringify({ accion: 'listarClientes', sesion: tokenSesion() })
                 });
                 const j = await r.json().catch(() => null);
                 catalogoClientes = (j && j.ok) ? j.clientes : [];
@@ -5320,7 +5409,7 @@
                     const r = await fetch(URL_APPS_SCRIPT, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ accion: 'listarCotizaciones', token: TOKEN_API })
+                        body: JSON.stringify({ accion: 'listarCotizaciones', sesion: tokenSesion() })
                     });
                     const j = await r.json().catch(() => null);
                     cotizaciones = (j && j.ok) ? j.cotizaciones : [];
@@ -5720,7 +5809,7 @@
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'guardarCotizacion', token: TOKEN_API,
+                    body: JSON.stringify({ accion: 'guardarCotizacion', sesion: tokenSesion(),
                                            usuario: nombreUsuario(), cotizacion: cot })
                 });
                 const j = await r.json().catch(() => null);
@@ -5762,7 +5851,7 @@
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'cambiarEstadoCotizacion', token: TOKEN_API,
+                    body: JSON.stringify({ accion: 'cambiarEstadoCotizacion', sesion: tokenSesion(),
                                            usuario: nombreUsuario(), folio: folio, estado: sel.value })
                 });
                 const j = await r.json().catch(() => null);
@@ -6208,7 +6297,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({
-                            accion: 'guardarFactura', token: TOKEN_API, usuario: nombreUsuario(),
+                            accion: 'guardarFactura', sesion: tokenSesion(), usuario: nombreUsuario(),
                             factura: {
                                 id: '', cliente: p.cliente, numero: p.numero, fecha: p.fecha,
                                 uuid: p.uuid, nivel: '', notas: 'Carga masiva · ' + p.archivo,
@@ -6452,7 +6541,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
-                        accion: 'guardarFactura', token: TOKEN_API,
+                        accion: 'guardarFactura', sesion: tokenSesion(),
                         usuario: nombreUsuario(),
                         factura: {
                             id: facturaEnEdicion ? facturaEnEdicion.id : '',
@@ -6493,7 +6582,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
-                        accion: 'eliminarFactura', token: TOKEN_API,
+                        accion: 'eliminarFactura', sesion: tokenSesion(),
                         usuario: nombreUsuario(), id: facturaEnEdicion.id
                     })
                 });
@@ -8423,19 +8512,34 @@
             }));
         }
 
-        /* La credencial con la que el administrador puede dar de alta usuarios
-           se guarda en sessionStorage, no en localStorage: vive mientras la
-           pestaña siga abierta y desaparece al cerrarla. El servidor la vuelve
-           a verificar en cada alta; aquí solo se conserva para no pedirla en
-           cada movimiento. */
-        function guardarCredencialAdmin(nombre, pin) {
-            try { sessionStorage.setItem('ia_admin', JSON.stringify({ nombre: nombre, pin: pin })); } catch (_) {}
-        }
-        function credencialAdmin() {
-            try { return JSON.parse(sessionStorage.getItem('ia_admin') || 'null'); } catch (_) { return null; }
-        }
-        function olvidarCredencialAdmin() {
-            try { sessionStorage.removeItem('ia_admin'); } catch (_) {}
+        /* v5.0 — Ya no se guarda ninguna credencial en el navegador. Lo que
+           hay es el token de sesión (arriba) y, cuando toca, una elevación
+           de administrador que vive en el servidor.
+
+           Vuelve a pedir el ingreso cuando la sesión murió. Si no hay red no
+           se puede validar nada, así que se queda en SOLO LECTURA sobre la
+           última información descargada, con aviso en pantalla. */
+        let sesionCaducaAvisada = false;
+
+        function pedirIngresoDeNuevo() {
+            olvidarSesion();
+            if (!navigator.onLine) {
+                if (!sesionCaducaAvisada) {
+                    sesionCaducaAvisada = true;
+                    mostrarAviso('Tu sesión expiró y no hay conexión para renovarla. Puedes consultar la última ' +
+                                 'información descargada, pero no guardar ni imprimir hasta volver a entrar.', 15);
+                    document.body.classList.add('solo-lectura');
+                }
+                return;
+            }
+            localStorage.removeItem('ia_sesion');
+            const m = document.getElementById('modalAcceso');
+            if (m) {
+                m.classList.remove('hidden'); m.classList.add('flex');
+                const err = document.getElementById('accesoError');
+                if (err) { err.innerText = 'Tu sesión expiró. Escribe tu PIN para continuar.'; err.classList.remove('hidden'); }
+                setTimeout(() => { const c = document.getElementById('accesoPin'); if (c) c.focus(); }, 60);
+            }
         }
 
         function mostrarUsuarioSidebar() {
@@ -8461,7 +8565,7 @@
         // Sin backend configurado solo queda constancia en la consola.
         function registrarEvento(tipo, detalle = '', extra = {}) {
             const payload = Object.assign({
-                accion: 'log', token: TOKEN_API,
+                accion: 'log', sesion: tokenSesion(),
                 tipo: tipo, detalle: detalle,
                 usuario: nombreUsuario(),
                 cliente: clienteActual || '',
@@ -8528,7 +8632,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify({
-                            accion: 'login', token: TOKEN_API,
+                            accion: 'login', sesion: tokenSesion(),
                             pin: pinIngresado,
                             dispositivo: idDispositivo(),
                             fecha: new Date().toISOString()
@@ -8551,7 +8655,9 @@
                 }
 
                 guardarSesion(res.nombre, res.rol || 'usuario');
-                if ((res.rol || '') === 'admin') guardarCredencialAdmin(res.nombre, pinIngresado);
+                /* v5.0: lo que se conserva es el token de sesión, no el PIN.
+                   Entrar con el código maestro trae la sesión ya elevada. */
+                if (res.sesion) guardarTokenSesion(res.sesion, res.expira, res.adminHasta);
 
                 errorEl.classList.add('hidden');
                 document.getElementById('accesoPin').value = '';
@@ -8569,10 +8675,20 @@
             }
         });
 
-        document.getElementById('btnCerrarSesion').addEventListener('click', () => {
+        document.getElementById('btnCerrarSesion').addEventListener('click', async () => {
             registrarEvento('cierre_sesion');
+            // v5.0: la sesión se cierra también del lado del servidor
+            if (hayBackend() && tokenSesion()) {
+                try {
+                    await fetch(URL_APPS_SCRIPT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(sobreBackend({ accion: 'cerrarSesion' }))
+                    });
+                } catch (_) { /* sin red, la sesión vence sola */ }
+            }
             localStorage.removeItem('ia_sesion');
-            olvidarCredencialAdmin();
+            olvidarSesion();
             location.reload();
         });
 
@@ -8642,16 +8758,22 @@
             renderTarifario();
         }
 
-        /* v4.2 — Pide la credencial y LA COMPRUEBA contra el servidor antes de
-           seguir. Antes se guardaba lo que se escribiera y el apartado se abría
-           igual: el rechazo llegaba después, al intentar leer la lista, así que
-           parecía que cualquier código servía para entrar.
+        /* ============================================================
+           v5.0 — ELEVACIÓN EN LUGAR DE CREDENCIAL GUARDADA
 
-           Devuelve true si quedó una credencial válida en la sesión. */
+           Antes, el código maestro se guardaba en sessionStorage para no
+           pedirlo en cada movimiento: quedaba en claro en el navegador.
+
+           Ahora se presenta una vez y el SERVIDOR marca la sesión como
+           elevada por una hora. El código no se guarda en ningún lado, y
+           pasada la hora se vuelve a pedir. Si alguien deja una sesión
+           abierta en un equipo compartido, la ventana de exposición es una
+           hora, no el resto del día.
+           ============================================================ */
         async function asegurarCredencialAdmin(forzarPregunta) {
-            const cred = credencialAdmin();
-            if (cred && cred.pin && !forzarPregunta) return true;
-            if (!hayBackend()) return true;   // en modo local no hay a quién preguntar
+            if (!hayBackend()) return true;              // sin backend no hay a quién preguntar
+            if (elevacionVigente() && !forzarPregunta) return true;
+            if (!tokenSesion()) { pedirIngresoDeNuevo(); return false; }
 
             const pin = prompt('Escribe tu código de administrador para abrir este apartado:');
             if (!pin) return false;
@@ -8660,49 +8782,41 @@
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        accion: 'validarAdmin', token: TOKEN_API,
-                        adminNombre: nombreUsuario(), adminPin: pin,
-                        dispositivo: idDispositivo(), fecha: new Date().toISOString()
-                    })
+                    body: JSON.stringify(sobreBackend({ accion: 'elevarSesion', pin: pin }))
                 });
                 const j = await r.json().catch(() => null);
                 if (!j || !j.ok) {
-                    olvidarCredencialAdmin();
+                    if (j && j.error === 'sesion_invalida') { pedirIngresoDeNuevo(); return false; }
                     alert((j && j.error) || 'No se pudo comprobar la credencial. Revisa tu conexión.');
                     return false;
                 }
+                marcarElevacion(j.adminHasta);
+                return true;
             } catch (err) {
                 alert('No se pudo comprobar la credencial: ' + err.message);
                 return false;
             }
-
-            guardarCredencialAdmin(nombreUsuario(), pin);
-            return true;
         }
 
-        /* Llamada al backend con la credencial de administrador ya comprobada. */
+        /* Llamada a una acción reservada. La SESIÓN ELEVADA es la que
+           autoriza: aquí ya no viaja ninguna credencial. */
         async function peticionAdmin(accion, extra) {
-            let cred = credencialAdmin();
-            if (!cred || !cred.pin) {
-                if (!(await asegurarCredencialAdmin())) throw new Error('Operación cancelada.');
-                cred = credencialAdmin();
-            }
-            const cuerpo = Object.assign({
-                accion: accion, token: TOKEN_API,
-                adminNombre: cred.nombre, adminPin: cred.pin
-            }, extra || {});
+            if (!(await asegurarCredencialAdmin())) throw new Error('Operación cancelada.');
 
             const r = await fetch(URL_APPS_SCRIPT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(cuerpo)
+                body: JSON.stringify(sobreBackend(Object.assign({ accion: accion }, extra || {})))
             });
             const j = await r.json().catch(() => null);
             if (!j) throw new Error('El servidor respondió de forma inesperada.');
             if (!j.ok) {
-                // Credencial rechazada: se descarta para que vuelva a pedirse
-                if (String(j.error || '').indexOf('administrador') > -1) olvidarCredencialAdmin();
+                if (j.error === 'sesion_invalida') { pedirIngresoDeNuevo(); throw new Error('Tu sesión expiró. Vuelve a entrar con tu PIN.'); }
+                /* La elevación pudo vencer entre una pantalla y otra: se pide
+                   una sola vez más y se reintenta. */
+                if (String(j.error || '').indexOf('administrador') > -1) {
+                    if (await asegurarCredencialAdmin(true)) return peticionAdmin(accion, extra);
+                }
                 throw new Error(j.error || 'No se pudo completar la operación.');
             }
             return j;
@@ -9105,7 +9219,7 @@
             if (!hayBackend()) return;
             comSincronizando = true; actualizarEstadoSync();
             try {
-                const r = await fetch(URL_APPS_SCRIPT + '?accion=seguimiento&token=' + encodeURIComponent(TOKEN_API) + '&t=' + Date.now());
+                const r = await fetch(URL_APPS_SCRIPT + '?accion=seguimiento&sesion=' + encodeURIComponent(tokenSesion()) + '&t=' + Date.now());
                 const j = await r.json();
                 if (j && j.ok) {
                     fusionarComRemoto('canales', j.canales || []);
@@ -9147,7 +9261,7 @@
                     const r = await fetch(URL_APPS_SCRIPT, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ accion: 'guardar', token: TOKEN_API, tipo: op.tipo, registro: op.registro })
+                        body: JSON.stringify({ accion: 'guardar', sesion: tokenSesion(), tipo: op.tipo, registro: op.registro })
                     });
                     const j = await r.json().catch(() => null);
                     if (!j || !j.ok) throw new Error((j && j.error) || 'Respuesta inválida del servidor');
@@ -9551,7 +9665,7 @@
                 window.location.href = 'mailto:' + encodeURIComponent(destino || '') +
                     '?subject=' + encodeURIComponent('Seguimiento de servicio · ' + clienteActual + (s.ordenId ? ' · Orden #' + s.ordenId : '')) +
                     '&body=' + encodeURIComponent(texto);
-                mostrarAviso('Se abrió tu programa de correo sin adjuntos. Para enviar archivos desde la plataforma, configura URL_APPS_SCRIPT y TOKEN_API.');
+                mostrarAviso('Se abrió tu programa de correo sin adjuntos. Para enviar archivos desde la plataforma, configura URL_APPS_SCRIPT.');
                 return;
             }
 
@@ -9645,7 +9759,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
-                        accion: 'correo', token: TOKEN_API, modo: modo,
+                        accion: 'correo', sesion: tokenSesion(), modo: modo,
                         para: para, cc: cc, asunto: asunto,
                         cuerpo: cuerpo, html: htmlCorreoSeguimiento(cuerpo, s),
                         adjuntos: adjuntos,
