@@ -26,7 +26,7 @@
  *     el mismo día. La copia local es el respaldo, no la fuente.
  * ==========================================================================*/
 
-const VERSION = 'v5.0';
+const VERSION = 'v4.9';
 const CACHE_APP    = 'ia-app-' + VERSION;     // la página y sus iconos
 const CACHE_LIBS   = 'ia-libs-' + VERSION;    // librerías externas
 const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
@@ -118,13 +118,6 @@ function llaveDatos(url) {
   const limpia = new URL(url.href);
   limpia.searchParams.delete('t');
   limpia.searchParams.delete('fresco');
-  /* v5.0: el token de sesión cambia en cada ingreso. Si formara parte de la
-     llave, cada sesión guardaría su propia copia y la de ayer nunca volvería
-     a encontrarse: el modo sin conexión moriría en silencio. También se
-     quita el token viejo, para que las copias guardadas por la versión
-     anterior se sigan reconociendo. */
-  limpia.searchParams.delete('sesion');
-  limpia.searchParams.delete('token');
   return limpia.href;
 }
 

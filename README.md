@@ -927,57 +927,6 @@ El campo *Cliente del catálogo* lista a los clientes dados de alta. Al elegir u
 
 Cada cotización guarda el enlace con su cliente (columna *Cliente ID*), de modo que al editarla o duplicarla lo encuentra aunque después se le cambie la razón social.
 
-## 4.20 Seguridad: sesiones en lugar de token (v5.0)
-
-### Qué estaba mal
-
-El frontend llevaba `TOKEN_API`, un valor fijo que autorizaba todas las llamadas al backend. Ese archivo se publica en GitHub Pages: **el token era legible por cualquiera**, y con él se podía llamar al endpoint directamente —con `curl`, sin navegador— saltándose el PIN por completo. El PIN solo decidía qué se veía en pantalla.
-
-**Sobre CORS:** no es una opción en Apps Script. El objeto de evento de `doGet`/`doPost` no incluye los encabezados de la petición, así que el servidor no puede leer `Origin` ni `Referer`; y `ContentService` no permite fijar encabezados de respuesta. Aun si se pudiera, CORS protege al usuario de que otro sitio use su sesión: nunca protegió a un endpoint, porque cualquier cliente que no sea un navegador escribe ese encabezado como quiera.
-
-### Cómo funciona ahora
-
-El PIN es la llave; la sesión es la prueba de haberlo presentado.
-
-| Paso | Qué ocurre |
-|---|---|
-| Ingreso | `login` es la única acción abierta. Valida el PIN y devuelve un **token de sesión** aleatorio, con vencimiento de 6 horas |
-| Almacenamiento | El servidor guarda su **huella** SHA-256 en la hoja `Sesiones`, nunca el token. Quien abra la hoja ve sesiones activas, no credenciales utilizables |
-| Cada petición | Lleva el token de sesión. El servidor lo valida y de ahí resuelve **usuario y rol**: el cliente ya no los declara, los demuestra |
-| Proxy de datos | También exige sesión, aunque vaya por GET |
-| Acción desconocida | Se rechaza por omisión |
-
-### Administrador: elevación en lugar de credencial guardada
-
-Antes el código maestro se guardaba en `sessionStorage` en claro. Ahora se presenta una vez y el servidor marca la sesión como **elevada durante 60 minutos**; el código no se guarda en ningún lado. Pasada la hora se vuelve a pedir. Entrar con el código maestro crea la sesión ya elevada.
-
-Si alguien deja una sesión abierta en un equipo compartido, la ventana en que se pueden tocar usuarios, precios o auditoría es de una hora, no el resto del día.
-
-### Las sesiones se cierran solas cuando deben
-
-- **Al cambiar el PIN**, todas las sesiones de esa persona mueren, incluida la suya: si lo cambió por sospecha, la sesión abierta en otro equipo debe morir con él.
-- **Al darla de baja, desactivarla o cambiarle el nombre**, igual. Cambiar solo el rol no obliga a volver a entrar.
-- **Al cerrar sesión**, se avisa al servidor, no solo se borra el dato local.
-- Las vencidas se purgan cada vez que alguien entra, así que la hoja no crece sin control.
-
-### Sin conexión
-
-**La lectura no se toca.** El service worker quita el token de la llave de caché —igual que ya hacía con `t` y `fresco`—, así que la copia guardada se sigue encontrando aunque el token cambie en cada ingreso. Sin esa línea, el modo sin conexión habría muerto en silencio.
-
-**Con la sesión vencida y sin red** no hay a quién preguntarle si el PIN es correcto. La plataforma entra en **solo lectura**: se consulta la última información descargada, con aviso en pantalla, y quedan apagadas las acciones que necesitan servidor —actualizar, imprimir rutinas, facturar, cotizar, catálogos—. Se descartó validar el PIN contra una huella guardada en el equipo: volvería a dejar material verificable en el cliente y permitiría probar PIN sin límite.
-
-### Despliegue en tres pasos
-
-Backend y frontend no pueden cambiar a la vez: entre que se implementa el `Code.gs` y que el `index.html` llega a todos los equipos hay una ventana, y los service workers pueden servir la versión anterior un rato.
-
-1. **Implementar el `Code.gs`** con `PERMITIR_TOKEN_LEGADO = true`. Acepta los dos esquemas; nadie se queda sin aplicación.
-2. **Publicar `index.html` y `sw.js`.** Vigilar la bitácora: cada petición con el esquema viejo aparece como `acceso_legado`, con la acción y el usuario.
-3. Cuando dejen de aparecer —conviene dar unos días—, poner **`PERMITIR_TOKEN_LEGADO = false`**, cambiar el valor de `TOKEN` y volver a implementar. Ahí queda cerrado el agujero.
-
-### Lo que esto no resuelve
-
-Con todo bien hecho, el punto débil sigue siendo la entropía del PIN: seis dígitos son un millón de combinaciones, y lo que realmente sostiene la seguridad es el bloqueo por dispositivo y el tope global, no el secreto en sí. Es un control razonable para una herramienta interna de un equipo pequeño y muy superior a lo anterior, pero **no es un proveedor de identidad**. Auditoría formal, segundo factor o inicio de sesión corporativo piden Firebase Auth o Supabase, y esa conversación es sobre migrar la capa de datos.
-
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1058,7 +1007,6 @@ Con todo bien hecho, el punto débil sigue siendo la entropía del PIN: seis dí
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
-| 5.0 | **Etapa 1 de la refactorización: seguridad.** Desaparece el token estático del frontend. El PIN pasa a ser la única credencial: al entrar, el servidor emite un **token de sesión** con vencimiento de 6 horas, guardado como huella en la hoja `Sesiones`, y **toda** acción —incluido el proxy de datos por GET— lo exige. El usuario y el rol salen de la sesión, no de lo que declare el cliente. El código maestro **deja de guardarse en el navegador**: se presenta una vez y la sesión queda **elevada 60 minutos**. Cambiar el PIN, dar de baja o desactivar a alguien cierra sus sesiones abiertas. Sin señal y con la sesión vencida, la plataforma queda en **solo lectura** sobre la última descarga. Se conserva el esquema anterior tras `PERMITIR_TOKEN_LEGADO` para desplegar sin dejar a nadie fuera |
 | 4.9 | **Catálogos administrados desde la plataforma.** Apartado *Catálogos* (solo administrador) con dos pestañas. **Clientes**: razón social, RFC, dirección, atención a, correo, teléfono, la unidad con la que aparece en las órdenes y su nivel de convenio; valida el formato del RFC y que no se repita. **Precios y prestaciones**: alta, edición y baja de los conceptos de `Precios_Mantenimiento` sin abrir la hoja; al guardar se vuelve a descargar el tarifario y el cotizador, la facturación y la auditoría lo ven de inmediato. En el **cotizador**, el cliente se elige del catálogo: se llenan sus datos fiscales y se aplica su nivel, repreciando las partidas del catálogo. Alta rápida de un cliente nuevo desde la propia cotización |
 | 4.8 | **Las hojas de la cotización ya no se cortan**: cada hoja mide exactamente una hoja carta y las partidas se reparten midiéndolas; si no caben, pasan completas a la hoja siguiente, que repite el encabezado, y el cierre —totales, importe con letra y observaciones— nunca se separa. **Observaciones, condiciones importantes y garantía se editan desde la app** en cada cotización, con los predeterminados como punto de partida; el administrador puede guardar los textos editados como nuevos predeterminados. **Catálogo único de precios**: `Precios_Mantenimiento` contiene los mantenimientos preventivos y calibraciones en tres niveles y también los conceptos del cotizador, y alimenta a la vez facturación, auditoría y cotizador. Selector de **nivel de precio** en la cotización, que reprecia lo que vino del catálogo sin tocar lo corregido a mano |
 | 4.7 | **Cotizador de materiales y servicios** con el formato institucional de dos hojas: encabezado con folio, fecha, vigencia y condiciones; partidas; subtotal, IVA, total e **importe con letra**; observaciones; y segunda hoja con marcas, condiciones, garantía y datos bancarios. El **folio lo asigna el servidor bajo candado** y continúa la numeración que se traía (2667 → 2668). Cada cotización se guarda y se puede reimprimir, editar, duplicar y seguir por estado (emitida, enviada, aceptada, rechazada, vencida). Catálogo de materiales y servicios en `Catalogo_Cotizacion`; los datos del emisor y los bancarios viven en `Config_Cotizacion`, **no en el código** |
