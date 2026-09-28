@@ -1091,7 +1091,7 @@
                     <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
                         <div class="lg:col-span-3">
                             <div class="flex gap-2 mb-3">
-                                <input type="text" id="catBuscarPre" placeholder="Buscar concepto…"
+                                <input type="text" id="catBuscarPre" placeholder="Buscar concepto o No. de catálogo…"
                                        class="flex-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                                 <select id="catFiltroServ" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                             </div>
@@ -1103,6 +1103,10 @@
                                 <button id="catCancelarPre" onclick="limpiarFormPrecio()" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar</button>
                             </div>
                             <div class="flex flex-col gap-2.5">
+                                <div class="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2">
+                                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">No. de catálogo</span>
+                                    <span id="preClave" class="font-mono text-sm text-slate-800">Se asigna al guardar</span>
+                                </div>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tipo</label>
                                         <input id="preServicio" list="listaTiposPrecio" placeholder="Preventivo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
@@ -3044,6 +3048,7 @@
             const cN3 = buscarColumna(llaves, ['nivel iii', 'nivel 3', 'precio nivel iii', 'n3']);
             const cMoneda = buscarColumna(llaves, ['moneda', 'divisa']);
             const cUnidad = buscarColumna(llaves, ['unidad']);        // v4.8
+            const cClave  = buscarColumna(llaves, ['no. catalogo', 'no catalogo', 'numero de catalogo', 'num. catalogo']); // v5.0
 
             data.forEach(row => {
                 const equipo = cEquipo ? String(row[cEquipo] || '').trim() : '';
@@ -3057,7 +3062,8 @@
                         III: cN3 ? aNumeroPrecio(row[cN3]) : null
                     },
                     moneda: cMoneda ? (String(row[cMoneda] || '').trim() || 'MXN') : 'MXN',
-                    unidad: cUnidad ? String(row[cUnidad] || '').trim() : ''
+                    unidad: cUnidad ? String(row[cUnidad] || '').trim() : '',
+                    clave: cClave ? String(row[cClave] || '').trim().toUpperCase() : ''
                 });
             });
 
@@ -4893,12 +4899,13 @@
                                   : (t.servicio || 'Conceptos'),
                     descripcion: descripcion,
                     unidad: t.unidad || (esMant ? 'Servicio' : 'Pieza'),
-                    precios: t.precios
+                    precios: t.precios,
+                    clave: t.clave || ''
                 };
             });
             const legado = catalogoCotizacionLegado.map(c => ({
                 grupo: c.tipo || 'Conceptos', descripcion: c.descripcion, unidad: c.unidad,
-                precios: { I: c.precio, II: null, III: null }
+                precios: { I: c.precio, II: null, III: null }, clave: ''
             }));
             return desdeTarifario.concat(legado);
         }
@@ -4909,6 +4916,16 @@
             const v = p[nivel];
             if (v !== null && v !== undefined && v !== '') return Number(v) || 0;
             return Number(p.I) || 0;
+        }
+
+        /* v5.0 — Concepto del catálogo del que salió una partida. Se busca por
+           su número de catálogo, que no cambia; el índice ('origen') solo se usa
+           para partidas guardadas antes de que existiera el número, porque la
+           posición en la lista se mueve en cuanto se agrega o borra un concepto. */
+        function conceptoDePartida(p) {
+            if (p && p.clave) return catalogoCotizacion.find(c => c.clave === p.clave) || null;
+            if (!p || p.origen === null || p.origen === undefined || p.origen === '') return null;
+            return catalogoCotizacion[parseInt(p.origen, 10)] || null;
         }
 
         function procesarCatalogoCotizacion(data) {
@@ -5176,7 +5193,7 @@
             const q = normalizar(document.getElementById('catBuscarPre').value.toLowerCase()).trim();
             const lista = preciosAdmin.filter(x =>
                 (sel.value === 'todos' || x.servicio === sel.value) &&
-                (!q || normalizar(x.concepto.toLowerCase()).includes(q)));
+                (!q || normalizar(x.concepto.toLowerCase()).includes(q) || (x.clave || '').toLowerCase().includes(q)));
 
             if (!lista.length) {
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">' +
@@ -5185,12 +5202,14 @@
             }
             const th = 'px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50 sticky top-0"><tr>' +
+                '<th class="' + th + ' text-left whitespace-nowrap">No. cat.</th>' +
                 '<th class="' + th + ' text-left">Tipo</th><th class="' + th + ' text-left">Concepto</th>' +
                 '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
                 '<th class="' + th + ' text-right">Nivel III</th><th class="' + th + '"></th></tr></thead>' +
                 '<tbody class="divide-y divide-slate-100">' +
                 lista.map(x =>
                     '<tr class="hover:bg-slate-50">' +
+                        '<td class="px-3 py-2 font-mono text-xs text-slate-700 whitespace-nowrap">' + (x.clave ? esc(x.clave) : '<span class="text-slate-400">—</span>') + '</td>' +
                         '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + esc(x.servicio) + '</td>' +
                         '<td class="px-3 py-2"><p class="text-slate-800">' + esc(x.concepto) + '</p>' +
                             (x.unidad ? '<p class="text-[10px] text-slate-400">' + esc(x.unidad) + '</p>' : '') + '</td>' +
@@ -5209,6 +5228,7 @@
             ['preServicio', 'preUnidad', 'preConcepto', 'preN1', 'preN2', 'preN3', 'preNotas']
                 .forEach(id => { document.getElementById(id).value = ''; });
             document.getElementById('catTituloPre').innerText = 'Nuevo concepto';
+            document.getElementById('preClave').innerText = 'Se asigna al guardar';
             document.getElementById('btnGuardarPrecio').innerText = 'Guardar concepto';
             document.getElementById('catCancelarPre').classList.add('hidden');
             mensajeCatUI('preMensaje', '', 'info');
@@ -5226,6 +5246,7 @@
             document.getElementById('preN3').value = x.n3 === null ? '' : x.n3;
             document.getElementById('preNotas').value = x.notas;
             document.getElementById('catTituloPre').innerText = 'Editar concepto';
+            document.getElementById('preClave').innerText = x.clave || 'Se asigna al guardar';
             document.getElementById('btnGuardarPrecio').innerText = 'Guardar cambios';
             document.getElementById('catCancelarPre').classList.remove('hidden');
             mensajeCatUI('preMensaje', '', 'info');
@@ -5255,7 +5276,8 @@
                 await refrescarTarifario();
                 limpiarFormPrecio();
                 renderPreciosCatalogo();
-                mensajeCatUI('preMensaje', j.nuevo ? 'Concepto agregado.' : 'Concepto actualizado.', 'ok');
+                mensajeCatUI('preMensaje', (j.nuevo ? 'Concepto agregado' : 'Concepto actualizado') +
+                             (j.clave ? ' · No. de catálogo ' + j.clave : '') + '.', 'ok');
             } catch (err) {
                 mensajeCatUI('preMensaje', err.message, 'error');
             } finally { btn.disabled = false; }
@@ -5376,7 +5398,7 @@
                 if (estado !== 'todos' && c.estado !== estado) return false;
                 if (!texto) return true;
                 const blob = normalizar((c.folio + ' ' + c.razonSocial + ' ' + c.cliente + ' ' +
-                              (c.partidas || []).map(p => p.descripcion).join(' ')).toLowerCase());
+                              (c.partidas || []).map(p => (p.clave || '') + ' ' + p.descripcion).join(' ')).toLowerCase());
                 return blob.includes(texto);
             }).sort((a, b) => (parseInt(b.folio, 10) || 0) - (parseInt(a.folio, 10) || 0));
 
@@ -5453,7 +5475,8 @@
                     grupos[g].map(i => {
                         const c = catalogoCotizacion[i];
                         const pr = precioConcepto(c, nivel);
-                        return '<option value="' + i + '">' + esc(c.descripcion) + (pr ? ' — ' + fmtMoneda(pr, 'MXN') : '') + '</option>';
+                        return '<option value="' + i + '">' + (c.clave ? esc(c.clave) + ' · ' : '') + esc(c.descripcion) +
+                               (pr ? ' — ' + fmtMoneda(pr, 'MXN') : '') + '</option>';
                     }).join('') + '</optgroup>').join('');
         }
 
@@ -5539,8 +5562,8 @@
             const nivel = document.getElementById('cotNivel').value;
             let repreciadas = 0;
             partidasCot.forEach(p => {
-                if (p.tocado || p.origen === null || p.origen === undefined || p.origen === '') return;
-                const base = catalogoCotizacion[parseInt(p.origen, 10)];
+                if (p.tocado) return;
+                const base = conceptoDePartida(p);
                 if (!base) return;
                 p.precio = precioConcepto(base, nivel);
                 repreciadas++;
@@ -5595,6 +5618,7 @@
                 precio: base ? precioConcepto(base, nivel) : 0,
                 // v4.8: se recuerda de qué concepto vino, para repreciar al cambiar de nivel
                 origen: base ? idx : null,
+                clave: base ? (base.clave || '') : '',   // v5.0
                 tocado: false
             });
             renderPartidas();
@@ -5618,11 +5642,15 @@
             } else {
                 const inp = 'w-full p-1.5 border border-slate-300 rounded text-sm outline-none focus:border-brand-500';
                 cont.innerHTML = '<table class="min-w-full text-sm"><thead class="bg-slate-50"><tr class="text-[10px] uppercase tracking-wide text-slate-500">' +
+                    '<th class="px-3 py-2 text-left whitespace-nowrap">No. cat.</th>' +
                     '<th class="px-3 py-2 text-left w-1/2">Descripción</th><th class="px-3 py-2 text-left">Unidad</th>' +
                     '<th class="px-3 py-2 text-right">Cantidad</th><th class="px-3 py-2 text-right">Precio</th>' +
                     '<th class="px-3 py-2 text-right">Importe</th><th></th></tr></thead><tbody>' +
                     partidasCot.map((p, i) =>
                         '<tr class="border-t border-slate-100 align-top">' +
+                            '<td class="px-3 py-3 font-mono text-xs whitespace-nowrap ' + (p.clave ? 'text-slate-700' : 'text-slate-400') +
+                                '" title="' + (p.clave ? 'Número de catálogo del concepto' : 'Partida libre, sin concepto del catálogo') + '">' +
+                                (p.clave ? esc(p.clave) : '—') + '</td>' +
                             '<td class="px-3 py-2"><textarea rows="2" data-p="' + i + '" data-p-campo="descripcion" class="' + inp + '">' + esc(p.descripcion) + '</textarea></td>' +
                             '<td class="px-3 py-2"><input data-p="' + i + '" data-p-campo="unidad" value="' + esc(p.unidad) + '" class="' + inp + ' w-24"></td>' +
                             '<td class="px-3 py-2"><input type="number" min="0" step="1" data-p="' + i + '" data-p-campo="cantidad" value="' + p.cantidad + '" class="' + inp + ' w-20 text-right"></td>' +
@@ -5704,7 +5732,7 @@
                 rfc: document.getElementById('cotRFC').value.trim().toUpperCase(),
                 atencion: document.getElementById('cotAtencion').value.trim(),
                 condiciones: document.getElementById('cotCondiciones').value,
-                partidas: partidas.map(p => ({ descripcion: String(p.descripcion).trim(), unidad: p.unidad,
+                partidas: partidas.map(p => ({ clave: p.clave || '', descripcion: String(p.descripcion).trim(), unidad: p.unidad,
                                                cantidad: Number(p.cantidad) || 0, precio: Number(p.precio) || 0,
                                                origen: (p.origen === undefined ? null : p.origen), tocado: !!p.tocado })),
                 subtotal: t.subtotal, iva: t.iva, total: t.total,
@@ -5846,8 +5874,13 @@
                   '</table></td>' +
                 '</tr></table>';
 
+            // v5.0: la columna de número de catálogo solo aparece si alguna partida
+            // lo trae; así las cotizaciones anteriores se reimprimen igual que salieron.
+            const conClave = (c.partidas || []).some(p => p.clave);
             const filaPartida = (p) =>
                 '<tr style="break-inside:avoid">' +
+                  (conClave ? '<td style="padding:1.5mm 2mm;font-size:8pt;vertical-align:top;white-space:nowrap;font-family:\'Courier New\',monospace">' +
+                              (p.clave ? esc(p.clave) : '') + '</td>' : '') +
                   '<td style="padding:1.5mm 2mm;font-size:8.5pt;vertical-align:top;">' + esc(p.descripcion) + '</td>' +
                   '<td style="padding:1.5mm 2mm;font-size:8.5pt;text-align:center;vertical-align:top;">' + esc(p.unidad) + '</td>' +
                   '<td style="padding:1.5mm 2mm;font-size:8.5pt;text-align:center;vertical-align:top;">' + (Number(p.cantidad) || 0) + '</td>' +
@@ -5859,11 +5892,12 @@
             const tablaPartidas = (lista, continua) =>
                 '<table style="width:100%;border-collapse:collapse;margin-top:2mm">' +
                   '<thead><tr>' +
-                    ['DESCRIPCIÓN', 'UNIDAD', 'UNIDADES', 'PRECIO', 'IMPORTE'].map((h, i) =>
+                    (conClave ? ['NO. CAT.'] : []).concat(['DESCRIPCIÓN', 'UNIDAD', 'UNIDADES', 'PRECIO', 'IMPORTE']).map(h =>
                       '<th style="' + B + 'padding:0.8mm 2mm;font-size:8pt;font-weight:400;text-align:left;' +
-                      (i === 0 ? 'width:50%' : '') + '">' + h + '</th>').join('') +
+                      (h === 'DESCRIPCIÓN' ? 'width:' + (conClave ? '44%' : '50%') : '') + (h === 'NO. CAT.' ? 'white-space:nowrap' : '') +
+                      '">' + h + '</th>').join('') +
                   '</tr></thead><tbody>' +
-                  (continua ? '<tr><td colspan="5" style="font-size:7.5pt;font-style:italic;color:#475569;padding:1mm 2mm">… continúa de la hoja anterior</td></tr>' : '') +
+                  (continua ? '<tr><td colspan="' + (conClave ? 6 : 5) + '" style="font-size:7.5pt;font-style:italic;color:#475569;padding:1mm 2mm">… continúa de la hoja anterior</td></tr>' : '') +
                   lista.map(filaPartida).join('') +
                 '</tbody></table>';
 

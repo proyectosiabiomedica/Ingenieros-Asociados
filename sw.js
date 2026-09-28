@@ -1,5 +1,5 @@
 /* ============================================================================
- *  INGENIEROS ASOCIADOS — Service Worker de la plataforma        sw.js  v3.4
+ *  INGENIEROS ASOCIADOS — Service Worker de la plataforma        sw.js  v5.0
  * ----------------------------------------------------------------------------
  *  Qué resuelve:
  *
@@ -26,7 +26,7 @@
  *     el mismo día. La copia local es el respaldo, no la fuente.
  * ==========================================================================*/
 
-const VERSION = 'v4.9';
+const VERSION = 'v5.0';
 const CACHE_APP    = 'ia-app-' + VERSION;     // la página y sus iconos
 const CACHE_LIBS   = 'ia-libs-' + VERSION;    // librerías externas
 const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
