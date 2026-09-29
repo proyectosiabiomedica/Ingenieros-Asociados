@@ -748,35 +748,42 @@ La interfaz colabora: si entre lo seleccionado hay órdenes ya facturadas, las e
 
 Por omisión, cualquier usuario con PIN válido, y su nombre queda en la bitácora junto con el número de factura y la cantidad de órdenes. Si la facturación la lleva solo una persona, `FACTURACION_SOLO_ADMIN = true` en `Code.gs` la restringe a los administradores.
 
-## 4.16 Exportación del calendario de servicios (v3.9)
+## 4.16 Calendario de próximos mantenimientos (v5.1)
 
-Botón **Exportar calendario** en las cuatro pestañas de servicio. Abre con el tipo de servicio de la pestaña desde la que se pulsó.
+Botón **Exportar calendario** en las pestañas de **Preventivos** y **Calibraciones**. Desde la v5.1 exporta lo que **toca hacer**, no lo que ya se hizo. Las pestañas de correctivos y entregas ya no llevan el botón, porque esos servicios no tienen fecha programada.
+
+### Cómo se calcula
+
+1. Las órdenes de la unidad se agrupan **por equipo**: por número de serie; si no tiene, por inventario; si tampoco, por equipo + marca + modelo + área. Preventivos y calibraciones se agrupan por separado, porque cada uno lleva su propio calendario.
+2. De cada equipo cuenta **solo su último servicio**. Si se tomaran todas las órdenes, un equipo atendido en enero y en julio volvería a proyectar julio, que ya se hizo.
+3. A partir de esa fecha se repite la **frecuencia del equipo** (`FRECUENCIAS_MESES`) y se colocan las fechas que caen en el periodo. Un equipo semestral aparece dos veces en el año.
+4. Si el primer próximo mantenimiento **ya pasó** y no hay un servicio posterior, el equipo se marca **Vencido**, con la fecha desde la que lo está.
 
 ### Parámetros
 
 | Parámetro | Opciones |
 |---|---|
-| **Periodo** | Anual · Semestral · Mensual, **por año calendario**: el primer semestre es enero–junio y el segundo julio–diciembre |
-| **Año** | Los años presentes en el historial de esa unidad |
-| **Tipo de servicio** | Preventivos · Calibraciones · Correctivos/Asistencias · Entregas/Materiales · Todos |
+| **Periodo** | Anual · Semestral · Mensual, por año calendario |
+| **Año** | El anterior (para revisar lo vencido), el actual y los dos siguientes |
+| **Tipo de servicio** | Preventivos · Calibraciones · Preventivos y calibraciones |
 | **Nivel de precio** | I · II · III, según el convenio del hospital |
 
-Debajo de los parámetros, un resumen en vivo dice cuántos servicios caen en el periodo, el importe y cuántos quedarían sin precio, antes de generar el archivo.
+El resumen en vivo dice cuántos equipos y cuántos mantenimientos caen en el periodo, cuántos están vencidos, el importe estimado y cuántos equipos no tienen tarifa.
 
 ### Qué contiene
 
-Un renglón por servicio y **una columna por mes del periodo**. El precio se coloca **en la columna del mes en que se realizó el servicio**, que es lo que permite leer de un vistazo cuánto se generó cada mes.
+Un renglón por equipo con: equipo, marca, modelo, serie, inventario, área, tipo de servicio, fecha y orden del **último servicio**, frecuencia en meses, fecha(s) de **próximo mantenimiento** y estado. Después, **una columna por mes** con el precio en cada mes en que le toca mantenimiento, total por mes e importe estimado del periodo.
 
-Columnas fijas: equipo, marca, modelo, número de serie, número de orden, tipo de servicio, fecha del servicio, **número de factura** y **fecha de factura** —las dos últimas se llenan solas desde el registro de facturación (4.15)—. Al final, total por mes e importe del periodo.
+En el PDF, los meses programados van resaltados en azul, y en rojo cuando el equipo está vencido.
 
 ### Servicios sin tarifa
 
-Aparecen con el precio en blanco y se cuentan aparte, tanto en el resumen como al pie del archivo. **No se omiten**: esconderlos daría un total que parece completo sin serlo, y en una revisión financiera esa es la diferencia entre un número correcto y uno engañoso. Para corregirlo, el panel de administrador lista los tipos de equipo sin tarifa (4.14).
+Aparecen con la leyenda *sin tarifa* en el mes que les toca y se cuentan aparte. **No se omiten**: esconderlos daría un total que parece completo sin serlo.
 
 ### Formatos
 
-- **Excel** (.xlsx). La librería que genera el archivo se descarga **solo al exportar**, no en cada visita: no tiene sentido pesarle la carga a quien nunca usa esta pantalla. Queda guardada por el service worker, así que a partir de la primera vez funciona aunque el hospital bloquee ese dominio.
-- **PDF**. Se arma la hoja y se manda al diálogo de impresión, donde se elige *Guardar como PDF*. Es el mismo camino que ya usa el generador de rutinas. Se imprime **apaisado**, porque un calendario de doce meses no cabe vertical.
+- **Excel** (.xlsx). La librería se descarga solo al exportar y queda guardada por el service worker.
+- **PDF**. Se manda al diálogo de impresión, apaisado.
 
 ## 4.17 Auditoría financiera (v4.0)
 
@@ -1028,6 +1035,7 @@ Cada concepto de `Precios_Mantenimiento` —preventivos, calibraciones, material
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.1 | **El calendario exporta los próximos mantenimientos** en lugar de los servicios realizados. Toma el último servicio de cada equipo (por serie, inventario o descripción), le suma su frecuencia y coloca el precio en cada mes en que le toca mantenimiento dentro del periodo; marca como **vencidos** los que ya pasaron sin servicio posterior. Disponible en Preventivos y Calibraciones |
 | 5.0 | **Número de catálogo** en `Precios_Mantenimiento`: clave alfanumérica aleatoria (`IA-XXXXXX`) asignada por el servidor, única e inmutable. Visible y buscable en el catálogo y en el cotizador, e impresa en la cotización. Las partidas se reprecian por clave en lugar de por posición en la lista. Los renglones copiados en Sheets reciben clave e ID nuevos |
 | 4.9 | **Catálogos administrados desde la plataforma.** Apartado *Catálogos* (solo administrador) con dos pestañas. **Clientes**: razón social, RFC, dirección, atención a, correo, teléfono, la unidad con la que aparece en las órdenes y su nivel de convenio; valida el formato del RFC y que no se repita. **Precios y prestaciones**: alta, edición y baja de los conceptos de `Precios_Mantenimiento` sin abrir la hoja; al guardar se vuelve a descargar el tarifario y el cotizador, la facturación y la auditoría lo ven de inmediato. En el **cotizador**, el cliente se elige del catálogo: se llenan sus datos fiscales y se aplica su nivel, repreciando las partidas del catálogo. Alta rápida de un cliente nuevo desde la propia cotización |
 | 4.8 | **Las hojas de la cotización ya no se cortan**: cada hoja mide exactamente una hoja carta y las partidas se reparten midiéndolas; si no caben, pasan completas a la hoja siguiente, que repite el encabezado, y el cierre —totales, importe con letra y observaciones— nunca se separa. **Observaciones, condiciones importantes y garantía se editan desde la app** en cada cotización, con los predeterminados como punto de partida; el administrador puede guardar los textos editados como nuevos predeterminados. **Catálogo único de precios**: `Precios_Mantenimiento` contiene los mantenimientos preventivos y calibraciones en tres niveles y también los conceptos del cotizador, y alimenta a la vez facturación, auditoría y cotizador. Selector de **nivel de precio** en la cotización, que reprecia lo que vino del catálogo sin tocar lo corregido a mano |
