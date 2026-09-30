@@ -776,6 +776,16 @@ Un renglón por equipo con: equipo, marca, modelo, serie, inventario, área, tip
 
 En el PDF, los meses programados van resaltados en azul, y en rojo cuando el equipo está vencido.
 
+**PDF en una hoja carta horizontal (v5.2).** Para que los doce meses quepan sin cortarse:
+
+- los datos del equipo se agrupan en tres columnas (equipo con marca, modelo, serie, inventario y área; último servicio; estado);
+- la tabla usa anchos fijos sobre el ancho útil de la hoja;
+- los importes por mes van sin centavos;
+- el total por mes aparece una sola vez, al final;
+- el encabezado se repite en cada hoja.
+
+El Excel conserva todas las columnas por separado.
+
 ### Servicios sin tarifa
 
 Aparecen con la leyenda *sin tarifa* en el mes que les toca y se cuentan aparte. **No se omiten**: esconderlos daría un total que parece completo sin serlo.
@@ -955,6 +965,39 @@ Cada concepto de `Precios_Mantenimiento` —preventivos, calibraciones, material
 
 **Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). La columna `No. catálogo` y las claves de los conceptos existentes se crean solas la primera vez que se descarga el tarifario. Para hacerlo de inmediato, ejecutar `asignarNumerosCatalogo()` desde el editor.
 
+## 4.21 Catálogos: Clientes, Servicios y Productos (v5.2)
+
+El apartado **Catálogos** tiene tres pestañas.
+
+| Pestaña | Qué contiene | Campos propios |
+|---|---|---|
+| **Clientes** | Razón social, RFC, dirección, atención a, correo, teléfono, unidad y nivel de convenio | — |
+| **Servicios** | Preventivos, calibraciones, correctivos, instalación, capacitación… | Tipo de equipo genérico en el concepto |
+| **Productos** | Refacciones, materiales, consumibles, accesorios, equipos | **Marca** |
+
+**Servicios y productos viven en la misma hoja** (`Precios_Mantenimiento`), así que el cotizador, la facturación y la auditoría no cambian. La columna nueva **Categoría** (`Servicio` / `Producto`) dice a qué pestaña pertenece cada renglón. Los renglones que ya existían la toman de su *Tipo*: Refacción, Material, Consumible, Accesorio, Insumo, Equipo, Producto, Pieza y Kit son productos; lo demás, servicio. También se agrega la columna **Marca**. Las dos columnas se crean solas.
+
+- En el cotizador, un producto con marca aparece como *Sensor de SpO2 · Marca Nellcor*.
+- El mismo producto puede darse de alta con marcas distintas; lo que no se permite es repetir concepto + tipo + marca.
+
+**Exportar a Excel.** Cada pestaña tiene su botón **Excel**, que exporta la lista **tal como se ve**, con la búsqueda y el filtro de tipo aplicados (sin ellos, sale completa). El archivo lleva autofiltro y los precios con formato de moneda.
+
+## 4.22 Envío de la cotización por correo (v5.2)
+
+- **Desde la lista:** botón **Correo** en cada cotización.
+- **Desde el formulario:** **Guardar y enviar por correo**, que guarda primero para tener folio.
+
+| Campo | Cómo se llena |
+|---|---|
+| **Para** | El correo del cliente en el catálogo, buscado por su id y, si no, por razón social. Si no hay, la ventana lo avisa y se escribe a mano |
+| **Asunto** | *Cotización {folio} · {razón social del emisor}* |
+| **Mensaje** | Saludo a la persona de *Atención a*, folio, fecha, importe total y vigencia. Editable |
+| **Adjunto** | La cotización en PDF, idéntica a la impresa |
+
+**El PDF** se genera en el navegador con jsPDF + html2canvas, que se descargan la primera vez y quedan guardados por el service worker. Cada hoja es una imagen en carta, con los márgenes de la impresión.
+
+**Envío.** Sale por la acción `correo` del servidor, desde la cuenta institucional. Queda en la bitácora de correos como *Cotización {folio}*. Se puede enviar o dejar como borrador en Gmail. Al enviar, una cotización *Emitida* pasa a **Enviada**, salvo que se desmarque la casilla.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1035,6 +1078,7 @@ Cada concepto de `Precios_Mantenimiento` —preventivos, calibraciones, material
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.2 | **Catálogos en tres pestañas**: Clientes, Servicios y Productos (con **marca**), en la misma hoja mediante la columna *Categoría*; cada catálogo se **exporta a Excel**. **Cotización por correo** al correo del cliente, con el PDF adjunto y paso a *Enviada*. **PDF del calendario de próximos mantenimientos** rediseñado para que los doce meses quepan en carta horizontal |
 | 5.1 | **El calendario exporta los próximos mantenimientos** en lugar de los servicios realizados. Toma el último servicio de cada equipo (por serie, inventario o descripción), le suma su frecuencia y coloca el precio en cada mes en que le toca mantenimiento dentro del periodo; marca como **vencidos** los que ya pasaron sin servicio posterior. Disponible en Preventivos y Calibraciones |
 | 5.0 | **Número de catálogo** en `Precios_Mantenimiento`: clave alfanumérica aleatoria (`IA-XXXXXX`) asignada por el servidor, única e inmutable. Visible y buscable en el catálogo y en el cotizador, e impresa en la cotización. Las partidas se reprecian por clave en lugar de por posición en la lista. Los renglones copiados en Sheets reciben clave e ID nuevos |
 | 4.9 | **Catálogos administrados desde la plataforma.** Apartado *Catálogos* (solo administrador) con dos pestañas. **Clientes**: razón social, RFC, dirección, atención a, correo, teléfono, la unidad con la que aparece en las órdenes y su nivel de convenio; valida el formato del RFC y que no se repita. **Precios y prestaciones**: alta, edición y baja de los conceptos de `Precios_Mantenimiento` sin abrir la hoja; al guardar se vuelve a descargar el tarifario y el cotizador, la facturación y la auditoría lo ven de inmediato. En el **cotizador**, el cliente se elige del catálogo: se llenan sus datos fiscales y se aplica su nivel, repreciando las partidas del catálogo. Alta rápida de un cliente nuevo desde la propia cotización |

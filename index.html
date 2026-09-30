@@ -108,7 +108,7 @@
                justo donde va el pie. */
             @page { margin: 25mm 25mm 34mm; }
             /* v3.9: el calendario de servicios es ancho; se imprime apaisado */
-            @page calendario { size: landscape; margin: 12mm 10mm 20mm; }
+            @page calendario { size: letter landscape; margin: 10mm 10mm 12mm; }
             body.printing-calendario { page: calendario; }
             body { padding: 0 !important; }
             html, body { overflow: visible !important; height: auto !important; background: white !important; display: block !important; }
@@ -170,11 +170,12 @@
                 margin: 0 !important; padding: 0 !important;
                 background: white !important;
             }
-            body.printing-calendario #calendarioImprimible table { font-size: 8pt; }
-            body.printing-calendario #calendarioImprimible th,
-            body.printing-calendario #calendarioImprimible td {
-                border: 0.2mm solid #cbd5e1; padding: 1.5mm 2mm;
-            }
+            /* v5.2: los bordes y rellenos van en línea en cada celda (ver
+               exportarCalendarioPDF); aquí solo se evita que el pie de página
+               general y el modal ocupen lugar. */
+            body.printing-calendario #piePaginaImpresion,
+            body.printing-calendario #cotizacionImprimible { display: none !important; }
+            body.printing-calendario #calendarioImprimible thead { display: table-header-group; }
             body.printing-calendario #calendarioImprimible tr { break-inside: avoid; page-break-inside: avoid; }
 
             /* v4.0: al imprimir la auditoría se oculta lo demás */
@@ -1024,21 +1025,25 @@
         <div id="catalogosContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
             <div class="mb-6">
                 <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Catálogos</h2>
-                <p class="text-sm text-slate-500 mt-1">Clientes y precios que alimentan el cotizador, la facturación y la auditoría. Se capturan aquí, sin abrir la hoja de cálculo.</p>
+                <p class="text-sm text-slate-500 mt-1">Clientes, servicios y productos que alimentan el cotizador, la facturación y la auditoría. Se capturan aquí, sin abrir la hoja de cálculo, y cada catálogo se puede exportar a Excel.</p>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-5">
                     <button id="tabCatCli" onclick="cambiarPestanaCatalogo('clientes')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">Clientes</button>
-                    <button id="tabCatPre" onclick="cambiarPestanaCatalogo('precios')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Precios y prestaciones</button>
+                    <button id="tabCatSer" onclick="cambiarPestanaCatalogo('servicios')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Servicios</button>
+                    <button id="tabCatPro" onclick="cambiarPestanaCatalogo('productos')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Productos</button>
                 </div>
 
                 <!-- Clientes -->
                 <div id="catPanelClientes" class="p-6">
                     <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
                         <div class="lg:col-span-3">
-                            <input type="text" id="catBuscarCli" placeholder="Buscar razón social, RFC o unidad…"
-                                   class="w-full mb-3 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                            <div class="flex gap-2 mb-3">
+                                <input type="text" id="catBuscarCli" placeholder="Buscar razón social, RFC o unidad…"
+                                       class="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                                <button onclick="exportarCatalogoExcel('clientes')" title="Exportar a Excel la lista como se ve" class="shrink-0 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>Excel</button>
+                            </div>
                             <div id="catListaClientes" class="overflow-x-auto"></div>
                         </div>
                         <div class="lg:col-span-2 border border-slate-200 rounded-xl p-5 bg-slate-50/50 self-start">
@@ -1084,8 +1089,9 @@
                         <div class="lg:col-span-3">
                             <div class="flex gap-2 mb-3">
                                 <input type="text" id="catBuscarPre" placeholder="Buscar concepto o No. de catálogo…"
-                                       class="flex-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                                       class="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                                 <select id="catFiltroServ" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                                <button onclick="exportarCatalogoExcel(pestanaCatalogo)" title="Exportar a Excel la lista como se ve" class="shrink-0 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>Excel</button>
                             </div>
                             <div id="catListaPrecios" class="overflow-x-auto max-h-[70vh] overflow-y-auto"></div>
                         </div>
@@ -1106,9 +1112,12 @@
                                     <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
                                         <input id="preUnidad" placeholder="Servicio, Pieza…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 </div>
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Concepto o tipo de equipo *</label>
+                                <div><label id="preConceptoEt" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Concepto o tipo de equipo *</label>
                                     <textarea id="preConcepto" rows="2" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
-                                    <p class="text-[10px] text-slate-400 mt-1">En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.</p></div>
+                                    <p id="preConceptoAyuda" class="text-[10px] text-slate-400 mt-1">En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.</p></div>
+                                <div id="preMarcaWrap" class="hidden"><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Marca</label>
+                                    <input id="preMarca" list="listaMarcasPrecio" placeholder="Philips, Mindray, Nellcor…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                                    <datalist id="listaMarcasPrecio"></datalist></div>
                                 <div class="grid grid-cols-3 gap-2">
                                     <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel I</label>
                                         <input id="preN1" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
@@ -1243,6 +1252,7 @@
                     <button onclick="cerrarFormularioCotizacion()" class="text-sm font-semibold text-slate-500 hover:text-slate-800 px-4 py-2">Cancelar</button>
                     <button id="btnGuardarCot" onclick="guardarCotizacionDesdeForm(false)" class="bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold px-5 py-2 rounded-lg">Guardar</button>
                     <button id="btnGuardarImprimirCot" onclick="guardarCotizacionDesdeForm(true)" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-5 py-2 rounded-lg">Guardar e imprimir</button>
+                    <button id="btnGuardarCorreoCot" onclick="guardarCotizacionDesdeForm('correo')" class="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-5 py-2 rounded-lg">Guardar y enviar por correo</button>
                 </div>
             </div>
         </div>
@@ -1681,6 +1691,63 @@
     <div id="calendarioImprimible" class="hidden"></div>
 
     <!-- v4.7: la cotización que se imprime -->
+    <!-- ============ v5.2: envío de la cotización por correo ============ -->
+    <div id="modalCorreoCot" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[77] items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Enviar cotización por correo</h3>
+                    <p id="ccotContexto" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="cerrarCorreoCotizacion()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" title="Cerrar">&times;</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex flex-col gap-3">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Para</label>
+                    <input type="text" id="ccotPara" placeholder="compras@hospital.mx"
+                           class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    <p id="ccotAyudaPara" class="text-xs text-slate-500 mt-1"></p>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Copia (CC)</label>
+                    <input type="text" id="ccotCC" placeholder="Opcional; separa varias direcciones con coma"
+                           class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Asunto</label>
+                    <input type="text" id="ccotAsunto" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Mensaje</label>
+                    <textarea id="ccotCuerpo" rows="9" class="w-full mt-1 p-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500 leading-relaxed"></textarea>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" id="ccotAdjuntar" checked class="rounded border-slate-300">
+                    <span>Adjuntar la cotización en PDF <span id="ccotNombrePdf" class="font-mono text-xs text-slate-500"></span></span>
+                </label>
+                <div class="flex flex-wrap items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Acción</label>
+                        <select id="ccotModo" class="p-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:border-brand-500">
+                            <option value="enviar">Enviar ahora</option>
+                            <option value="borrador">Guardar borrador en Gmail</option>
+                        </select>
+                    </div>
+                    <label id="ccotMarcarWrap" class="flex items-center gap-2 text-xs text-slate-600">
+                        <input type="checkbox" id="ccotMarcar" checked class="rounded border-slate-300">
+                        <span>Marcar la cotización como <b>Enviada</b></span>
+                    </label>
+                </div>
+                <p id="ccotMensaje" class="hidden text-xs rounded-lg p-3"></p>
+            </div>
+            <div class="flex justify-end items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button onclick="cerrarCorreoCotizacion()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cancelar</button>
+                <button id="btnEnviarCorreoCot" onclick="enviarCorreoCotizacion()"
+                        class="bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors disabled:opacity-50">Enviar correo</button>
+            </div>
+        </div>
+    </div>
+
     <div id="cotizacionImprimible" class="hidden"></div>
 
     <!-- ============ v3.8: registro de factura ============ -->
@@ -3039,6 +3106,8 @@
             const cMoneda = buscarColumna(llaves, ['moneda', 'divisa']);
             const cUnidad = buscarColumna(llaves, ['unidad']);        // v4.8
             const cClave  = buscarColumna(llaves, ['no. catalogo', 'no catalogo', 'numero de catalogo', 'num. catalogo']); // v5.0
+            const cMarca  = llaves.find(l => l === 'marca');                   // v5.2
+            const cCateg  = llaves.find(l => l === 'categoria');
 
             data.forEach(row => {
                 const equipo = cEquipo ? String(row[cEquipo] || '').trim() : '';
@@ -3053,7 +3122,9 @@
                     },
                     moneda: cMoneda ? (String(row[cMoneda] || '').trim() || 'MXN') : 'MXN',
                     unidad: cUnidad ? String(row[cUnidad] || '').trim() : '',
-                    clave: cClave ? String(row[cClave] || '').trim().toUpperCase() : ''
+                    clave: cClave ? String(row[cClave] || '').trim().toUpperCase() : '',
+                    marca: cMarca ? String(row[cMarca] || '').trim() : '',
+                    categoria: cCateg ? String(row[cCateg] || '').trim() : ''
                 });
             });
 
@@ -4376,53 +4447,89 @@
            Se arma el calendario en una hoja aparte y se manda a imprimir: en el
            diálogo del navegador se elige "Guardar como PDF". Es el mismo camino
            que ya usa la rutina, y evita cargar otra librería. */
+        /* v5.2 — El PDF ya no se corta. Antes llevaba 12 columnas de datos más
+           una por mes (24 en el anual) con importes de dos decimales: no cabía
+           en una hoja carta horizontal y los últimos meses quedaban fuera.
+           Ahora:
+             · los datos del equipo se agrupan en tres columnas (equipo con
+               marca, modelo, serie, inventario y área; último servicio; estado)
+             · la tabla usa anchos fijos repartidos sobre el ancho útil de la
+               hoja, y el texto largo se ajusta en renglones en lugar de empujar
+             · los importes de los meses van sin centavos y en letra más chica
+           El Excel conserva todas las columnas por separado. */
         function exportarCalendarioPDF() {
             const cal = construirCalendario();
             if (cal.filas.length === 0) { mensajeExportarUI('No hay mantenimientos programados en ese periodo.', 'error'); return; }
 
             const moneda = (cal.filas[0] && cal.filas[0].moneda) || 'MXN';
-            const th = 'background:#005DA1;color:#fff;font-size:8pt;text-align:left;font-weight:700;';
-            const thMes = th + 'text-align:right;';
+            const entero = (v) => '$' + Math.round(Number(v) || 0).toLocaleString('es-MX');
+            const nMeses = cal.meses.length;
+
+            // Ancho útil de carta horizontal: 279.4 − 10 − 10 = 259 mm
+            const ANCHO = 259;
+            const colEquipo = nMeses > 6 ? 62 : 95, colUltimo = 21, colFrec = 9, colEstado = 19;
+            const colMes = ((ANCHO - colEquipo - colUltimo - colFrec - colEstado) / nMeses).toFixed(2);
+            const fMes = nMeses > 6 ? '6.5pt' : '8pt', fTot = nMeses > 6 ? '6pt' : '7.5pt';
+
+            const th = 'background:#005DA1;color:#fff;font-size:7.5pt;font-weight:700;padding:1.2mm 1.2mm;' +
+                       'border:0.2mm solid #005DA1;text-align:left;vertical-align:bottom;';
+            const td = 'font-size:7.5pt;padding:1.2mm;border:0.2mm solid #cbd5e1;vertical-align:top;overflow-wrap:anywhere;';
 
             let html =
-                '<div style="font-family:Inter,Arial,sans-serif;color:#0f172a">' +
-                '<h1 style="font-size:15pt;margin:0 0 2mm">Calendario de próximos mantenimientos</h1>' +
+                '<div style="font-family:Inter,Arial,sans-serif;color:#0f172a;width:' + ANCHO + 'mm;' +
+                '-webkit-print-color-adjust:exact;print-color-adjust:exact">' +
+                '<h1 style="font-size:14pt;margin:0 0 1.5mm">Calendario de próximos mantenimientos</h1>' +
                 '<p style="font-size:10pt;margin:0 0 1mm;font-weight:700">' + esc(clienteActual) + '</p>' +
-                '<p style="font-size:9pt;margin:0 0 4mm;color:#475569">' + esc(etiquetaPeriodo()) +
+                '<p style="font-size:8.5pt;margin:0 0 3mm;color:#475569">' + esc(etiquetaPeriodo()) +
                 '  ·  Nivel de precio ' + esc(cal.nivel) +
                 '  ·  ' + cal.filas.length + ' equipo(s)  ·  ' + cal.eventos + ' mantenimiento(s) programado(s)' +
                 (cal.vencidos ? '  ·  <span style="color:#b91c1c;font-weight:700">' + cal.vencidos + ' vencido(s)</span>' : '') + '</p>' +
-                '<table style="width:100%;border-collapse:collapse"><thead><tr>' +
-                ENCABEZADOS_CALENDARIO.map(h => '<th style="' + th + '">' + esc(h) + '</th>').join('') +
-                cal.meses.map(m => '<th style="' + thMes + '">' + MESES_CORTOS[m] + '</th>').join('') +
+                '<table style="width:' + ANCHO + 'mm;table-layout:fixed;border-collapse:collapse">' +
+                '<colgroup><col style="width:' + colEquipo + 'mm"><col style="width:' + colUltimo + 'mm">' +
+                '<col style="width:' + colFrec + 'mm"><col style="width:' + colEstado + 'mm">' +
+                cal.meses.map(() => '<col style="width:' + colMes + 'mm">').join('') + '</colgroup>' +
+                '<thead><tr>' +
+                '<th style="' + th + '">Equipo</th><th style="' + th + '">Último servicio</th>' +
+                '<th style="' + th + 'text-align:center">Frec. (m)</th><th style="' + th + '">Estado</th>' +
+                cal.meses.map(m => '<th style="' + th + 'text-align:center">' + MESES_CORTOS[m] + '</th>').join('') +
                 '</tr></thead><tbody>';
 
             cal.filas.forEach(r => {
                 const vencido = r.estado === ESTADO_VENCIDO;
-                html += '<tr>' +
-                    valoresBaseCalendario(r)
-                        .map((v, i) => '<td style="font-size:8pt;' +
-                            (i === ENCABEZADOS_CALENDARIO.length - 1 && vencido ? 'color:#b91c1c;font-weight:700;' : '') +
-                            '">' + esc(v) + '</td>').join('') +
+                const detalle = [[r.marca, r.modelo].filter(Boolean).join(' · '),
+                                 [r.serie ? 'S/N ' + r.serie : '', r.inventario ? 'Inv. ' + r.inventario : ''].filter(Boolean).join(' · '),
+                                 [r.area, r.tipoServicio].filter(Boolean).join(' · ')].filter(Boolean);
+                html += '<tr style="break-inside:avoid;page-break-inside:avoid">' +
+                    '<td style="' + td + '"><b>' + esc(r.equipo) + '</b>' +
+                        detalle.map(t => '<br><span style="color:#475569;font-size:6.8pt">' + esc(t) + '</span>').join('') + '</td>' +
+                    '<td style="' + td + '">' + esc(r.ultimaFecha) +
+                        (r.ultimaOrden ? '<br><span style="color:#475569;font-size:6.8pt">Orden ' + esc(r.ultimaOrden) + '</span>' : '') + '</td>' +
+                    '<td style="' + td + 'text-align:center">' + esc(r.frecuencia) + '</td>' +
+                    '<td style="' + td + (vencido ? 'color:#b91c1c;font-weight:700;' : '') + '">' + esc(r.estado) +
+                        (r.vencidoDesde ? '<br><span style="font-size:6.8pt;font-weight:400">desde ' + esc(r.vencidoDesde) + '</span>' : '') + '</td>' +
                     cal.meses.map(m => {
                         const toca = r.mesesProgramados.indexOf(m) > -1;
-                        return '<td style="font-size:8pt;text-align:right;' +
+                        return '<td style="' + td + 'padding:1.2mm 0.6mm;text-align:center;white-space:nowrap;font-size:' + fMes + ';' +
                             (toca ? 'font-weight:700;background:' + (vencido ? '#fee2e2' : '#e0f2fe') + ';' : '') + '">' +
-                            (toca ? (r.precio === null ? 'sin tarifa' : fmtMoneda(r.precio, moneda)) : '') + '</td>';
+                            (toca ? (r.precio === null ? 'S/T' : entero(r.precio)) : '') + '</td>';
                     }).join('') +
                 '</tr>';
             });
 
-            html += '</tbody><tfoot><tr>' +
-                '<td colspan="' + ENCABEZADOS_CALENDARIO.length + '" style="font-size:8.5pt;font-weight:700;background:#f1f5f9">Total por mes</td>' +
-                cal.meses.map(m => '<td style="font-size:8.5pt;text-align:right;font-weight:700;background:#f1f5f9">' +
-                                   fmtMoneda(cal.totales[m] || 0, moneda) + '</td>').join('') +
-                '</tr></tfoot></table>' +
-                '<p style="font-size:10pt;margin:4mm 0 0;text-align:right;font-weight:700">Importe estimado del periodo: ' +
+            // El total va como último renglón del cuerpo, no en <tfoot>: Chrome
+            // repite el tfoot en cada hoja y parecería un total parcial.
+            html += '<tr style="break-inside:avoid">' +
+                '<td colspan="4" style="' + td + 'font-weight:700;background:#f1f5f9;text-align:right">Total por mes</td>' +
+                cal.meses.map(m => '<td style="' + td + 'padding:1.2mm 0.4mm;text-align:center;white-space:nowrap;font-size:' + fTot +
+                                   ';font-weight:700;background:#f1f5f9">' + entero(cal.totales[m] || 0) + '</td>').join('') +
+                '</tr></tbody></table>' +
+                '<p style="font-size:10pt;margin:3mm 0 0;text-align:right;font-weight:700">Importe estimado del periodo: ' +
                 fmtMoneda(cal.total, moneda) + '</p>' +
+                '<p style="font-size:7pt;color:#475569;margin-top:1.5mm">Importes por mes redondeados a pesos. ' +
+                '<b>S/T</b>: equipo sin tarifa en el tarifario (no suma al importe). Azul: programado · Rojo: vencido.</p>' +
                 (cal.sinTarifa
-                    ? '<p style="font-size:8pt;color:#92400e;margin-top:2mm">' + cal.sinTarifa +
-                      ' equipo(s) sin tarifa en el tarifario: su precio quedó en blanco y no suma al importe.</p>'
+                    ? '<p style="font-size:7.5pt;color:#92400e;margin-top:1mm">' + cal.sinTarifa +
+                      ' equipo(s) sin tarifa en el tarifario.</p>'
                     : '') +
                 '</div>';
 
@@ -4952,7 +5059,7 @@
             const desdeTarifario = catalogoPrecios.map(t => {
                 const esMant = tipoConTarifario(t.servicio);
                 const serv = normalizar(t.servicio.toLowerCase());
-                let descripcion = t.equipo;
+                let descripcion = t.equipo + (t.marca ? ' · Marca ' + t.marca : '');   // v5.2
                 if (esMant && serv.includes('calibracion')) descripcion = 'Calibración de ' + t.equipo;
                 else if (esMant) descripcion = 'Mantenimiento preventivo integral para ' + t.equipo;
                 return {
@@ -5096,15 +5203,35 @@
             renderPreciosCatalogo();
         }
 
+        /* v5.2 — Tres pestañas: Clientes, Servicios y Productos. Servicios y
+           Productos comparten el mismo panel y la misma hoja; cambia el filtro
+           por categoría, el formulario (los productos llevan marca) y los
+           tipos sugeridos. */
+        const CATEGORIA_DE_PESTANA = { servicios: 'Servicio', productos: 'Producto' };
+        const TIPOS_SUGERIDOS = {
+            Servicio: ['Preventivo', 'Calibración', 'Correctivo', 'Servicio', 'Instalación', 'Capacitación'],
+            Producto: ['Refacción', 'Material', 'Consumible', 'Accesorio', 'Equipo']
+        };
+        function categoriaCatalogo() { return CATEGORIA_DE_PESTANA[pestanaCatalogo] || 'Servicio'; }
+
         function cambiarPestanaCatalogo(cual) {
+            const anterior = pestanaCatalogo;
             pestanaCatalogo = cual;
+            [['tabCatCli', 'clientes'], ['tabCatSer', 'servicios'], ['tabCatPro', 'productos']].forEach(([id, k]) => {
+                document.getElementById(id).classList.toggle('tab-active', k === cual);
+                document.getElementById(id).classList.toggle('tab-inactive', k !== cual);
+            });
             const cli = cual === 'clientes';
-            document.getElementById('tabCatCli').classList.toggle('tab-active', cli);
-            document.getElementById('tabCatCli').classList.toggle('tab-inactive', !cli);
-            document.getElementById('tabCatPre').classList.toggle('tab-active', !cli);
-            document.getElementById('tabCatPre').classList.toggle('tab-inactive', cli);
             document.getElementById('catPanelClientes').style.display = cli ? 'block' : 'none';
             document.getElementById('catPanelPrecios').style.display = cli ? 'none' : 'block';
+            if (!cli) {
+                if (anterior !== cual) {
+                    document.getElementById('catBuscarPre').value = '';
+                    document.getElementById('catFiltroServ').value = 'todos';
+                }
+                limpiarFormPrecio();
+                renderPreciosCatalogo();
+            }
         }
 
         function mensajeCatUI(id, texto, tipo) {
@@ -5120,9 +5247,7 @@
         /* ---------- Clientes ---------- */
         function renderClientesCatalogo() {
             const cont = document.getElementById('catListaClientes');
-            const q = normalizar(document.getElementById('catBuscarCli').value.toLowerCase()).trim();
-            const lista = catalogoClientes.filter(c => !q ||
-                normalizar((c.razonSocial + ' ' + c.rfc + ' ' + c.unidad + ' ' + c.atencion).toLowerCase()).includes(q));
+            const lista = listaClientesFiltrada();
 
             if (!lista.length) {
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">' +
@@ -5239,7 +5364,10 @@
         /* ---------- Precios ---------- */
         function renderPreciosCatalogo() {
             const cont = document.getElementById('catListaPrecios');
-            const tipos = [...new Set(preciosAdmin.map(x => x.servicio))].sort((a, b) => a.localeCompare(b, 'es'));
+            const cat = categoriaCatalogo();
+            const esProd = cat === 'Producto';
+            const deLaCategoria = preciosAdmin.filter(x => (x.categoria || 'Servicio') === cat);
+            const tipos = [...new Set(deLaCategoria.map(x => x.servicio))].sort((a, b) => a.localeCompare(b, 'es'));
 
             // Filtro por tipo y sugerencias del campo Tipo
             const sel = document.getElementById('catFiltroServ');
@@ -5248,23 +5376,26 @@
                 tipos.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('');
             sel.value = tipos.indexOf(actual) > -1 ? actual : 'todos';
             document.getElementById('listaTiposPrecio').innerHTML =
-                [...new Set(['Preventivo', 'Calibración', 'Servicio', 'Material', 'Refacción', 'Equipo'].concat(tipos))]
+                [...new Set(TIPOS_SUGERIDOS[cat].concat(tipos))]
                     .map(t => '<option value="' + esc(t) + '">').join('');
 
-            const q = normalizar(document.getElementById('catBuscarPre').value.toLowerCase()).trim();
-            const lista = preciosAdmin.filter(x =>
-                (sel.value === 'todos' || x.servicio === sel.value) &&
-                (!q || normalizar(x.concepto.toLowerCase()).includes(q) || (x.clave || '').toLowerCase().includes(q)));
+            document.getElementById('listaMarcasPrecio').innerHTML =
+                [...new Set(deLaCategoria.map(x => x.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
+                    .map(m => '<option value="' + esc(m) + '">').join('');
+
+            const lista = listaPreciosFiltrada();
 
             if (!lista.length) {
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">' +
-                    (preciosAdmin.length ? 'Ningún concepto coincide.' : 'Sin conceptos todavía.') + '</p>';
+                    (deLaCategoria.length ? 'Ningún concepto coincide.'
+                                          : (esProd ? 'Sin productos todavía.' : 'Sin servicios todavía.')) + '</p>';
                 return;
             }
             const th = 'px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50 sticky top-0"><tr>' +
                 '<th class="' + th + ' text-left whitespace-nowrap">No. cat.</th>' +
-                '<th class="' + th + ' text-left">Tipo</th><th class="' + th + ' text-left">Concepto</th>' +
+                '<th class="' + th + ' text-left">Tipo</th><th class="' + th + ' text-left">' + (esProd ? 'Producto' : 'Concepto') + '</th>' +
+                (esProd ? '<th class="' + th + ' text-left">Marca</th>' : '') +
                 '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
                 '<th class="' + th + ' text-right">Nivel III</th><th class="' + th + '"></th></tr></thead>' +
                 '<tbody class="divide-y divide-slate-100">' +
@@ -5274,6 +5405,7 @@
                         '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + esc(x.servicio) + '</td>' +
                         '<td class="px-3 py-2"><p class="text-slate-800">' + esc(x.concepto) + '</p>' +
                             (x.unidad ? '<p class="text-[10px] text-slate-400">' + esc(x.unidad) + '</p>' : '') + '</td>' +
+                        (esProd ? '<td class="px-3 py-2 text-xs text-slate-600">' + (x.marca ? esc(x.marca) : '<span class="text-slate-400">—</span>') + '</td>' : '') +
                         ['n1', 'n2', 'n3'].map(k => '<td class="px-3 py-2 text-right font-mono text-xs whitespace-nowrap">' +
                             fmtMoneda(x[k], x.moneda) + '</td>').join('') +
                         '<td class="px-3 py-2 text-right whitespace-nowrap">' +
@@ -5284,13 +5416,85 @@
                 '</tbody></table>';
         }
 
+        // Lista de la pestaña actual con la búsqueda y el filtro de tipo aplicados
+        function listaPreciosFiltrada() {
+            const cat = categoriaCatalogo();
+            const tipo = document.getElementById('catFiltroServ').value || 'todos';
+            const q = normalizar(document.getElementById('catBuscarPre').value.toLowerCase()).trim();
+            return preciosAdmin.filter(x =>
+                (x.categoria || 'Servicio') === cat &&
+                (tipo === 'todos' || x.servicio === tipo) &&
+                (!q || normalizar((x.concepto + ' ' + (x.marca || '') + ' ' + (x.clave || '')).toLowerCase()).includes(q)));
+        }
+
+        function listaClientesFiltrada() {
+            const q = normalizar(document.getElementById('catBuscarCli').value.toLowerCase()).trim();
+            return catalogoClientes.filter(c => !q ||
+                normalizar((c.razonSocial + ' ' + c.rfc + ' ' + c.unidad + ' ' + c.atencion).toLowerCase()).includes(q));
+        }
+
+        /* v5.2 — Exporta a Excel el catálogo de la pestaña, tal como se ve:
+           con la búsqueda y el filtro aplicados (sin ellos, sale completo). */
+        async function exportarCatalogoExcel(cual) {
+            const hoy = new Date().toISOString().slice(0, 10);
+            let titulo, encabezados, filas, anchos;
+            if (cual === 'clientes') {
+                const lista = listaClientesFiltrada();
+                titulo = 'Clientes';
+                encabezados = ['Razón social', 'RFC', 'Dirección', 'Atención a', 'Correo', 'Teléfono', 'Unidad', 'Nivel', 'Notas'];
+                filas = lista.map(c => [c.razonSocial, c.rfc, c.direccion, c.atencion, c.correo, c.telefono, c.unidad, c.nivel, c.notas]);
+                anchos = [36, 16, 40, 24, 28, 16, 28, 8, 30];
+            } else {
+                const esProd = cual === 'productos';
+                const lista = listaPreciosFiltrada().slice()
+                    .sort((a, b) => a.servicio.localeCompare(b.servicio, 'es') || a.concepto.localeCompare(b.concepto, 'es'));
+                titulo = esProd ? 'Productos' : 'Servicios';
+                const num = v => (v === null || v === undefined || v === '') ? '' : Number(v);
+                encabezados = ['No. catálogo', 'Tipo', esProd ? 'Producto' : 'Concepto']
+                    .concat(esProd ? ['Marca'] : [])
+                    .concat(['Unidad', 'Nivel I', 'Nivel II', 'Nivel III', 'Moneda', 'Notas']);
+                filas = lista.map(x => [x.clave, x.servicio, x.concepto].concat(esProd ? [x.marca] : [])
+                    .concat([x.unidad, num(x.n1), num(x.n2), num(x.n3), x.moneda, x.notas]));
+                anchos = [13, 16, 44].concat(esProd ? [18] : []).concat([12, 12, 12, 12, 8, 30]);
+            }
+            if (!filas.length) { alert('No hay registros que exportar con la búsqueda actual.'); return; }
+            try {
+                await cargarSheetJS();
+                const aoa = [['Catálogo de ' + titulo.toLowerCase() + ' · Ingenieros Asociados'],
+                             ['Exportado el ' + hoy + ' · ' + filas.length + ' registro(s)'], [], encabezados].concat(filas);
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = anchos.map(w => ({ wch: w }));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + filas.length, c: encabezados.length - 1 } }) };
+                // Precios con formato de moneda
+                if (cual !== 'clientes') {
+                    const c0 = encabezados.indexOf('Nivel I');
+                    for (let r = 4; r < 4 + filas.length; r++) for (let c = c0; c < c0 + 3; c++) {
+                        const cel = hoja[XLSX.utils.encode_cell({ r: r, c: c })];
+                        if (cel && cel.t === 'n') cel.z = '"$"#,##0.00';
+                    }
+                }
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, titulo);
+                XLSX.writeFile(libro, 'Catalogo_' + titulo + '_' + hoy + '.xlsx');
+                registrarEvento('exportar_catalogo', titulo + ' · ' + filas.length + ' registro(s)');
+            } catch (err) { alert(err.message); }
+        }
+
         function limpiarFormPrecio() {
             precioEnEdicion = null;
-            ['preServicio', 'preUnidad', 'preConcepto', 'preN1', 'preN2', 'preN3', 'preNotas']
+            ['preServicio', 'preUnidad', 'preConcepto', 'preMarca', 'preN1', 'preN2', 'preN3', 'preNotas']
                 .forEach(id => { document.getElementById(id).value = ''; });
-            document.getElementById('catTituloPre').innerText = 'Nuevo concepto';
+            const esProd = categoriaCatalogo() === 'Producto';
+            document.getElementById('preMarcaWrap').classList.toggle('hidden', !esProd);
+            document.getElementById('preServicio').placeholder = esProd ? 'Refacción' : 'Preventivo';
+            document.getElementById('preUnidad').placeholder = esProd ? 'Pieza, Caja, Kit…' : 'Servicio, Hora…';
+            document.getElementById('preConceptoEt').innerText = esProd ? 'Producto o descripción *' : 'Concepto o tipo de equipo *';
+            document.getElementById('preConceptoAyuda').innerText = esProd
+                ? 'Describe el producto sin la marca (por ejemplo "Sensor de SpO2 adulto reusable"); la marca va en su propio campo.'
+                : 'En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.';
+            document.getElementById('catTituloPre').innerText = esProd ? 'Nuevo producto' : 'Nuevo servicio';
             document.getElementById('preClave').innerText = 'Se asigna al guardar';
-            document.getElementById('btnGuardarPrecio').innerText = 'Guardar concepto';
+            document.getElementById('btnGuardarPrecio').innerText = esProd ? 'Guardar producto' : 'Guardar servicio';
             document.getElementById('catCancelarPre').classList.add('hidden');
             mensajeCatUI('preMensaje', '', 'info');
         }
@@ -5306,7 +5510,8 @@
             document.getElementById('preN2').value = x.n2 === null ? '' : x.n2;
             document.getElementById('preN3').value = x.n3 === null ? '' : x.n3;
             document.getElementById('preNotas').value = x.notas;
-            document.getElementById('catTituloPre').innerText = 'Editar concepto';
+            document.getElementById('preMarca').value = x.marca || '';
+            document.getElementById('catTituloPre').innerText = categoriaCatalogo() === 'Producto' ? 'Editar producto' : 'Editar servicio';
             document.getElementById('preClave').innerText = x.clave || 'Se asigna al guardar';
             document.getElementById('btnGuardarPrecio').innerText = 'Guardar cambios';
             document.getElementById('catCancelarPre').classList.remove('hidden');
@@ -5327,8 +5532,11 @@
             try {
                 const j = await peticionAdmin('guardarPrecio', { precio: {
                     id: precioEnEdicion ? precioEnEdicion.id : '',
-                    servicio: document.getElementById('preServicio').value.trim() || 'Preventivo',
+                    categoria: categoriaCatalogo(),
+                    servicio: document.getElementById('preServicio').value.trim() ||
+                              (categoriaCatalogo() === 'Producto' ? 'Refacción' : 'Preventivo'),
                     concepto: concepto,
+                    marca: categoriaCatalogo() === 'Producto' ? document.getElementById('preMarca').value.trim() : '',
                     unidad: document.getElementById('preUnidad').value.trim(),
                     n1: n1, n2: n2, n3: n3, moneda: 'MXN',
                     notas: document.getElementById('preNotas').value.trim()
@@ -5337,7 +5545,8 @@
                 await refrescarTarifario();
                 limpiarFormPrecio();
                 renderPreciosCatalogo();
-                mensajeCatUI('preMensaje', (j.nuevo ? 'Concepto agregado' : 'Concepto actualizado') +
+                const etq = categoriaCatalogo() === 'Producto' ? 'Producto' : 'Servicio';
+                mensajeCatUI('preMensaje', (j.nuevo ? etq + ' agregado' : etq + ' actualizado') +
                              (j.clave ? ' · No. de catálogo ' + j.clave : '') + '.', 'ok');
             } catch (err) {
                 mensajeCatUI('preMensaje', err.message, 'error');
@@ -5490,6 +5699,7 @@
                         '</select></td>' +
                         '<td class="px-4 py-3 text-right whitespace-nowrap">' +
                             '<button data-cot-accion="imprimir" data-folio="' + esc(c.folio) + '" class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-2">Imprimir</button>' +
+                            '<button data-cot-accion="correo" data-folio="' + esc(c.folio) + '" class="text-xs font-semibold text-green-700 hover:text-green-900 px-2">Correo</button>' +
                             '<button data-cot-accion="editar" data-folio="' + esc(c.folio) + '" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Editar</button>' +
                             '<button data-cot-accion="duplicar" data-folio="' + esc(c.folio) + '" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Duplicar</button>' +
                         '</td>' +
@@ -5803,7 +6013,8 @@
                 nivel: document.getElementById('cotNivel').value
             };
 
-            const botones = [document.getElementById('btnGuardarCot'), document.getElementById('btnGuardarImprimirCot')];
+            const botones = [document.getElementById('btnGuardarCot'), document.getElementById('btnGuardarImprimirCot'),
+                             document.getElementById('btnGuardarCorreoCot')];
             botones.forEach(b => b.disabled = true);
             try {
                 const r = await fetch(URL_APPS_SCRIPT, {
@@ -5824,7 +6035,8 @@
                 cerrarFormularioCotizacion();
                 renderListaCotizaciones();
                 mostrarAviso((j.nueva ? 'Cotización emitida con folio ' : 'Cotización actualizada, folio ') + j.folio + '.');
-                if (imprimirAlTerminar) imprimirCotizacion(cot);
+                if (imprimirAlTerminar === 'correo') abrirCorreoCotizacion(cot);
+                else if (imprimirAlTerminar) imprimirCotizacion(cot);
             } catch (err) {
                 mensajeCotUI(err.message, 'error');
             } finally {
@@ -5839,6 +6051,7 @@
             if (!c) return;
             const acc = b.dataset.cotAccion;
             if (acc === 'imprimir') imprimirCotizacion(c);
+            else if (acc === 'correo') abrirCorreoCotizacion(c);
             else if (acc === 'editar') abrirFormulario(c, false);
             else if (acc === 'duplicar') abrirFormulario(c, true);
         });
@@ -5890,7 +6103,11 @@
         const COT_ANCHO_MM = 191;     // carta 215.9 mm menos 12 + 12 de margen
         const COT_ALTO_MM  = 254;     // carta 279.4 mm menos 10 + 12, con holgura
 
-        function imprimirCotizacion(c) {
+        /* v5.2 — Las hojas de la cotización se arman aparte para usarlas en dos
+           salidas: la impresión (imprimirCotizacion) y el PDF que se adjunta
+           al correo (pdfCotizacionBase64). Así el adjunto es idéntico a lo
+           impreso. */
+        function armarHojasCotizacion(c) {
             const logo = (document.getElementById('logoInstitucional') || {}).src || '';
             const B = 'border:0.35mm solid #000;';
             const lineas = (t) => esc(String(t || '')).split('\n').filter(x => x.trim()).map(x => x + '<br>').join('');
@@ -6077,6 +6294,11 @@
             if (cierreAparte) html += hojaPartidas([], true, true, paginas.length + 1, totalHojas);
             html += hojaCondiciones(totalHojas, totalHojas, escala);
 
+            return { html: html, totalHojas: totalHojas };
+        }
+
+        function imprimirCotizacion(c) {
+            const { html, totalHojas } = armarHojasCotizacion(c);
             const cont = document.getElementById('cotizacionImprimible');
             cont.innerHTML = html;
             cont.classList.remove('hidden');
@@ -6091,6 +6313,216 @@
             };
             window.addEventListener('afterprint', limpiar);
             setTimeout(() => window.print(), 150);
+        }
+
+        /* ============================================================
+           v5.2 — ENVÍO DE LA COTIZACIÓN POR CORREO
+
+           Se sale desde la lista (botón Correo) o desde el formulario
+           (Guardar y enviar por correo, que primero guarda para tener folio).
+
+           · Para: el correo del cliente en el catálogo, buscado por su id y,
+             si la cotización no lo tiene, por su razón social. Se puede
+             corregir o agregar más direcciones.
+           · Adjunto: el PDF se genera en el navegador a partir de las mismas
+             hojas que se imprimen (jsPDF + html2canvas, que se descargan solo
+             la primera vez que se envía y quedan guardadas por el service
+             worker). Cada hoja se convierte en imagen y se coloca en una hoja
+             carta con los mismos márgenes de la impresión.
+           · El envío usa la acción 'correo' del servidor, la misma de los
+             seguimientos: sale de la cuenta institucional y queda en la
+             bitácora de correos con el folio.
+           · Al enviar (no en borrador), la cotización pasa de Emitida a Enviada
+             si la casilla está marcada.
+           ============================================================ */
+        let cotEnCorreo = null;
+
+        function clienteDeCotizacion(c) {
+            if (c.clienteId) {
+                const x = catalogoClientes.find(k => k.id === c.clienteId);
+                if (x) return x;
+            }
+            const n = normalizar(String(c.razonSocial || '').toLowerCase()).trim();
+            return n ? (catalogoClientes.find(k => normalizar(String(k.razonSocial || '').toLowerCase()).trim() === n) || null) : null;
+        }
+
+        function nombreArchivoCotizacion(c) {
+            const limpio = normalizar(String(c.razonSocial || c.cliente || '')).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_').slice(0, 40);
+            return 'Cotizacion_' + c.folio + (limpio ? '_' + limpio : '') + '.pdf';
+        }
+
+        function textoCorreoCotizacion(c, cli) {
+            const saludo = (c.atencion || (cli && cli.atencion)) ? 'Estimado(a) ' + (c.atencion || cli.atencion) + ':' : 'Buen día:';
+            return saludo + '\n\n' +
+                'Por medio del presente le hacemos llegar la cotización con folio ' + c.folio +
+                ', de fecha ' + fechaLargaCot(c.fecha) + ', por un importe total de ' + fmtMoneda(c.total, 'MXN') +
+                ' (I.V.A. incluido).\n\n' +
+                (c.vigencia ? 'La propuesta tiene vigencia al ' + fechaLargaCot(c.vigencia) + '.\n\n' : '') +
+                'Quedamos atentos a cualquier duda o comentario.\n\n' +
+                'Saludos cordiales,\n' +
+                (valorConfig('Firma (nombre)') ? valorConfig('Firma (nombre)') + '\n' : '') +
+                (valorConfig('Razón social del emisor') || 'Ingenieros Asociados') +
+                (valorConfig('Teléfono') ? '\nTel. ' + valorConfig('Teléfono') : '');
+        }
+
+        function mensajeCorreoCotUI(texto, tipo) {
+            const el = document.getElementById('ccotMensaje');
+            const estilos = { error: 'bg-red-50 text-red-700 border border-red-200',
+                              ok: 'bg-green-50 text-green-700 border border-green-200',
+                              info: 'bg-slate-100 text-slate-600 border border-slate-200' };
+            el.className = 'text-xs rounded-lg p-3 ' + (estilos[tipo] || estilos.info);
+            el.innerText = texto;
+            el.classList.toggle('hidden', !texto);
+        }
+
+        async function abrirCorreoCotizacion(c) {
+            if (!hayBackend()) { alert('El envío por correo requiere el backend de Apps Script configurado.'); return; }
+            if (!c || !c.folio) { alert('Guarda la cotización antes de enviarla: el folio se asigna al guardar.'); return; }
+            if (!catalogoClientes.length) { try { await cargarCatalogoClientes(); } catch (_) {} }
+            cotEnCorreo = c;
+            const cli = clienteDeCotizacion(c);
+            const correo = cli && cli.correo ? cli.correo : '';
+
+            document.getElementById('ccotContexto').innerText =
+                'Folio ' + c.folio + ' · ' + (c.razonSocial || c.cliente) + ' · ' + fmtMoneda(c.total, 'MXN');
+            document.getElementById('ccotPara').value = correo;
+            document.getElementById('ccotAyudaPara').innerHTML = correo
+                ? 'Correo registrado en el catálogo de clientes.'
+                : '<span class="text-amber-700 font-semibold">' + (cli ? 'Este cliente no tiene correo en el catálogo.' : 'La cotización no está ligada a un cliente del catálogo.') +
+                  '</span> Escríbelo aquí; para no volver a capturarlo, agrégalo en Catálogos → Clientes.';
+            document.getElementById('ccotCC').value = '';
+            document.getElementById('ccotAsunto').value = 'Cotización ' + c.folio + ' · ' +
+                (valorConfig('Razón social del emisor') || 'Ingenieros Asociados');
+            document.getElementById('ccotCuerpo').value = textoCorreoCotizacion(c, cli);
+            document.getElementById('ccotAdjuntar').checked = true;
+            document.getElementById('ccotNombrePdf').innerText = '(' + nombreArchivoCotizacion(c) + ')';
+            document.getElementById('ccotModo').value = 'enviar';
+            document.getElementById('ccotMarcar').checked = true;
+            document.getElementById('ccotMarcarWrap').classList.toggle('hidden', (c.estado || 'Emitida') !== 'Emitida');
+            mensajeCorreoCotUI('', 'info');
+
+            const m = document.getElementById('modalCorreoCot');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            document.getElementById(correo ? 'ccotCuerpo' : 'ccotPara').focus();
+        }
+
+        function cerrarCorreoCotizacion() {
+            const m = document.getElementById('modalCorreoCot');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            cotEnCorreo = null;
+        }
+
+        function cargarScript(url, global) {
+            if (window[global]) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = url;
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('No se pudo cargar la librería para generar el PDF. Revisa tu conexión e inténtalo de nuevo.'));
+                document.head.appendChild(s);
+            });
+        }
+
+        async function pdfCotizacionBase64(c) {
+            await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas');
+            await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+
+            const { html } = armarHojasCotizacion(c);
+            const caja = document.createElement('div');
+            caja.style.cssText = 'position:absolute;left:-12000px;top:0;background:#fff;width:' + COT_ANCHO_MM + 'mm';
+            caja.innerHTML = html;
+            document.body.appendChild(caja);
+            try {
+                // carta: 215.9 × 279.4 mm; mismos márgenes que @page cotizacion
+                const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait', compress: true });
+                const hojas = caja.querySelectorAll('.cot-hoja');
+                for (let i = 0; i < hojas.length; i++) {
+                    const canvas = await window.html2canvas(hojas[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+                    if (i > 0) pdf.addPage('letter', 'portrait');
+                    pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 12, 10, COT_ANCHO_MM, COT_ALTO_MM);
+                }
+                pdf.setProperties({ title: 'Cotización ' + c.folio, author: valorConfig('Razón social del emisor') || 'Ingenieros Asociados' });
+                return pdf.output('datauristring').split(',')[1];
+            } finally {
+                document.body.removeChild(caja);
+            }
+        }
+
+        function htmlCorreoCotizacion(texto) {
+            return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.55">' +
+                String(texto).split(/\n{2,}/).map(p => '<p style="margin:0 0 12px">' + esc(p).replace(/\n/g, '<br>') + '</p>').join('') +
+                '</div>';
+        }
+
+        async function enviarCorreoCotizacion() {
+            const c = cotEnCorreo;
+            if (!c) return;
+            const lista = (id) => document.getElementById(id).value.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+            const para = lista('ccotPara'), cc = lista('ccotCC');
+            const valido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+            const asunto = document.getElementById('ccotAsunto').value.trim();
+            const cuerpo = document.getElementById('ccotCuerpo').value;
+            const modo = document.getElementById('ccotModo').value;
+
+            if (!para.length || !para.every(valido)) { mensajeCorreoCotUI('Revisa el campo Para: cada dirección debe tener el formato nombre@dominio.', 'error'); return; }
+            if (cc.length && !cc.every(valido)) { mensajeCorreoCotUI('Revisa el campo CC: hay una dirección con formato incorrecto.', 'error'); return; }
+            if (!asunto) { mensajeCorreoCotUI('Escribe el asunto del correo.', 'error'); return; }
+
+            const btn = document.getElementById('btnEnviarCorreoCot');
+            btn.disabled = true;
+            try {
+                const adjuntos = [];
+                if (document.getElementById('ccotAdjuntar').checked) {
+                    btn.innerText = 'Generando PDF…';
+                    mensajeCorreoCotUI('Generando el PDF de la cotización…', 'info');
+                    adjuntos.push({ nombre: nombreArchivoCotizacion(c), tipo: 'application/pdf', datos: await pdfCotizacionBase64(c) });
+                }
+                btn.innerText = modo === 'borrador' ? 'Guardando…' : 'Enviando…';
+                mensajeCorreoCotUI(modo === 'borrador' ? 'Creando el borrador…' : 'Enviando el correo…', 'info');
+
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        accion: 'correo', token: TOKEN_API, modo: modo,
+                        para: para, cc: cc, asunto: asunto,
+                        cuerpo: cuerpo, html: htmlCorreoCotizacion(cuerpo),
+                        adjuntos: adjuntos,
+                        cliente: c.cliente || c.razonSocial || '', ordenId: 'Cotización ' + c.folio,
+                        usuario: nombreUsuario()
+                    })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'El servidor respondió de forma inesperada.');
+
+                // Emitida → Enviada
+                let marcada = false;
+                if (modo !== 'borrador' && document.getElementById('ccotMarcar').checked && (c.estado || 'Emitida') === 'Emitida') {
+                    try {
+                        const r2 = await fetch(URL_APPS_SCRIPT, {
+                            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify({ accion: 'cambiarEstadoCotizacion', token: TOKEN_API,
+                                                   usuario: nombreUsuario(), folio: c.folio, estado: 'Enviada' })
+                        });
+                        const j2 = await r2.json().catch(() => null);
+                        if (j2 && j2.ok) {
+                            marcada = true;
+                            const enLista = cotizaciones.find(x => x.folio === c.folio);
+                            if (enLista) enLista.estado = 'Enviada';
+                        }
+                    } catch (_) { /* el correo ya salió; el estado se puede cambiar a mano */ }
+                }
+
+                const resumen = (modo === 'borrador' ? 'Borrador creado para ' : 'Cotización ' + c.folio + ' enviada a ') + para.join(', ');
+                registrarEvento('cotizacion_correo', resumen + (adjuntos.length ? ' · con PDF' : ''));
+                cerrarCorreoCotizacion();
+                renderListaCotizaciones();
+                mostrarAviso(resumen + (marcada ? '. Quedó marcada como Enviada.' : '.'));
+            } catch (err) {
+                mensajeCorreoCotUI('No se envió: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Enviar correo';
+            }
         }
 
         /* ============================================================
