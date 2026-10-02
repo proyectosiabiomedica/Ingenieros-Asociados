@@ -210,8 +210,7 @@ En el mismo bloque `<script>` de `index.html`:
 // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
 const URL_APPS_SCRIPT = '';
 
-// Debe coincidir con TOKEN en Code.gs.
-const TOKEN_API = '';
+// v5.3: ya no hay TOKEN_API. La sesión la emite el servidor al entrar con PIN.
 
 // 'csv' = CSV publicados (comportamiento original)
 // 'appsscript' = descarga vía Code.gs con token (permite despublicar los CSV)
@@ -220,15 +219,15 @@ const ORIGEN_DATOS = 'csv';
 // El control de acceso se activa cuando hay PIN definido o hay backend.
 // pin: ''      → solo pide nombre (identificación) y lo registra.
 // pin: '1234'  → además exige PIN; los intentos fallidos quedan en bitácora.
-const CONTROL_ACCESO = { habilitado: true, pin: '', diasSesion: 30 };
+const CONTROL_ACCESO = { habilitado: true, pin: '', diasSesion: 30 };   // diasSesion solo aplica sin backend
 ```
 
 **Pasos para activar el backend (una sola vez, ~10 minutos):**
 
 1. Abre la hoja de cálculo de Google (la de las órdenes, o una nueva dedicada) → **Extensiones → Apps Script**.
-2. Pega el contenido completo de `Code.gs`, cambia `TOKEN` por una cadena larga y, si usarás el proxy de datos, ajusta `HOJA_DASHBOARD` y `HOJA_CORPUS` a los nombres reales de tus pestañas.
+2. Pega el contenido completo de `Code.gs` y ajusta `CODIGO_ADMIN`. Si usarás el proxy de datos, ajusta `HOJA_DASHBOARD` y `HOJA_CORPUS` a los nombres reales de tus pestañas.
 3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Acceso: Cualquier usuario*. Autoriza los permisos.
-4. Copia la URL `…/exec` y pégala en `URL_APPS_SCRIPT` de `index.html`, junto con el mismo token en `TOKEN_API`.
+4. Copia la URL `…/exec` y pégala en `URL_APPS_SCRIPT` de `index.html`.
 5. Comprueba abriendo en el navegador `…/exec?accion=ping` (debe responder `{"ok":true,…}`).
 6. Opcional (recomendado): pon `ORIGEN_DATOS = 'appsscript'`, verifica que el panel siga cargando, y entonces ve a Google Sheets → **Archivo → Compartir → Publicar en la web → Dejar de publicar**. A partir de ahí la hoja ya no es pública.
 
@@ -400,9 +399,9 @@ Hay dos roles:
 | **Usuario** | Todo el panel: dashboard, unidades, rutinas, seguimiento y correo. No ve el apartado de usuarios |
 | **Administrador** | Lo anterior, más dar de alta, actualizar, desactivar y eliminar usuarios |
 
-Para entrar como administrador se escribe el **código maestro** en el campo del PIN. Ese código vive únicamente en `Code.gs` (constante `CODIGO_ADMIN`) y **nunca se envía al navegador**; el ingreso se registra con el nombre de `NOMBRE_ADMIN`. Un usuario con rol `admin` en la hoja también entra como administrador con su PIN normal, y en ese caso la bitácora guarda su nombre real, que es preferible para saber quién dio de alta a quién.
+Para entrar como administrador se escribe el **código maestro** en el campo del PIN. Ese código vive en `Code.gs` (constante `CODIGO_ADMIN`), que está solo en Apps Script, y **nunca se envía al navegador**; el ingreso se registra con el nombre de `NOMBRE_ADMIN`. Un usuario con rol `admin` en la hoja también entra como administrador con su PIN normal, y en ese caso la bitácora guarda su nombre real, que es preferible para saber quién dio de alta a quién.
 
-**El código maestro debe tener al menos 6 caracteres.** Si tiene menos, el servidor lo ignora por completo y el ingreso falla como si el PIN fuera incorrecto. Desde la v3.2 ese caso queda anotado en la bitácora como `config_invalida` para que el motivo real sea visible.
+**El código maestro debe tener al menos 6 caracteres.** Si tiene menos, el servidor no lo acepta como ingreso.
 
 ### Qué protege realmente
 
@@ -414,13 +413,12 @@ Esto es lo importante y conviene tenerlo claro antes de confiar en el mecanismo:
 
 ### Puesta en marcha
 
-1. En `Code.gs`, cambiar `CODIGO_ADMIN` por un código propio y `SAL_PIN` por una cadena larga. **La sal se cambia una sola vez, antes de dar de alta al primer usuario**: si se cambia después, todos los PIN existentes dejan de servir.
+1. En `Code.gs`, ajustar `CODIGO_ADMIN`. **`SAL_PIN` no se cambia nunca** una vez que hay usuarios: si cambia, todos los PIN existentes dejan de servir.
 2. Volver a implementar (*Administrar implementaciones → editar → Nueva versión*).
 3. Entrar al panel con cualquier nombre y el código maestro en el campo del PIN.
-4. En **Usuarios**, dar de alta a cada ingeniero con su nombre y un PIN **distinto para cada uno**, de preferencia de 6 dígitos.
-5. Mientras no exista ningún usuario dado de alta, se sigue aceptando el PIN compartido de `CONTROL_ACCESO.pin`, para no dejar fuera a quien ya lo usaba. En cuanto hay usuarios, ellos mandan.
+4. En **Usuarios**, dar de alta a cada ingeniero con su nombre y un PIN **distinto para cada uno**, de al menos 6 caracteres.
 
-La credencial de administrador se conserva en `sessionStorage` mientras la pestaña siga abierta, para no pedirla en cada movimiento; al cerrar la pestaña o cerrar sesión se descarta. El servidor la vuelve a verificar en cada operación.
+Desde la v5.3 no hay PIN compartido ni se guarda la credencial de administrador en el navegador: el rol viaja en la sesión firmada por el servidor (ver 4.23).
 
 ### Bloqueo por intentos fallidos
 
@@ -575,7 +573,7 @@ Botón **Cambiar mi PIN** al pie del menú lateral. Pide el PIN actual, el nuevo
 
 No hace falta ser administrador, pero sí demostrar que el PIN actual es suyo: el servidor identifica a la persona por ese PIN, igual que en el ingreso. De ahí se siguen dos cosas que conviene tener claras: **nadie puede cambiarle el PIN a otro**, ni siquiera conociendo su nombre, y **el administrador no se entera del PIN nuevo**. Si alguien olvida el suyo, el camino es que el administrador le asigne uno desde *Editar*, no recuperar el anterior: las huellas no se pueden revertir.
 
-El cambio respeta las mismas reglas que el alta: mínimo 4 caracteres (se recomiendan 6), no puede repetir el PIN de otra persona ni coincidir con el código maestro. Los intentos fallidos cuentan para el bloqueo por dispositivo.
+El cambio respeta las mismas reglas que el alta: **mínimo 6 caracteres** (v5.3), no puede repetir el PIN de otra persona ni coincidir con el código maestro. Desde la v5.3 la persona se identifica por su sesión y el PIN actual se compara contra el suyo; tras 5 intentos equivocados, el cambio se bloquea 10 minutos **para ese usuario**. Al cambiar el PIN, el servidor entrega una sesión nueva y las anteriores de ese usuario dejan de servir.
 
 ## 4.14 Las cuatro pestañas de servicio (v3.7)
 
@@ -998,6 +996,36 @@ El apartado **Catálogos** tiene tres pestañas.
 
 **Envío.** Sale por la acción `correo` del servidor, desde la cuenta institucional. Queda en la bitácora de correos como *Cotización {folio}*. Se puede enviar o dejar como borrador en Gmail. Al enviar, una cotización *Emitida* pasa a **Enviada**, salvo que se desmarque la casilla.
 
+## 4.23 Seguridad: sesión firmada por el servidor (v5.3)
+
+**Qué había antes.** El navegador mandaba un token fijo escrito en `index.html`, que está en un repositorio público. El servidor confiaba en el nombre y el rol que dijera el navegador. Con ese token, cualquiera podía leer las hojas (incluidos los datos bancarios de `Config_Cotizacion`), mandar correos desde la cuenta institucional o escribir en la bitácora.
+
+**Qué hay ahora.**
+
+| Tema | Comportamiento |
+|---|---|
+| **Sesión** | Al entrar con PIN, el servidor emite una sesión **firmada** (HMAC-SHA256 con un secreto que se crea solo y se guarda en Propiedades del Script). Dice quién es, su rol y cuándo vence. El navegador no puede fabricarla ni cambiarle el rol |
+| **Duración** | 7 días para usuarios, 12 horas para administradores (`DIAS_SESION_USUARIO`, `HORAS_SESION_ADMIN`) |
+| **Todas las acciones** | Salvo `ping` y `login`, exigen sesión válida. Nombre y rol salen de la sesión, no de lo que mande el navegador: la bitácora ya no se puede falsificar |
+| **Revocación** | En cada petición se vuelve a revisar la hoja `Usuarios` (caché de 60 s). Si a alguien se le desactiva, elimina, baja el rol o cambia el PIN, sus sesiones dejan de servir. `cerrarTodasLasSesiones()` saca a todos |
+| **Administrador** | Ya no se pide un código aparte ni se guarda el PIN en el navegador. El servidor comprueba el rol de la sesión en cada operación |
+| **Código maestro y sal** | Siguen en `Code.gs` (`CODIGO_ADMIN`, `SAL_PIN`). Ese archivo vive solo en Apps Script: **no debe subirse al repositorio de GitHub** |
+| **PIN de usuarios** | Mínimo 6 caracteres para PIN nuevos o cambiados. Quien entra con un PIN más corto ve de inmediato la ventana para cambiarlo |
+| **Intentos fallidos** | Siguen el bloqueo por dispositivo y el tope global (40 en 10 min). Al alcanzar el tope, el servidor **avisa por correo** a la cuenta dueña del script. El cambio de PIN se bloquea por usuario tras 5 intentos |
+| **Correo** | El servidor solo descarga adjuntos por URL de Jotform y Google |
+| **Al salir** | Se borran del equipo la copia de las hojas (caché del service worker y `sessionStorage`). Los seguimientos sin sincronizar se conservan y se avisa |
+| **CSV publicados** | Sus direcciones se quitaron del código. Los datos solo salen por Apps Script con sesión |
+
+**Puesta en marcha:**
+
+1. Pegar el `Code.gs` nuevo en Apps Script y guardar.
+2. Ejecutar `autorizarPermisos()` una vez y aceptar: la v5.3 usa Propiedades del Script, que es un permiso nuevo.
+3. Implementar → Administrar implementaciones → editar → **Nueva versión**.
+4. Subir `index.html` y `sw.js`. Todos tendrán que entrar con su PIN una vez.
+5. Despublicar la hoja: *Archivo → Compartir → Publicar en la web → Detener la publicación*.
+
+**Lo que sigue sin resolverse aquí.** El ingreso es solo con PIN, sin nombre de usuario. Por eso los intentos fallidos no se pueden contar por persona, solo por dispositivo y en global; el identificador de dispositivo lo manda el navegador. El tope global con aviso por correo es el freno real. Si se quiere un bloqueo por persona en el ingreso, habría que pedir nombre + PIN.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1042,8 +1070,10 @@ El apartado **Catálogos** tiene tres pestañas.
 | No se puede marcar una orden como facturada | Ya está en otra factura | Abrir el folio de la columna Factura para ver en cuál quedó |
 | Un ingeniero olvidó su PIN | Las huellas no se pueden revertir: el PIN anterior no se recupera | El administrador le asigna uno nuevo desde **Editar**, y esa persona lo cambia después con *Cambiar mi PIN* |
 | Un ingeniero no puede entrar y su nombre sí está dado de alta | Está inactivo, el PIN cambió, o se agotaron los intentos | Revisar su estado en **Usuarios**; si hay bloqueo, esperar 10 minutos. La bitácora registra el motivo de cada intento fallido |
-| El código maestro no funciona | No se volvió a implementar el `Code.gs` después de cambiarlo, o tiene menos de 6 caracteres | Implementar → Administrar implementaciones → editar → Nueva versión, y usar un código de al menos 6 caracteres |
+| El código maestro no funciona | No se volvió a implementar el `Code.gs` después de cambiarlo, o tiene menos de 6 caracteres | Implementar → Administrar implementaciones → editar → Nueva versión |
 | Todos los PIN dejaron de servir de golpe | Se cambió `SAL_PIN` después de dar de alta usuarios | Volver a la sal anterior, o volver a capturar el PIN de cada usuario |
+| Al entrar aparece un error de autorización | La v5.3 usa Propiedades del Script, un permiso nuevo | Ejecutar `autorizarPermisos()` una vez desde el editor y aceptar |
+| A todos les pide el PIN otra vez | Se ejecutó `cerrarTodasLasSesiones()`, venció la sesión, o es la primera vez después de actualizar a la v5.3 | Es lo esperado: entrar con el PIN |
 | El apartado de Usuarios no aparece | La sesión no es de administrador | Cerrar sesión y entrar con el código maestro o con un usuario de rol `admin` |
 | El botón "Instalar aplicación" no aparece | El navegador no ofrece la instalación (iOS siempre, o ya está instalada, o no es HTTPS) | En iPhone: Compartir → Agregar a inicio. En computadora: icono de instalar en la barra de direcciones |
 | Los cambios publicados no se ven | El equipo está usando la copia guardada | Pulsar **Actualizar** en el aviso de versión nueva; si no aparece, cerrar y volver a abrir la aplicación. Al publicar, subir el número `VERSION` en `sw.js` |
@@ -1055,7 +1085,7 @@ El apartado **Catálogos** tiene tres pestañas.
 | La sección V de la rutina sale vacía | El campo `Valores de Medición` está vacío o la columna cambió de nombre | Verificar la orden en Jotform / encabezado de la hoja |
 | Los datos no reflejan cambios recientes | Retraso de publicación de Google Sheets | Esperar unos minutos y usar el botón **Actualizar** |
 | No aparece la pantalla de identificación | El control de acceso solo se activa con PIN definido o backend configurado | Definir `CONTROL_ACCESO.pin` y/o `URL_APPS_SCRIPT` |
-| El seguimiento dice "N cambios por enviar" | Sin conexión, URL de Apps Script incorrecta o token distinto | Hacer clic en el indicador para reintentar; verificar `…/exec?accion=ping` y que `TOKEN_API` = `TOKEN` |
+| El seguimiento dice "N cambios por enviar" | Sin conexión, URL de Apps Script incorrecta o token distinto | Hacer clic en el indicador para reintentar; verificar `…/exec?accion=ping` y que la sesión no haya vencido |
 | La bitácora no registra nada | `URL_APPS_SCRIPT` vacío o implementación sin acceso "Cualquier usuario" | Revisar la sección 3 (pasos del backend) y volver a implementar |
 | WhatsApp abre sin destinatario | El canal no tiene número válido | Verificar que el número tenga 10 dígitos (o incluya lada internacional) |
 | El correo no se envía y aparece un error de autorización | Falta conceder los permisos de Gmail al script | Abrir Apps Script, ejecutar `autorizarPermisos` una vez, aceptar los permisos y volver a implementar (*Administrar implementaciones → editar → Nueva versión*) |
@@ -1078,6 +1108,7 @@ El apartado **Catálogos** tiene tres pestañas.
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.3 | **Seguridad.** Sesión firmada por el servidor en lugar del token fijo público: todas las acciones la exigen y el nombre y rol salen de ella. Secreto de sesión automático en Propiedades del Script; `cerrarTodasLasSesiones()`. PIN de usuarios mínimo de 6 (se pide cambiar al entrar con uno más corto). Bloqueo por usuario al cambiar PIN y aviso por correo al tope global de intentos. Adjuntos por URL solo de Jotform y Google. Al salir se borra la copia local de las hojas. Fuera las direcciones de CSV publicados y el PIN compartido |
 | 5.2 | **Catálogos en tres pestañas**: Clientes, Servicios y Productos (con **marca**), en la misma hoja mediante la columna *Categoría*; cada catálogo se **exporta a Excel**. **Cotización por correo** al correo del cliente, con el PDF adjunto y paso a *Enviada*. **PDF del calendario de próximos mantenimientos** rediseñado para que los doce meses quepan en carta horizontal |
 | 5.1 | **El calendario exporta los próximos mantenimientos** en lugar de los servicios realizados. Toma el último servicio de cada equipo (por serie, inventario o descripción), le suma su frecuencia y coloca el precio en cada mes en que le toca mantenimiento dentro del periodo; marca como **vencidos** los que ya pasaron sin servicio posterior. Disponible en Preventivos y Calibraciones |
 | 5.0 | **Número de catálogo** en `Precios_Mantenimiento`: clave alfanumérica aleatoria (`IA-XXXXXX`) asignada por el servidor, única e inmutable. Visible y buscable en el catálogo y en el cotizador, e impresa en la cotización. Las partidas se reprecian por clave en lugar de por posición en la lista. Los renglones copiados en Sheets reciben clave e ID nuevos |

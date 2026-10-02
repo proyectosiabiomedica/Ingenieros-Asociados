@@ -1,5 +1,5 @@
 /* ============================================================================
- *  INGENIEROS ASOCIADOS — Service Worker de la plataforma        sw.js  v5.2
+ *  INGENIEROS ASOCIADOS — Service Worker de la plataforma        sw.js  v5.3
  * ----------------------------------------------------------------------------
  *  Qué resuelve:
  *
@@ -26,7 +26,7 @@
  *     el mismo día. La copia local es el respaldo, no la fuente.
  * ==========================================================================*/
 
-const VERSION = 'v5.2';
+const VERSION = 'v5.3';
 const CACHE_APP    = 'ia-app-' + VERSION;     // la página y sus iconos
 const CACHE_LIBS   = 'ia-libs-' + VERSION;    // librerías externas
 const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
@@ -118,6 +118,9 @@ function llaveDatos(url) {
   const limpia = new URL(url.href);
   limpia.searchParams.delete('t');
   limpia.searchParams.delete('fresco');
+  // v5.3: la sesión cambia en cada ingreso; sin quitarla, la copia sin señal
+  // nunca coincidiría después de volver a entrar
+  limpia.searchParams.delete('token');
   return limpia.href;
 }
 
@@ -173,7 +176,11 @@ self.addEventListener('fetch', (evento) => {
       const llave = llaveDatos(url);
       try {
         const r = await fetch(req);
-        if (r && r.ok) cache.put(llave, r.clone());
+        if (r && r.ok) {
+          // v5.3: una respuesta de "sesión vencida" no debe reemplazar la copia buena
+          const texto = await r.clone().text();
+          if (!/"codigo"\s*:\s*"SESION"/.test(texto)) cache.put(llave, r.clone());
+        }
         return r;
       } catch (e) {
         const guardada = await cache.match(llave);
