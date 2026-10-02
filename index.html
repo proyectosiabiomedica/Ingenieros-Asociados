@@ -360,6 +360,13 @@
                     Dashboard General
                 </div>
             </button>
+            <button onclick="mostrarProximos()" id="btnProximos" class="w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Próximos mantenimientos
+                    <span id="badgeProximos" class="hidden ml-auto text-[11px] font-bold bg-red-500 text-white rounded-full px-2 py-0.5" title="Equipos con mantenimiento vencido"></span>
+                </div>
+            </button>
             <button onclick="mostrarCotizador()" id="btnCotizador" class="w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
                 <div class="flex items-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
@@ -598,7 +605,10 @@
             <!-- Cabecera de Información de Cliente -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 break-inside-avoid">
                 <div class="pl-12 lg:pl-0">
-                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight" id="clienteTitulo">Nombre Hospital</h1>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h1 class="text-3xl font-bold text-slate-900 tracking-tight" id="clienteTitulo">Nombre Hospital</h1>
+                        <button onclick="compartirEnlace()" class="no-print text-xs font-semibold text-brand-600 hover:text-brand-800 border border-brand-200 hover:border-brand-400 rounded-lg px-3 py-1.5 transition-colors" title="Copia un enlace directo a esta unidad y pestaña">Copiar enlace</button>
+                    </div>
                     <div class="mt-3 flex flex-col sm:flex-row gap-4 text-sm text-slate-600">
                         <div class="flex items-center gap-1">
                             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -1021,6 +1031,75 @@
              que es un flex de altura fija. Al no estar en el contenedor que
              tiene overflow-y-auto, no había forma de deslizar y la parte de
              abajo quedaba inalcanzable. Aquí adentro heredan su scroll. -->
+        <!-- ============ v5.4: próximos mantenimientos de todas las unidades ============ -->
+        <div id="proximosContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
+            <div class="mb-6 pl-12 lg:pl-0 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Próximos mantenimientos</h1>
+                    <p class="text-sm text-slate-500 mt-1">Todas las unidades en una sola lista, para planear rutas y no dejar vencer equipos. Cada equipo se programa a partir de su último preventivo o calibración y de su frecuencia.</p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="compartirEnlace()" class="bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Copiar enlace</button>
+                    <button onclick="exportarProximosExcel()" class="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Exportar a Excel</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                <button onclick="filtroRapidoProximos('vencidos')" class="text-left bg-white rounded-xl border border-slate-200 p-4 hover:border-red-300 transition-colors">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Vencidos</p>
+                    <p id="proxKpiVencidos" class="text-3xl font-bold text-red-600 mt-1">0</p>
+                </button>
+                <button onclick="filtroRapidoProximos('7')" class="text-left bg-white rounded-xl border border-slate-200 p-4 hover:border-amber-300 transition-colors">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Próximos 7 días</p>
+                    <p id="proxKpi7" class="text-3xl font-bold text-amber-600 mt-1">0</p>
+                </button>
+                <button onclick="filtroRapidoProximos('30')" class="text-left bg-white rounded-xl border border-slate-200 p-4 hover:border-brand-300 transition-colors">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Próximos 30 días</p>
+                    <p id="proxKpi30" class="text-3xl font-bold text-brand-600 mt-1">0</p>
+                </button>
+                <button onclick="filtroRapidoProximos('todos')" class="text-left bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-400 transition-colors">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Equipos con programa</p>
+                    <p id="proxKpiTotal" class="text-3xl font-bold text-slate-800 mt-1">0</p>
+                </button>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="p-4 border-b border-slate-200 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                    <select id="proxVentana" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                        <option value="vencidos">Solo vencidos</option>
+                        <option value="7">Vencidos y próximos 7 días</option>
+                        <option value="30" selected>Vencidos y próximos 30 días</option>
+                        <option value="60">Vencidos y próximos 60 días</option>
+                        <option value="90">Vencidos y próximos 90 días</option>
+                        <option value="todos">Todos</option>
+                    </select>
+                    <select id="proxUnidad" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                    <select id="proxTipo" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                        <option value="ambos">Preventivos y calibraciones</option>
+                        <option value="prev">Preventivos</option>
+                        <option value="cal">Calibraciones</option>
+                    </select>
+                    <select id="proxIngeniero" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                    <input id="proxBuscar" type="text" placeholder="Buscar equipo, serie, inventario o área…" class="lg:col-span-2 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                </div>
+                <p id="proxResumen" class="px-4 py-2 text-xs text-slate-500 border-b border-slate-100"></p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50"><tr>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Programado</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Unidad</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Equipo</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Área</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Último servicio</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Atendió</th>
+                        </tr></thead>
+                        <tbody id="proxTabla" class="divide-y divide-slate-100 bg-white"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="text-xs text-slate-400 mt-3">«Atendió» es el ingeniero del último servicio del equipo. Un equipo dado de baja seguirá apareciendo mientras no se registre de otra forma, porque el cálculo solo ve órdenes de servicio.</p>
+        </div>
+
         <!-- ============ v4.9: catálogos de clientes y de precios ============ -->
         <div id="catalogosContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
             <div class="mb-6">
@@ -1691,6 +1770,21 @@
     <div id="calendarioImprimible" class="hidden"></div>
 
     <!-- v4.7: la cotización que se imprime -->
+    <!-- ============ v5.4: avisos y confirmaciones propios (reemplazan alert/confirm) ============ -->
+    <div id="modalDialogo" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] items-center justify-center p-4 no-print"
+         role="dialog" aria-modal="true" aria-labelledby="dlgTitulo" aria-describedby="dlgTexto">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl">
+            <div class="p-5">
+                <h3 id="dlgTitulo" class="text-base font-bold text-slate-800"></h3>
+                <p id="dlgTexto" class="text-sm text-slate-600 mt-2 whitespace-pre-line"></p>
+            </div>
+            <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button id="dlgNo" class="text-sm font-semibold text-slate-600 hover:text-slate-800 px-4 py-2 rounded-lg">Cancelar</button>
+                <button id="dlgSi" class="text-sm font-semibold text-white px-5 py-2 rounded-lg transition-colors">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v5.2: envío de la cotización por correo ============ -->
     <div id="modalCorreoCot" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[77] items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
@@ -2062,7 +2156,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '5.3';
+        const VERSION_APP = '5.4';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2326,7 +2420,7 @@
 
         document.getElementById('btnInstalarApp').addEventListener('click', async () => {
             if (!promptInstalacion) {
-                alert('Para instalarla, usa el menú del navegador:\n\n' +
+                avisar('Para instalarla, usa el menú del navegador:\n\n' +
                       '· Chrome (computadora): icono de instalar en la barra de direcciones\n' +
                       '· Android: menú ⋮ → Agregar a pantalla principal\n' +
                       '· iPhone / iPad: Compartir → Agregar a inicio');
@@ -2649,6 +2743,7 @@
             };
         })();
 
+        let primeraNavegacionHecha = false;   // v5.4: enlaces directos
         async function cargarDatos(forzar) {
             progresoCarga.iniciar(forzar === true ? 'Solicitando información actualizada' : 'Conectando');
             document.getElementById('errorBanner').classList.add('hidden');
@@ -2740,8 +2835,17 @@
 
             generarSidebarClientes(document.getElementById('buscadorClientes').value || '');
 
+            actualizarBadgeProximos();   // v5.4
+
             // Si estábamos viendo un cliente, conservar la vista tras refrescar
-            if (clienteActual && clientesUnicos.includes(clienteActual)) {
+            // v5.4: en la primera carga manda la dirección (#unidad/…, #proximos…)
+            const visible = (id) => !document.getElementById(id).classList.contains('hidden');
+            if (!primeraNavegacionHecha) {
+                primeraNavegacionHecha = true;
+                if (!navegarDesdeHash()) { clienteActual = ''; mostrarDashboard(); }
+            } else if (visible('proximosContent')) {
+                poblarFiltrosProximos(); renderProximos();
+            } else if (clienteActual && clientesUnicos.includes(clienteActual)) {
                 mostrarVistaCliente(clienteActual);
             } else {
                 clienteActual = '';
@@ -3417,8 +3521,18 @@
         }
 
         function resetSidebarStyles() {
-            document.getElementById('btnDashboard').classList.remove('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
-            document.getElementById('btnDashboard').classList.add('text-slate-400');
+            // v5.4: se limpian TODOS los botones del menú (antes solo el del
+            // dashboard, y el último apartado visitado quedaba resaltado) y se
+            // oculta la vista de próximos mantenimientos
+            ['btnDashboard', 'btnProximos', 'btnCotizador', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
+                const b = document.getElementById(id);
+                if (!b) return;
+                b.classList.remove('border-brand-500', 'bg-slate-800/50', 'text-white');
+                b.classList.add('text-slate-400');
+            });
+            document.getElementById('btnDashboard').classList.remove('border-l-4');
+            const prox = document.getElementById('proximosContent');
+            if (prox) prox.classList.add('hidden');
 
             const btns = document.getElementById('listaClientesSidebar').querySelectorAll('button');
             btns.forEach(b => {
@@ -3743,7 +3857,7 @@
         async function mostrarAuditoria() {
             // v4.1: la información financiera es exclusiva del administrador
             if (!esAdministrador()) {
-                alert('La auditoría financiera es exclusiva del administrador.');
+                avisar('La auditoría financiera es exclusiva del administrador.');
                 return;
             }
             if (!(await asegurarCredencialAdmin())) return;
@@ -4077,7 +4191,7 @@
         async function exportarAuditoriaExcel() {
             const a = datosAuditoria();
             if (a.facturas.length === 0 && a.pendientes.length === 0) {
-                alert('No hay información que exportar con esos filtros.');
+                avisar('No hay información que exportar con esos filtros.');
                 return;
             }
             try {
@@ -4121,7 +4235,7 @@
                 XLSX.writeFile(libro, 'Auditoria_' + limpio(etiquetaPeriodoAuditoria()) + '.xlsx');
                 registrarEvento('exportar_auditoria', 'Excel · ' + etiquetaPeriodoAuditoria());
             } catch (err) {
-                alert(err.message);
+                avisar(err.message);
             }
         }
 
@@ -4556,6 +4670,357 @@
             };
             window.addEventListener('afterprint', limpiar);
             setTimeout(() => window.print(), 120);
+        }
+
+
+        /* ============================================================
+           v5.4 — PRÓXIMOS MANTENIMIENTOS DE TODAS LAS UNIDADES
+           Misma regla que el calendario exportable (v5.1), pero sobre todas
+           las unidades a la vez: por equipo y por tipo cuenta solo el último
+           servicio; el próximo es ese servicio más la frecuencia del equipo.
+           Si ya pasó, el equipo está vencido.
+           ============================================================ */
+        const DIA_MS = 86400000;
+
+        function hoyUTC() {
+            const h = new Date();
+            return new Date(Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()));
+        }
+
+        function calcularProximosGlobal() {
+            const ultimos = new Map();
+            datosDetalleOrdenes.forEach(d => {
+                if (!d.FechaObj || !(d.esPreventivo || d.esCalibracion)) return;
+                const tipo = d.esCalibracion ? 'Calibración' : 'Preventivo';
+                const llave = d.Cliente + '#' + tipo + '#' + llaveEquipoCal(d);
+                const previo = ultimos.get(llave);
+                if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: tipo, orden: d });
+            });
+            const hoy = hoyUTC();
+            const lista = [];
+            ultimos.forEach(({ tipo, orden: d }) => {
+                const frec = frecuenciaParaEquipo(d.Equipo);
+                if (!(frec > 0)) return;
+                const fecha = sumarMesesUTC(d.FechaObj, frec);
+                lista.push({
+                    unidad: d.Cliente || '', tipo: tipo,
+                    equipo: d.Equipo || '', marca: d.Marca || '', modelo: d.Modelo || '',
+                    serie: d.Serie || '', inventario: d.Inventario || '', area: d.Area || '',
+                    ultimaFecha: d.FechaObj, ultimaOrden: d.ID || '', ingeniero: d.Ingeniero || '',
+                    frecuencia: frec, fecha: fecha,
+                    dias: Math.round((fecha - hoy) / DIA_MS)
+                });
+            });
+            return lista.sort((a, b) => (a.fecha - b.fecha) || a.unidad.localeCompare(b.unidad, 'es'));
+        }
+
+        let proximosCache = [];
+
+        function actualizarBadgeProximos() {
+            proximosCache = calcularProximosGlobal();
+            const vencidos = proximosCache.filter(x => x.dias < 0).length;
+            const b = document.getElementById('badgeProximos');
+            if (!b) return;
+            b.innerText = vencidos > 99 ? '99+' : String(vencidos);
+            b.classList.toggle('hidden', vencidos === 0);
+        }
+
+        function poblarFiltrosProximos() {
+            const unidades = Array.from(new Set(proximosCache.map(x => x.unidad))).sort((a, b) => a.localeCompare(b, 'es'));
+            const ings = Array.from(new Set(proximosCache.map(x => x.ingeniero).filter(i => i && i !== 'Sin Asignar')))
+                              .sort((a, b) => a.localeCompare(b, 'es'));
+            const selU = document.getElementById('proxUnidad'), selI = document.getElementById('proxIngeniero');
+            const pu = selU.value, pi = selI.value;
+            selU.innerHTML = '<option value="">Todas las unidades</option>' +
+                unidades.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+            selI.innerHTML = '<option value="">Todos los ingenieros</option>' +
+                ings.map(i => '<option value="' + esc(i) + '">' + esc(i) + '</option>').join('');
+            if (unidades.includes(pu)) selU.value = pu;
+            if (ings.includes(pi)) selI.value = pi;
+        }
+
+        function proximosFiltrados() {
+            const ventana = document.getElementById('proxVentana').value;
+            const unidad = document.getElementById('proxUnidad').value;
+            const tipo = document.getElementById('proxTipo').value;
+            const ing = document.getElementById('proxIngeniero').value;
+            const q = normalizar(document.getElementById('proxBuscar').value.trim().toLowerCase());
+            return proximosCache.filter(x => {
+                if (ventana === 'vencidos' && x.dias >= 0) return false;
+                if (ventana !== 'vencidos' && ventana !== 'todos' && x.dias > parseInt(ventana, 10)) return false;
+                if (unidad && x.unidad !== unidad) return false;
+                if (tipo === 'prev' && x.tipo !== 'Preventivo') return false;
+                if (tipo === 'cal' && x.tipo !== 'Calibración') return false;
+                if (ing && x.ingeniero !== ing) return false;
+                if (q) {
+                    const blob = normalizar([x.equipo, x.marca, x.modelo, x.serie, x.inventario, x.area, x.unidad].join(' ').toLowerCase());
+                    if (!blob.includes(q)) return false;
+                }
+                return true;
+            });
+        }
+
+        function textoSituacion(dias) {
+            if (dias < 0) return 'Vencido hace ' + (-dias) + (dias === -1 ? ' día' : ' días');
+            if (dias === 0) return 'Hoy';
+            return 'En ' + dias + (dias === 1 ? ' día' : ' días');
+        }
+
+        function renderProximos() {
+            const todos = proximosCache;
+            document.getElementById('proxKpiVencidos').innerText = todos.filter(x => x.dias < 0).length;
+            document.getElementById('proxKpi7').innerText = todos.filter(x => x.dias >= 0 && x.dias <= 7).length;
+            document.getElementById('proxKpi30').innerText = todos.filter(x => x.dias >= 0 && x.dias <= 30).length;
+            document.getElementById('proxKpiTotal').innerText = todos.length;
+
+            const lista = proximosFiltrados();
+            const vencidos = lista.filter(x => x.dias < 0).length;
+            document.getElementById('proxResumen').innerText = lista.length + ' equipo(s)' +
+                (vencidos ? ' · ' + vencidos + ' vencido(s)' : '') + ' · ordenados por fecha programada';
+
+            const tbody = document.getElementById('proxTabla');
+            if (!lista.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">' +
+                    (todos.length ? 'Ningún equipo cumple con los filtros.' : 'No hay preventivos ni calibraciones registrados.') + '</td></tr>';
+                return;
+            }
+            tbody.innerHTML = lista.slice(0, 1500).map(x => {
+                const venc = x.dias < 0, pronto = x.dias >= 0 && x.dias <= 7;
+                const etiqueta = venc ? 'bg-red-100 text-red-700' : (pronto ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600');
+                const icono = venc ? '⚠ ' : '';
+                const detalle = [[x.marca, x.modelo].filter(Boolean).join(' · '),
+                                 [x.serie ? 'S/N ' + x.serie : '', x.inventario ? 'Inv. ' + x.inventario : ''].filter(Boolean).join(' · ')]
+                                 .filter(Boolean).join('<br>');
+                const pest = x.tipo === 'Calibración' ? 'cal' : 'prev';
+                return '<tr class="hover:bg-slate-50 align-top">' +
+                    '<td class="px-4 py-3 whitespace-nowrap"><p class="text-sm font-semibold text-slate-800">' + esc(fechaCortaCal(x.fecha)) + '</p>' +
+                        '<span class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ' + etiqueta + '">' + icono + esc(textoSituacion(x.dias)) + '</span></td>' +
+                    '<td class="px-4 py-3 text-sm"><a href="' + esc(hashUnidad(x.unidad, pest)) + '" onclick="return irAUnidad(this.dataset.u, this.dataset.t)" ' +
+                        'data-u="' + esc(x.unidad) + '" data-t="' + pest + '" class="text-brand-600 hover:text-brand-800 font-semibold hover:underline">' + esc(x.unidad) + '</a></td>' +
+                    '<td class="px-4 py-3 text-sm"><p class="font-semibold text-slate-800">' + esc(x.equipo) + '</p>' +
+                        '<p class="text-xs text-slate-500 mt-0.5">' + esc(x.tipo) + ' · cada ' + x.frecuencia + ' meses</p>' +
+                        (detalle ? '<p class="text-xs text-slate-500 mt-0.5">' + detalle.split('<br>').map(esc).join('<br>') + '</p>' : '') + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600">' + esc(x.area) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + esc(fechaCortaCal(x.ultimaFecha)) +
+                        (x.ultimaOrden ? '<p class="text-xs text-slate-500">Orden ' + esc(x.ultimaOrden) + '</p>' : '') + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600">' + esc(x.ingeniero) + '</td>' +
+                '</tr>';
+            }).join('') + (lista.length > 1500 ? '<tr><td colspan="6" class="px-4 py-3 text-xs text-slate-500">Se muestran los primeros 1500. Usa los filtros o exporta a Excel para ver todos.</td></tr>' : '');
+        }
+
+        function mostrarProximos() {
+            resetSidebarStyles();
+            const btn = document.getElementById('btnProximos');
+            btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
+            btn.classList.remove('text-slate-400');
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('clienteContent').style.display = 'none';
+            ['adminUsuariosContent', 'auditoriaContent', 'cotizadorContent', 'catalogosContent']
+                .forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('proximosContent').classList.remove('hidden');
+            cerrarSidebarMovil();
+            actualizarBadgeProximos();
+            poblarFiltrosProximos();
+            renderProximos();
+            registrarEvento('ver_proximos');
+        }
+
+        function filtroRapidoProximos(v) {
+            document.getElementById('proxVentana').value = v;
+            renderProximos();
+        }
+
+        ['proxVentana', 'proxUnidad', 'proxTipo', 'proxIngeniero'].forEach(id =>
+            document.getElementById(id).addEventListener('change', renderProximos));
+        document.getElementById('proxBuscar').addEventListener('input', renderProximos);
+
+        async function exportarProximosExcel() {
+            const lista = proximosFiltrados();
+            if (!lista.length) { avisar('No hay equipos con los filtros actuales.'); return; }
+            try {
+                await cargarSheetJS();
+                const hoy = new Date().toISOString().slice(0, 10);
+                const aoa = [['Próximos mantenimientos · Ingenieros Asociados'],
+                             ['Generado el ' + hoy + ' · ' + lista.length + ' equipo(s)'], [],
+                             ['Fecha programada', 'Situación', 'Unidad', 'Tipo', 'Equipo', 'Marca', 'Modelo', 'No. de serie',
+                              'Inventario', 'Área', 'Frecuencia (meses)', 'Último servicio', 'Orden del último servicio', 'Atendió']]
+                    .concat(lista.map(x => [fechaCortaCal(x.fecha), textoSituacion(x.dias), x.unidad, x.tipo, x.equipo, x.marca,
+                                            x.modelo, x.serie, x.inventario, x.area, x.frecuencia, fechaCortaCal(x.ultimaFecha),
+                                            x.ultimaOrden, x.ingeniero]));
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = [14, 20, 30, 12, 30, 16, 16, 18, 14, 22, 10, 14, 12, 24].map(w => ({ wch: w }));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + lista.length, c: 13 } }) };
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Proximos');
+                XLSX.writeFile(libro, 'Proximos_mantenimientos_' + hoy + '.xlsx');
+                registrarEvento('exportar_proximos', lista.length + ' equipo(s)');
+            } catch (err) { avisar(err.message); }
+        }
+
+        /* ============================================================
+           v5.4 — ENLACES DIRECTOS
+           Cada vista tiene su dirección (#unidad/Hospital X/cal,
+           #proximos, #cotizador…). Sirve para mandar por WhatsApp justo la
+           pantalla que se quiere mostrar, para que una recarga no regrese al
+           dashboard y para que el botón Atrás del navegador o del teléfono
+           regrese a la vista anterior. Quien abre un enlace sin sesión entra
+           con su PIN y llega a esa vista.
+           ============================================================ */
+
+        /* ============================================================
+           v5.4 — AVISOS Y CONFIRMACIONES PROPIOS
+           alert() y confirm() del navegador bloquean toda la página, se ven
+           ajenos a la aplicación y en iPhone, con la app instalada, a veces
+           ni aparecen. Estos van dentro de la propia interfaz y devuelven una
+           promesa: confirmar() da true o false.
+           ============================================================ */
+        let dialogoAbierto = null;
+
+        function abrirDialogo(texto, opciones) {
+            const o = Object.assign({ titulo: 'Aviso', textoSi: 'Aceptar', textoNo: '', peligro: false }, opciones || {});
+            return new Promise(resolve => {
+                // Si ya hay uno abierto, el nuevo espera su turno
+                const mostrar = () => {
+                    const m = document.getElementById('modalDialogo');
+                    const si = document.getElementById('dlgSi'), no = document.getElementById('dlgNo');
+                    document.getElementById('dlgTitulo').innerText = o.titulo;
+                    document.getElementById('dlgTexto').innerText = String(texto || '');
+                    si.innerText = o.textoSi;
+                    si.className = 'text-sm font-semibold text-white px-5 py-2 rounded-lg transition-colors ' +
+                                   (o.peligro ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-600 hover:bg-brand-700');
+                    no.innerText = o.textoNo || 'Cancelar';
+                    no.classList.toggle('hidden', !o.textoNo);
+                    const previoFoco = document.activeElement;
+                    const cerrar = (valor) => {
+                        m.classList.add('hidden'); m.classList.remove('flex');
+                        si.onclick = no.onclick = null;
+                        document.removeEventListener('keydown', teclas, true);
+                        dialogoAbierto = null;
+                        try { if (previoFoco && previoFoco.focus) previoFoco.focus(); } catch (_) {}
+                        resolve(valor);
+                        if (colaDialogos.length) colaDialogos.shift()();
+                    };
+                    const teclas = (e) => {
+                        if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
+                        else if (e.key === 'Tab') {   // el foco no sale del cuadro
+                            const focos = [no, si].filter(b => !b.classList.contains('hidden'));
+                            const i = focos.indexOf(document.activeElement);
+                            e.preventDefault();
+                            focos[(i + (e.shiftKey ? focos.length - 1 : 1)) % focos.length].focus();
+                        }
+                    };
+                    si.onclick = () => cerrar(true);
+                    no.onclick = () => cerrar(false);
+                    document.addEventListener('keydown', teclas, true);
+                    dialogoAbierto = cerrar;
+                    m.classList.remove('hidden'); m.classList.add('flex');
+                    // En una acción peligrosa el foco empieza en Cancelar
+                    setTimeout(() => (o.peligro && o.textoNo ? no : si).focus(), 30);
+                };
+                if (dialogoAbierto) colaDialogos.push(mostrar); else mostrar();
+            });
+        }
+        const colaDialogos = [];
+
+        function avisar(texto, titulo) {
+            return abrirDialogo(texto, { titulo: titulo || 'Aviso', textoSi: 'Entendido' });
+        }
+        function confirmar(texto, opciones) {
+            return abrirDialogo(texto, Object.assign({ titulo: 'Confirmar', textoSi: 'Sí, continuar', textoNo: 'Cancelar' }, opciones || {}));
+        }
+
+        let navegandoDesdeHash = false;
+
+        function hashUnidad(unidad, tab) {
+            return '#unidad/' + encodeURIComponent(unidad) + (tab ? '/' + tab : '');
+        }
+
+        function fijarHash(h) {
+            if (navegandoDesdeHash) return;
+            if (location.hash === h) return;
+            // Cambiar de pestaña dentro de la misma unidad no agrega un paso al
+            // historial: Atrás regresa a la vista anterior, no a la pestaña anterior
+            const unidadDe = (x) => (x || '').indexOf('#unidad/') === 0 ? x.split('/').slice(0, 2).join('/') : null;
+            const misma = unidadDe(h) && unidadDe(h) === unidadDe(location.hash);
+            try { history[misma ? 'replaceState' : 'pushState'](null, '', h); } catch (_) { location.hash = h; }
+        }
+
+        function irAUnidad(unidad, tab) {
+            if (!clientesUnicos.includes(unidad)) { avisar('La unidad "' + unidad + '" no aparece en los datos cargados.'); return false; }
+            mostrarVistaCliente(unidad);
+            if (tab) cambiarPestana(tab);
+            return false;
+        }
+
+        /* Lleva a la vista que indica la dirección. Devuelve true si la reconoció. */
+        function navegarDesdeHash() {
+            const partes = (location.hash || '').replace(/^#/, '').split('/');
+            const vista = partes[0];
+            if (!vista) return false;
+            navegandoDesdeHash = true;
+            try {
+                if (vista === 'dashboard') { mostrarDashboard(); return true; }
+                if (vista === 'proximos') { mostrarProximos(); return true; }
+                if (vista === 'cotizador') { mostrarCotizador(); return true; }
+                if (vista === 'catalogos' && esAdministrador()) {
+                    mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
+                    return true;
+                }
+                if (vista === 'auditoria' && esAdministrador()) { mostrarAuditoria(); return true; }
+                if (vista === 'usuarios' && esAdministrador()) { mostrarAdminUsuarios(); return true; }
+                if (vista === 'unidad' && partes[1]) {
+                    const unidad = decodeURIComponent(partes[1]);
+                    if (!clientesUnicos.includes(unidad)) return false;
+                    mostrarVistaCliente(unidad);
+                    if (['prev', 'cal', 'corr', 'ent', 'com'].includes(partes[2])) cambiarPestana(partes[2]);
+                    return true;
+                }
+                return false;
+            } finally {
+                navegandoDesdeHash = false;
+            }
+        }
+
+        window.addEventListener('popstate', () => { if (datosDetalleOrdenes.length) navegarDesdeHash(); });
+
+        // Cada vista anota su dirección al abrirse (se envuelven las funciones
+        // existentes para no tocar cada una)
+        (function envolverVistas() {
+            const envolver = (nombre, hash) => {
+                const original = window[nombre];
+                if (typeof original !== 'function') return;
+                window[nombre] = function () {
+                    const r = original.apply(this, arguments);
+                    fijarHash(typeof hash === 'function' ? hash.apply(null, arguments) : hash);
+                    return r;
+                };
+            };
+            envolver('mostrarDashboard', '#dashboard');
+            envolver('mostrarProximos', '#proximos');
+            envolver('mostrarCotizador', '#cotizador');
+            envolver('mostrarCatalogos', '#catalogos');
+            envolver('mostrarAuditoria', '#auditoria');
+            envolver('mostrarAdminUsuarios', '#usuarios');
+            envolver('mostrarVistaCliente', (u) => hashUnidad(u, 'prev'));
+            envolver('cambiarPestana', (t) => clienteActual && document.getElementById('clienteContent').style.display !== 'none'
+                                               ? hashUnidad(clienteActual, t) : location.hash);
+            envolver('cambiarPestanaCatalogo', (t) => '#catalogos/' + t);
+        })();
+
+        async function compartirEnlace() {
+            const url = location.href;
+            const titulo = document.title;
+            try {
+                if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                    await navigator.share({ title: titulo, url: url });
+                    return;
+                }
+                await navigator.clipboard.writeText(url);
+                mostrarAviso('Enlace copiado. Quien lo abra entra con su PIN y llega a esta misma vista.');
+            } catch (err) {
+                if (err && err.name === 'AbortError') return;
+                avisar('No se pudo copiar automáticamente. Copia esta dirección:\n\n' + url);
+            }
         }
 
         document.getElementById('btnExportarExcel').addEventListener('click', exportarCalendarioExcel);
@@ -5181,7 +5646,7 @@
         }
 
         async function mostrarCatalogos() {
-            if (!esAdministrador()) { alert('Los catálogos se administran con rol de administrador.'); return; }
+            if (!esAdministrador()) { avisar('Los catálogos se administran con rol de administrador.'); return; }
             if (!(await asegurarCredencialAdmin())) return;
             resetSidebarStyles();
             const btn = document.getElementById('btnCatalogos');
@@ -5358,13 +5823,13 @@
             const el = e.target.closest('[data-cli-eliminar]');
             if (!el) return;
             const c = catalogoClientes.find(x => x.id === el.dataset.cliEliminar);
-            if (!c || !confirm('¿Eliminar a "' + c.razonSocial + '" del catálogo? Sus cotizaciones y facturas no se borran.')) return;
+            if (!c || !(await confirmar('¿Eliminar a "' + c.razonSocial + '" del catálogo? Sus cotizaciones y facturas no se borran.', { titulo: 'Eliminar cliente', textoSi: 'Eliminar', peligro: true }))) return;
             try {
                 await peticionAdmin('eliminarCliente', { id: c.id });
                 await cargarCatalogoClientes();
                 if (clienteEnEdicion && clienteEnEdicion.id === c.id) limpiarFormCliente();
                 renderClientesCatalogo();
-            } catch (err) { alert(err.message); }
+            } catch (err) { avisar(err.message); }
         });
         document.getElementById('catBuscarCli').addEventListener('input', () => renderClientesCatalogo());
 
@@ -5464,7 +5929,7 @@
                     .concat([x.unidad, num(x.n1), num(x.n2), num(x.n3), x.moneda, x.notas]));
                 anchos = [13, 16, 44].concat(esProd ? [18] : []).concat([12, 12, 12, 12, 8, 30]);
             }
-            if (!filas.length) { alert('No hay registros que exportar con la búsqueda actual.'); return; }
+            if (!filas.length) { avisar('No hay registros que exportar con la búsqueda actual.'); return; }
             try {
                 await cargarSheetJS();
                 const aoa = [['Catálogo de ' + titulo.toLowerCase() + ' · Ingenieros Asociados'],
@@ -5484,7 +5949,7 @@
                 XLSX.utils.book_append_sheet(libro, hoja, titulo);
                 XLSX.writeFile(libro, 'Catalogo_' + titulo + '_' + hoy + '.xlsx');
                 registrarEvento('exportar_catalogo', titulo + ' · ' + filas.length + ' registro(s)');
-            } catch (err) { alert(err.message); }
+            } catch (err) { avisar(err.message); }
         }
 
         function limpiarFormPrecio() {
@@ -5566,14 +6031,14 @@
             const el = e.target.closest('[data-pre-eliminar]');
             if (!el) return;
             const x = preciosAdmin.find(p => p.id === el.dataset.preEliminar);
-            if (!x || !confirm('¿Eliminar "' + x.concepto + '" (' + x.servicio + ')? Las facturas y cotizaciones ya emitidas conservan su importe.')) return;
+            if (!x || !(await confirmar('¿Eliminar "' + x.concepto + '" (' + x.servicio + ')? Las facturas y cotizaciones ya emitidas conservan su importe.', { titulo: 'Eliminar concepto', textoSi: 'Eliminar', peligro: true }))) return;
             try {
                 await peticionAdmin('eliminarPrecio', { id: x.id });
                 await cargarPreciosAdmin();
                 await refrescarTarifario();
                 if (precioEnEdicion && precioEnEdicion.id === x.id) limpiarFormPrecio();
                 renderPreciosCatalogo();
-            } catch (err) { alert(err.message); }
+            } catch (err) { avisar(err.message); }
         });
         document.getElementById('catBuscarPre').addEventListener('input', () => renderPreciosCatalogo());
         document.getElementById('catFiltroServ').addEventListener('change', () => renderPreciosCatalogo());
@@ -5864,8 +6329,8 @@
            emitidas no cambian: cada una guardó su propia copia del texto. */
         async function guardarTextosComoDefault() {
             if (!esAdministrador()) return;
-            if (!confirm('¿Usar estos textos como predeterminados para todas las cotizaciones nuevas? ' +
-                         'Las ya emitidas conservan el texto con que salieron.')) return;
+            if (!(await confirmar('¿Usar estos textos como predeterminados para todas las cotizaciones nuevas? ' +
+                         'Las ya emitidas conservan el texto con que salieron.', { textoSi: 'Usar como predeterminados' }))) return;
             try {
                 const j = await peticionAdmin('guardarTextosCotizacion', {
                     textos: {
@@ -5986,7 +6451,7 @@
             if (!razon) { mensajeCotUI('Escribe la razón social del cliente.', 'error'); return; }
             if (partidas.length === 0) { mensajeCotUI('Agrega al menos una partida con descripción.', 'error'); return; }
             if (partidas.some(p => !(Number(p.precio) > 0))) {
-                if (!confirm('Hay partidas con precio en cero. ¿Guardar de todos modos?')) return;
+                if (!(await confirmar('Hay partidas con precio en cero. ¿Guardar de todos modos?', { textoSi: 'Guardar así' }))) return;
             }
             if (!hayBackend()) { mensajeCotUI('El cotizador requiere el backend de Apps Script configurado.', 'error'); return; }
 
@@ -6080,7 +6545,7 @@
                 if (c) c.estado = sel.value;
                 renderListaCotizaciones();
             } catch (err) {
-                alert(err.message);
+                avisar(err.message);
                 renderListaCotizaciones();
             }
         });
@@ -6383,8 +6848,8 @@
         }
 
         async function abrirCorreoCotizacion(c) {
-            if (!hayBackend()) { alert('El envío por correo requiere el backend de Apps Script configurado.'); return; }
-            if (!c || !c.folio) { alert('Guarda la cotización antes de enviarla: el folio se asigna al guardar.'); return; }
+            if (!hayBackend()) { avisar('El envío por correo requiere el backend de Apps Script configurado.'); return; }
+            if (!c || !c.folio) { avisar('Guarda la cotización antes de enviarla: el folio se asigna al guardar.'); return; }
             if (!catalogoClientes.length) { try { await cargarCatalogoClientes(); } catch (_) {} }
             cotEnCorreo = c;
             const cli = clienteDeCotizacion(c);
@@ -7019,9 +7484,10 @@
 
         async function eliminarFacturaActual() {
             if (!facturaEnEdicion) return;
-            if (!confirm('¿Eliminar la factura ' + facturaEnEdicion.numero + '? Las ' +
+            if (!(await confirmar('¿Eliminar la factura ' + facturaEnEdicion.numero + '? Las ' +
                          (facturaEnEdicion.ordenes || []).length +
-                         ' orden(es) volverán a aparecer como no facturadas y se perderán sus importes capturados.')) return;
+                         ' orden(es) volverán a aparecer como no facturadas y se perderán sus importes capturados.',
+                         { titulo: 'Eliminar factura', textoSi: 'Eliminar', peligro: true }))) return;
             try {
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST',
@@ -7161,7 +7627,7 @@
         function exportarCSVServicio(clave) {
             const c = PESTANAS_SERVICIO[clave];
             const filtrados = obtenerServiciosFiltrados(clave);
-            if (filtrados.length === 0) return alert('No hay datos para exportar');
+            if (filtrados.length === 0) return avisar('No hay datos para exportar');
 
             const campo = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
             const cabecera = c.conProximo
@@ -9171,7 +9637,7 @@
             registrarEvento('cierre_sesion');
             const pendientes = await borrarDatosLocales();
             if (pendientes) {
-                alert('Quedan ' + pendientes + ' cambio(s) de seguimiento sin sincronizar. Se conservaron en este equipo ' +
+                await avisar('Quedan ' + pendientes + ' cambio(s) de seguimiento sin sincronizar. Se conservaron en este equipo ' +
                       'y se enviarán la próxima vez que alguien entre con conexión.');
             }
             localStorage.removeItem('ia_sesion');
@@ -9225,7 +9691,7 @@
 
         async function mostrarAdminUsuarios() {
             if (!esAdministrador()) {
-                alert('Este apartado es exclusivo del administrador.');
+                avisar('Este apartado es exclusivo del administrador.');
                 return;
             }
             // v4.2: si la credencial no está o no sirve, el apartado no se abre
@@ -9257,7 +9723,7 @@
         async function asegurarCredencialAdmin() {
             if (!hayBackend()) return true;
             if (esAdministrador()) return true;
-            alert('Este apartado es solo para administradores.');
+            avisar('Este apartado es solo para administradores.');
             return false;
         }
 
@@ -9504,7 +9970,7 @@
 
             try {
                 if (accion === 'eliminar') {
-                    if (!confirm('¿Eliminar a "' + nombre + '"? Dejará de tener acceso de inmediato.')) return;
+                    if (!(await confirmar('¿Eliminar a "' + nombre + '"? Dejará de tener acceso de inmediato.', { titulo: 'Eliminar usuario', textoSi: 'Eliminar', peligro: true }))) return;
                     if (!hayBackend()) { eliminarUsuarioLocal(nombre); }
                     else { await peticionAdmin('eliminarUsuario', { nombre: nombre }); }
                     mensajeUsuariosUI('Usuario "' + nombre + '" eliminado.', 'ok');
@@ -9689,8 +10155,28 @@
             procesarColaCom();
         }
 
-        // Fusión última-escritura-gana por "actualizado"; los eliminados se
-        // conservan como lápidas (tombstones) para que el borrado también viaje.
+        /* v5.4 — Fusión de dos versiones del mismo seguimiento: el historial es
+           la unión de ambos (ningún avance se pierde), el resto de los campos
+           sale de la versión más reciente y el estatus es el del último avance.
+           Es la misma regla que aplica el servidor (fusionarSeguimiento en
+           Code.gs). */
+        const llaveAvance = (a) => a.id ? String(a.id) : [a.fecha, a.autor, a.nota].join('|');
+        function fusionarSeguimiento(a, b) {
+            const nuevo = String(b.actualizado || '') >= String(a.actualizado || '') ? b : a;
+            const viejo = nuevo === a ? b : a;
+            const mapa = {};
+            (viejo.historial || []).concat(nuevo.historial || []).forEach(x => { if (x) mapa[llaveAvance(x)] = x; });
+            const historial = Object.values(mapa).sort((x, y) => String(x.fecha || '').localeCompare(String(y.fecha || '')));
+            const r = JSON.parse(JSON.stringify(nuevo));
+            r.historial = historial;
+            if (historial.length && historial[historial.length - 1].estatus) r.estatus = historial[historial.length - 1].estatus;
+            r.actualizado = String(nuevo.actualizado || '') > String(viejo.actualizado || '') ? nuevo.actualizado : viejo.actualizado;
+            return r;
+        }
+
+        // Canales: última-escritura-gana por "actualizado". Seguimientos: fusión
+        // (v5.4). Los eliminados se conservan como lápidas (tombstones) para
+        // que el borrado también viaje.
         function fusionarComRemoto(clave, remotos) {
             const map = {};
             (comData[clave] || []).forEach(r => { if (r && r.id) map[r.id] = r; });
@@ -9700,7 +10186,9 @@
                 if (!obj || !obj.id) return;
                 if (rem.eliminado === true) obj.eliminado = true;
                 const loc = map[obj.id];
-                if (!loc || String(obj.actualizado || '') > String(loc.actualizado || '')) map[obj.id] = obj;
+                if (!loc) map[obj.id] = obj;
+                else if (clave === 'seguimientos') map[obj.id] = fusionarSeguimiento(loc, obj);
+                else if (String(obj.actualizado || '') > String(loc.actualizado || '')) map[obj.id] = obj;
             });
             comData[clave] = Object.values(map);
         }
@@ -9720,6 +10208,12 @@
                     const j = await r.json().catch(() => null);
                     if (!j || !j.ok) throw new Error((j && j.error) || 'Respuesta inválida del servidor');
                     comCola.shift();
+                    // v5.4: el servidor devuelve el seguimiento ya fusionado con
+                    // lo que otros hayan escrito; se trae de inmediato
+                    if (op.tipo === 'seguimiento' && j.registro && j.registro.id) {
+                        fusionarComRemoto('seguimientos', [{ json: j.registro, eliminado: j.registro.eliminado === true }]);
+                        if (clienteActual) renderComunicacion();
+                    }
                     guardarComLocal();
                 } catch (err) {
                     console.warn('Cambio pendiente de sincronizar:', err);
@@ -9915,9 +10409,9 @@
             const valor = document.getElementById('canalValor').value.trim();
             const notas = document.getElementById('canalNotas').value.trim();
 
-            if (!nombre || !valor) { alert('El nombre del contacto y el número o correo son obligatorios.'); return; }
+            if (!nombre || !valor) { avisar('El nombre del contacto y el número o correo son obligatorios.'); return; }
             if ((tipo === 'WhatsApp' || tipo === 'Teléfono') && soloDigitos(valor).length < 8) {
-                alert('El número parece incompleto. Verifica que incluya los 10 dígitos.'); return;
+                avisar('El número parece incompleto. Verifica que incluya los 10 dígitos.'); return;
             }
 
             const existente = idEdit ? comData.canales.find(c => c.id === idEdit) : null;
@@ -9945,10 +10439,10 @@
             document.getElementById('canalNombre').focus();
         }
 
-        function eliminarCanal(id) {
+        async function eliminarCanal(id) {
             const reg = comData.canales.find(c => c.id === id);
             if (!reg) return;
-            if (!confirm('¿Eliminar el canal "' + reg.nombre + '"?')) return;
+            if (!(await confirmar('¿Eliminar el canal "' + reg.nombre + '"?', { titulo: 'Eliminar canal', textoSi: 'Eliminar', peligro: true }))) return;
             reg.eliminado = true;
             reg.actualizado = ahoraISO();
             encolarCom('canal', reg);
@@ -9966,7 +10460,7 @@
             const estatus = document.getElementById('segEstatus').value;
             const descripcion = document.getElementById('segDescripcion').value.trim();
 
-            if (!titulo) { alert('Escribe el asunto del seguimiento.'); return; }
+            if (!titulo) { avisar('Escribe el asunto del seguimiento.'); return; }
 
             let ordenResumen = '';
             if (ordenId) {
@@ -9980,7 +10474,7 @@
                 titulo: titulo, tipo: tipo, prioridad: prioridad, estatus: estatus,
                 descripcion: descripcion,
                 creado: ahoraISO(), actualizado: ahoraISO(),
-                historial: [{ fecha: ahoraISO(), autor: nombreUsuario(), estatus: estatus, nota: descripcion || 'Seguimiento creado' }]
+                historial: [{ id: uid(), fecha: ahoraISO(), autor: nombreUsuario(), estatus: estatus, nota: descripcion || 'Seguimiento creado' }]
             };
             comData.seguimientos.push(reg);
             encolarCom('seguimiento', reg);
@@ -9997,7 +10491,7 @@
             const reg = comData.seguimientos.find(s => s.id === id);
             if (!reg) return;
             reg.historial = reg.historial || [];
-            reg.historial.push({ fecha: ahoraISO(), autor: nombreUsuario(), estatus: estatus, nota: nota || ('Estatus actualizado a ' + estatus) });
+            reg.historial.push({ id: uid(), fecha: ahoraISO(), autor: nombreUsuario(), estatus: estatus, nota: nota || ('Estatus actualizado a ' + estatus) });
             reg.estatus = estatus;
             reg.actualizado = ahoraISO();
             encolarCom('seguimiento', reg);
@@ -10007,10 +10501,10 @@
             procesarColaCom();
         }
 
-        function eliminarSeguimiento(id) {
+        async function eliminarSeguimiento(id) {
             const reg = comData.seguimientos.find(s => s.id === id);
             if (!reg) return;
-            if (!confirm('¿Eliminar el seguimiento "' + reg.titulo + '"?\nSu historial también se eliminará.')) return;
+            if (!(await confirmar('¿Eliminar el seguimiento "' + reg.titulo + '"?\nSu historial también se eliminará.', { titulo: 'Eliminar seguimiento', textoSi: 'Eliminar', peligro: true }))) return;
             reg.eliminado = true;
             reg.actualizado = ahoraISO();
             encolarCom('seguimiento', reg);
@@ -10308,7 +10802,7 @@
                     .filter(x => x.estatus !== 'Concluido')
                     .sort((a, b) => String(b.actualizado || '').localeCompare(String(a.actualizado || '')));
                 if (abiertos.length === 0) {
-                    alert('Crea primero un seguimiento para esta unidad: el correo se envía asociado a un pendiente y queda en su historial.');
+                    avisar('Crea primero un seguimiento para esta unidad: el correo se envía asociado a un pendiente y queda en su historial.');
                     return;
                 }
                 abrirModalCorreo(abiertos[0].id, c.id);

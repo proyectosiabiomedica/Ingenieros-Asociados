@@ -1026,6 +1026,49 @@ El apartado **Catálogos** tiene tres pestañas.
 
 **Lo que sigue sin resolverse aquí.** El ingreso es solo con PIN, sin nombre de usuario. Por eso los intentos fallidos no se pueden contar por persona, solo por dispositivo y en global; el identificador de dispositivo lo manda el navegador. El tope global con aviso por correo es el freno real. Si se quiere un bloqueo por persona en el ingreso, habría que pedir nombre + PIN.
 
+## 4.24 Flujo de trabajo (v5.4)
+
+### Avances de seguimiento sin pérdidas
+
+Antes, cada cambio a un seguimiento reemplazaba el registro completo en la hoja, historial incluido. Si dos ingenieros agregaban un avance al mismo seguimiento casi al mismo tiempo, el segundo borraba sin aviso el del primero. Lo mismo pasaba con avances capturados sin señal que se subían después.
+
+Ahora el servidor **fusiona** cada versión con la que ya está en la hoja, y el navegador aplica la misma regla al sincronizar:
+
+- El **historial** es la unión de ambas versiones: un avance nunca se pierde. Cada avance lleva su propio id; los anteriores a la v5.4 se reconocen por fecha, autor y nota.
+- Los demás campos (asunto, prioridad, eliminado) salen de la versión más reciente.
+- El **estatus** es el del avance más reciente.
+- El servidor devuelve el seguimiento ya fusionado, así que los avances de otros aparecen en cuanto se sube un cambio.
+
+### Próximos mantenimientos de todas las unidades
+
+Nuevo apartado en el menú lateral. El número rojo junto al nombre son los equipos vencidos.
+
+- **Indicadores:** vencidos, próximos 7 días, próximos 30 días y total de equipos con programa. Cada uno filtra la tabla al tocarlo.
+- **Filtros:** ventana de tiempo, unidad, tipo (preventivo o calibración), ingeniero que atendió el último servicio, y búsqueda por equipo, serie, inventario o área.
+- **Tabla:** fecha programada con la situación (*Vencido hace 12 días*, *En 5 días*), unidad, equipo, área, último servicio con su orden, e ingeniero. La unidad es un enlace a su pestaña de preventivos o calibraciones.
+- **Exportar a Excel** con los filtros aplicados.
+
+El cálculo es el del calendario exportable (4.16): por equipo y por tipo cuenta solo el último servicio, y el próximo es esa fecha más la frecuencia del equipo.
+
+### Enlaces directos
+
+Cada vista tiene su dirección: `#unidad/Hospital X/cal`, `#proximos`, `#cotizador`, `#catalogos/productos`, `#auditoria`, `#usuarios`, `#dashboard`.
+
+- Al recargar se queda en la misma vista.
+- El botón **Atrás** del navegador o del teléfono regresa a la vista anterior. Cambiar de pestaña dentro de una unidad no agrega pasos.
+- El botón **Copiar enlace** de la vista de unidad y de Próximos copia la dirección. En el teléfono abre el menú de compartir.
+- Quien abre un enlace sin sesión entra con su PIN y llega a esa vista. Los apartados de administrador solo se abren con sesión de administrador.
+
+### Avisos y confirmaciones propios
+
+Los `alert()` y `confirm()` del navegador se reemplazaron por un cuadro dentro de la plataforma:
+
+- No bloquea la página y se ve igual en computadora, teléfono y app instalada.
+- **Esc** cancela y el foco no sale del cuadro.
+- En acciones que borran algo, el botón es rojo y el foco empieza en *Cancelar*, para que un Enter accidental no elimine nada.
+
+**Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*), porque la fusión de seguimientos ocurre en el servidor. Después subir `index.html` y `sw.js`.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1108,6 +1151,7 @@ El apartado **Catálogos** tiene tres pestañas.
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.4 | **Flujo de trabajo.** Los seguimientos se fusionan en lugar de reemplazarse: ya no se pierden avances escritos al mismo tiempo. Nuevo apartado **Próximos mantenimientos** con todas las unidades, filtros, indicadores y exportación a Excel. **Enlaces directos** por vista (`#unidad/…/cal`, `#proximos`…), botón Atrás y Copiar enlace. Avisos y confirmaciones propios en lugar de `alert()`/`confirm()`. El menú lateral ya no deja resaltado el apartado anterior |
 | 5.3 | **Seguridad.** Sesión firmada por el servidor en lugar del token fijo público: todas las acciones la exigen y el nombre y rol salen de ella. Secreto de sesión automático en Propiedades del Script; `cerrarTodasLasSesiones()`. PIN de usuarios mínimo de 6 (se pide cambiar al entrar con uno más corto). Bloqueo por usuario al cambiar PIN y aviso por correo al tope global de intentos. Adjuntos por URL solo de Jotform y Google. Al salir se borra la copia local de las hojas. Fuera las direcciones de CSV publicados y el PIN compartido |
 | 5.2 | **Catálogos en tres pestañas**: Clientes, Servicios y Productos (con **marca**), en la misma hoja mediante la columna *Categoría*; cada catálogo se **exporta a Excel**. **Cotización por correo** al correo del cliente, con el PDF adjunto y paso a *Enviada*. **PDF del calendario de próximos mantenimientos** rediseñado para que los doce meses quepan en carta horizontal |
 | 5.1 | **El calendario exporta los próximos mantenimientos** en lugar de los servicios realizados. Toma el último servicio de cada equipo (por serie, inventario o descripción), le suma su frecuencia y coloca el precio en cada mes en que le toca mantenimiento dentro del periodo; marca como **vencidos** los que ya pasaron sin servicio posterior. Disponible en Preventivos y Calibraciones |
