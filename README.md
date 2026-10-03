@@ -11,7 +11,7 @@ Dashboard web para la gestión y visualización de servicios de mantenimiento de
 | **Tipo de aplicación** | Página web estática de un solo archivo (`index.html`) |
 | **Backend** | Opcional — Web App de Google Apps Script (`Code.gs`) para bitácora de accesos, sincronización de seguimientos y proxy privado de datos |
 | **Origen de datos** | Formulario "Orden de Trabajo" en Jotform → Google Sheets (tres pestañas: órdenes, KPIs y catálogo de equipos de calibración) |
-| **Dependencias (CDN)** | Tailwind CSS, Chart.js 4.4.1, chartjs-plugin-datalabels 2.2.0, PapaParse 5.4.1 |
+| **Dependencias (CDN)** | Chart.js 4.4.1, chartjs-plugin-datalabels 2.2.0, PapaParse 5.4.1. Tailwind CSS ya no se carga del CDN desde la v5.6: sus estilos vienen precompilados en `estilos.css` |
 | **Requisitos** | Navegador moderno con conexión a internet |
 
 Sin backend configurado, la página funciona exactamente igual que en versiones anteriores: basta con abrir `index.html` en un navegador o alojarlo en cualquier hosting estático (GitHub Pages, Netlify, SharePoint, etc.). El backend de Apps Script agrega las funciones de seguridad y colaboración descritas en la sección 3.
@@ -467,12 +467,14 @@ La plataforma es una **aplicación web instalable**. Se agrega a la pantalla de 
 
 | Archivo | Para qué |
 |---|---|
-| `index.html` | La aplicación completa |
+| `index.html` | La estructura de las pantallas |
+| `app.js` | La lógica de la plataforma (v5.6) |
+| `estilos.css` | Los estilos, ya generados (v5.6) |
 | `manifest.json` | Nombre, icono, color y modo de presentación |
 | `sw.js` | *Service worker*: copias locales y funcionamiento sin señal |
 | `icono-192.png`, `icono-512.png`, `icono-maskable-512.png`, `apple-touch-icon.png` | Iconos de la aplicación |
 
-**Los siete archivos van sueltos en la raíz del repositorio, sin subcarpetas.** Se eligió así a propósito: subir una carpeta desde la web de GitHub es el paso donde más fácil se pierde algo, y basta con que falte un icono para que el navegador deje de ofrecer la instalación sin decir por qué.
+**Los nueve archivos van sueltos en la raíz del repositorio, sin subcarpetas.** (Eran siete hasta la v5.5; la v5.6 agregó `app.js` y `estilos.css`.) `tailwind.config.js` y `estilos-fuente.css` son opcionales: solo sirven para regenerar `estilos.css` y la plataforma no los usa. Se eligió así a propósito: subir una carpeta desde la web de GitHub es el paso donde más fácil se pierde algo, y basta con que falte un icono para que el navegador deje de ofrecer la instalación sin decir por qué.
 
 Las rutas son relativas, así que funciona igual en la raíz del dominio o en un subdirectorio de GitHub Pages. Ojo: GitHub Pages **distingue mayúsculas de minúsculas**, así que los nombres deben ir tal cual.
 
@@ -1096,6 +1098,44 @@ En el formulario de la cotización, sección *Textos del documento*, apartado **
 
 **Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Después subir `index.html` y `sw.js`.
 
+## 4.26 Rendimiento (v5.6)
+
+### Estilos precompilados
+
+Antes, el navegador descargaba el compilador de Tailwind (unos 400 KB de JavaScript) y generaba los estilos en cada carga. Ahora vienen ya generados en `estilos.css`, de unos 38 KB. La primera pantalla aparece antes y desaparece una dependencia externa que la red del hospital podía bloquear.
+
+`estilos.css` se genera con Tailwind a partir de `estilos-fuente.css` (los estilos propios) y `tailwind.config.js` (la paleta institucional), revisando las clases que usan `index.html` y `app.js`. **Si se agregan clases nuevas**, hay que regenerarlo:
+
+```
+npx tailwindcss@3 -c tailwind.config.js -i estilos-fuente.css -o estilos.css --minify
+```
+
+Con cada versión entregada, `estilos.css` ya viene regenerado.
+
+### Página separada en tres archivos
+
+`index.html` (estructura), `app.js` (lógica) y `estilos.css` (estilos). Antes todo vivía en un HTML de unos 740 KB.
+
+- **Por qué:** el service worker guarda cada archivo por separado.
+- **Versión en la dirección:** `app.js` y `estilos.css` se piden con su versión (`app.js?v=5.6`). Así una versión nueva es un archivo distinto y nunca se sirve una copia vieja.
+- **Al publicar una versión:** subir los tres archivos juntos. La versión en `index.html` (`?v=…`) y `VERSION_ARCHIVOS` en `sw.js` deben coincidir; vienen ajustadas en cada entrega.
+
+### El servidor manda solo las columnas que se usan
+
+"Orden de Trabajo" tiene unas 65 columnas y la plataforma lee unas 25. Ahora el servidor recorta el resto antes de enviar.
+
+- **Sin cambios en la lectura:** el servidor elige las columnas con la misma búsqueda que hace el navegador y conserva el encabezado original.
+- **Prueba:** con un corpus de prueba de 61 columnas, el envío bajó de 348 KB a 54 KB. Las órdenes procesadas resultaron idénticas a las que salen con el archivo completo.
+- **Caché del servidor:** al ser más pequeño, el CSV de las órdenes cabe en la caché del servidor aunque el histórico crezca. Antes, pasando de 4 MB se servía sin caché.
+- **Revisar el recorte:** `revisarColumnasCorpus()` en el editor de Apps Script muestra qué columnas se envían y el tamaño antes y después.
+- **Al agregar una columna nueva** a `procesarDatosCorpus` en `app.js`, hay que agregar su lista de candidatos en `CORPUS_CANDIDATOS` de `Code.gs`; si no, llegará vacía.
+
+**Puesta en marcha:**
+
+1. Pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*).
+2. Subir a GitHub `index.html`, `app.js`, `estilos.css` y `sw.js`. Los dos primeros son nuevos y van en la raíz, junto a los demás.
+3. Opcionalmente, subir también `tailwind.config.js` y `estilos-fuente.css` para tenerlos a mano.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1178,6 +1218,7 @@ En el formulario de la cotización, sección *Textos del documento*, apartado **
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.6 | **Rendimiento.** Estilos precompilados en `estilos.css` (≈38 KB) en lugar del compilador de Tailwind en el navegador. La página se separa en `index.html`, `app.js` y `estilos.css`, con versión en la dirección para que el service worker los guarde sin riesgo de servir copias viejas. El servidor envía solo las ~25 columnas de "Orden de Trabajo" que usa la plataforma (`CORPUS_CANDIDATOS`); en la prueba, 348 KB → 54 KB con resultados idénticos |
 | 5.5 | **Diseño.** Icono de iPhone y favicon desde los PNG cuadrados; texto mínimo de 12 px; foco visible; ventanas accesibles (foco, Tab, Esc); estados con ⚠ además del color; se quitó *Copiar enlace*. **Firma predeterminada** en las cotizaciones: se sube una imagen, se le quita el fondo y se imprime sobre la línea de «Atentamente» |
 | 5.4 | **Flujo de trabajo.** Los seguimientos se fusionan en lugar de reemplazarse: ya no se pierden avances escritos al mismo tiempo. Nuevo apartado **Próximos mantenimientos** con todas las unidades, filtros, indicadores y exportación a Excel. **Enlaces directos** por vista (`#unidad/…/cal`, `#proximos`…), botón Atrás y Copiar enlace. Avisos y confirmaciones propios en lugar de `alert()`/`confirm()`. El menú lateral ya no deja resaltado el apartado anterior |
 | 5.3 | **Seguridad.** Sesión firmada por el servidor en lugar del token fijo público: todas las acciones la exigen y el nombre y rol salen de ella. Secreto de sesión automático en Propiedades del Script; `cerrarTodasLasSesiones()`. PIN de usuarios mínimo de 6 (se pide cambiar al entrar con uno más corto). Bloqueo por usuario al cambiar PIN y aviso por correo al tope global de intentos. Adjuntos por URL solo de Jotform y Google. Al salir se borra la copia local de las hojas. Fuera las direcciones de CSV publicados y el PIN compartido |

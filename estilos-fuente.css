@@ -1,0 +1,305 @@
+/* Ingenieros Asociados · fuente de estilos.css (v5.6)
+   estilos.css se GENERA a partir de este archivo con Tailwind (ver
+   tailwind.config.js). Los estilos propios van después de las utilidades,
+   en el mismo orden en que estaban dentro de index.html. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------- estilos propios de la plataforma ---------------- */
+
+/* v5.5 — accesibilidad: el foco del teclado siempre se ve (antes varios
+   botones lo ocultaban con focus:outline-none), sin mostrarlo al tocar
+   con el dedo o el ratón. */
+:focus-visible { outline: 2px solid #0E77B8 !important; outline-offset: 2px; border-radius: 4px; }
+:focus:not(:focus-visible) { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+body { font-family: 'Inter', sans-serif; overflow: hidden; }
+.fade-in { animation: fadeIn 0.4s ease-out forwards; opacity: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.chart-wrapper { position: relative; height: 300px; width: 100%; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #475569; }
+.tab-active { border-bottom: 2px solid var(--ia-azul); color: var(--ia-azul); font-weight: 600; }
+.tab-inactive { color: #64748b; font-weight: 500; }
+
+/* ===================================================================
+   v2.8 — IDENTIDAD INSTITUCIONAL
+   Colores tomados directamente del logotipo (LOGO_mini.png):
+     #005DA1 azul institucional  ·  #ABE1F5 celeste  ·  blanco
+   Cambiar aquí cambia el tono de toda la aplicación.
+   =================================================================== */
+:root {
+    --ia-azul:          #005DA1;
+    --ia-azul-medio:    #004E88;
+    --ia-azul-oscuro:   #003D6B;
+    --ia-azul-profundo: #002C4D;
+    --ia-celeste:       #ABE1F5;
+}
+
+/* Barra lateral en azul institucional (antes gris pizarra) */
+#sidebar { background-color: var(--ia-azul-profundo) !important; }
+#sidebar .bg-slate-950\/50 { background-color: rgba(0, 20, 36, .55) !important; }
+#sidebar .bg-slate-800\/50 { background-color: rgba(0, 93, 161, .45) !important; }
+#sidebar button:hover { background-color: rgba(0, 93, 161, .40) !important; }
+#sidebar #buscadorClientes {
+    background-color: rgba(0, 0, 0, .22) !important;
+    border-color: rgba(171, 225, 245, .28) !important;
+    color: #E8F6FD !important;
+}
+#sidebar .border-slate-800 { border-color: rgba(171, 225, 245, .20) !important; }
+
+/* Encabezados de sección de la rutina con el acento institucional */
+#rutinaPrintableArea h4 { border-left-color: var(--ia-azul) !important; }
+#rutinaPrintableArea .border-b-2 { border-bottom-color: var(--ia-azul) !important; }
+
+::selection { background: var(--ia-celeste); color: #002C4D; }
+::-webkit-scrollbar-thumb { background: #94b8d1; }
+
+@media print {
+    /* v2.8: MARGEN PREDETERMINADO DE 25 mm POR LADO.
+       Se declara en @page para que el margen se respete en TODAS las
+       páginas (con el esquema anterior —margen 0 + padding en body—
+       solo la primera y la última quedaban con margen).
+       Si en el diálogo de impresión aparecen el título y la URL del
+       navegador, desactiva la casilla "Encabezados y pies de página". */
+    /* v3.0.1: el pie vive DENTRO del área de contenido, no en el
+       margen, porque lo que sobresale del área de página lo recorta el
+       navegador y la leyenda salía cortada. A cambio, el margen
+       inferior crece a 34 mm para dejarle aire y los renglones de
+       tabla llevan 'break-inside: avoid', de modo que ninguno se parte
+       justo donde va el pie. */
+    @page { margin: 25mm 25mm 34mm; }
+    /* v3.9: el calendario de servicios es ancho; se imprime apaisado */
+    @page calendario { size: letter landscape; margin: 10mm 10mm 12mm; }
+    body.printing-calendario { page: calendario; }
+    body { padding: 0 !important; }
+    html, body { overflow: visible !important; height: auto !important; background: white !important; display: block !important; }
+    .no-print, aside, #btnSidebarToggle, #sidebarOverlay { display: none !important; }
+    main { overflow: visible !important; height: auto !important; display: block !important; }
+
+    /* ===== Impresión del Generador de Rutina =====
+       Claves para que salga COMPLETO y no solo lo visible:
+       1) el modal deja de ser fixed (los ancestros fixed cortan la paginación)
+       2) toda la cadena de contenedores pierde overflow/altura/flex
+       3) el resto de la página se oculta por completo */
+    body.printing-modal main,
+    body.printing-modal #dashboardContent,
+    body.printing-modal #clienteContent { display: none !important; }
+
+    body.printing-modal #modalRutina {
+        position: static !important;
+        display: block !important;
+        overflow: visible !important;
+        height: auto !important;
+        width: 100% !important;
+        margin: 0 !important; padding: 0 !important;
+        background: white !important;
+        backdrop-filter: none !important;
+        inset: auto !important;
+    }
+    body.printing-modal #modalRutina > div {
+        position: static !important;
+        display: block !important;
+        overflow: visible !important;
+        height: auto !important; max-height: none !important;
+        box-shadow: none !important; border: none !important;
+        margin: 0 !important; padding: 0 !important;
+        max-width: 100% !important; width: 100% !important;
+        border-radius: 0 !important;
+    }
+    body.printing-modal #rutinaPrintableArea {
+        overflow: visible !important;
+        height: auto !important; max-height: none !important;
+        display: block !important;
+        padding: 0 !important;
+    }
+    body.printing-modal #modalRutina .sticky { position: static !important; }
+
+    /* ===== v3.9: impresión del calendario de servicios =====
+       Mismo principio que la rutina: el resto de la página se oculta y
+       el contenedor deja de ser fixed para que Chrome pagine bien.
+       El calendario es ancho, así que se imprime en horizontal. */
+    body.printing-calendario { }
+    body.printing-calendario main,
+    body.printing-calendario #dashboardContent,
+    body.printing-calendario #clienteContent,
+    body.printing-calendario #modalExportar { display: none !important; }
+
+    body.printing-calendario #calendarioImprimible {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important; padding: 0 !important;
+        background: white !important;
+    }
+    /* v5.2: los bordes y rellenos van en línea en cada celda (ver
+       exportarCalendarioPDF); aquí solo se evita que el pie de página
+       general y el modal ocupen lugar. */
+    body.printing-calendario #piePaginaImpresion,
+    body.printing-calendario #cotizacionImprimible { display: none !important; }
+    body.printing-calendario #calendarioImprimible thead { display: table-header-group; }
+    body.printing-calendario #calendarioImprimible tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* v4.0: al imprimir la auditoría se oculta lo demás */
+    #auditoriaContent:not(.hidden) ~ * { }
+    body:has(#auditoriaContent:not(.hidden)) main > *:not(#auditoriaContent) { display: none !important; }
+
+    /* ===== v4.7: impresión de la cotización ===== */
+    body.printing-cotizacion main,
+    body.printing-cotizacion #sidebar,
+    body.printing-cotizacion aside { display: none !important; }
+    body.printing-cotizacion #cotizacionImprimible {
+        display: block !important; position: static !important;
+        width: 100% !important; margin: 0 !important; padding: 0 !important;
+        background: white !important;
+    }
+    body.printing-cotizacion #piePaginaImpresion { display: none !important; }
+    @page cotizacion { size: letter portrait; margin: 10mm 12mm 12mm; }
+    body.printing-cotizacion { page: cotizacion; }
+    /* v4.8: cada hoja mide exactamente una hoja carta y nunca se parte */
+    .cot-hoja { break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
+    .cot-hoja:last-child { break-after: auto; page-break-after: auto; }
+
+    .no-print-modal { display: none !important; }
+    .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Conservar fondos y colores (Chrome los descarta por omisión) */
+    body, #rutinaPrintableArea, .grafica-medicion {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* v2.8.2 — CORRECCIÓN: LAS GRÁFICAS NO SE IMPRIMÍAN
+       Tres causas, las tres resueltas aquí:
+
+       1) La sección V completa (tabla + N gráficas) mide más de una
+          página, y llevaba 'break-inside: avoid'. Al intentar mantener
+          junto un bloque más alto que la hoja, el navegador lo desborda
+          y recorta lo que no cabe: justo el bloque de gráficas. Ahora
+          la sección puede partirse y solo cada TARJETA se mantiene
+          entera.
+       2) El contenedor era 'display: grid'. La fragmentación de CSS
+          Grid entre páginas es poco confiable al imprimir en Chrome
+          (las filas posteriores a la primera página se pierden). Se
+          sustituye por inline-block, que sí pagina bien.
+       3) El lienzo medía su altura en px sobre un contenedor sin
+          altura definida en contexto de impresión, así que la imagen
+          del canvas salía de 0 px de alto. Ahora la altura va en mm. */
+    #rutinaValoresContainer,
+    #rutinaValoresContainer > .flex,
+    #rutinaTablaContainer {
+        break-inside: auto !important;
+        page-break-inside: auto !important;
+        overflow: visible !important;
+    }
+
+    #rutinaGraficasContainer {
+        display: block !important;
+        width: 100% !important;
+        font-size: 0;                     /* elimina huecos entre inline-blocks */
+    }
+    .grafica-medicion {
+        display: inline-block !important;
+        vertical-align: top;
+        width: 48% !important;
+        margin: 0 0 6mm 0 !important;
+        font-size: 10px;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        box-shadow: none !important;
+    }
+    .grafica-medicion:nth-child(odd) { margin-right: 3% !important; }
+    .grafica-medicion .lienzo-grafica {
+        height: 42mm !important;
+        width: 100% !important;
+    }
+    img.print-canvas-img {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain;
+    }
+
+    /* v3.0 — PIE DE PÁGINA PROPIO, REPETIDO EN CADA HOJA
+       Un elemento 'position: fixed' se repinta en todas las páginas al
+       imprimir. Va anclado al fondo del área de contenido, con fondo
+       blanco, de modo que la leyenda aparece siempre y nunca queda
+       tapada por el contenido.
+       El encabezado y el pie que agrega el NAVEGADOR (título, URL,
+       fecha, número de página) no se pueden desactivar por código:
+       hay que quitar la casilla "Encabezados y pies de página" en el
+       diálogo de impresión. El aviso de la ventana lo recuerda. */
+    /* v3.0.1 — PIE DE PÁGINA COMPLETO EN TODAS LAS HOJAS
+       Tres correcciones respecto a la 3.0:
+         · queda anclado al borde inferior del ÁREA DE CONTENIDO
+           (bottom: 0). Antes sobresalía hacia el margen con un valor
+           negativo y el navegador recortaba la leyenda.
+         · 'white-space: nowrap' y altura automática: si la hoja fuera
+           angosta, la leyenda se reduce pero no se parte en dos
+           renglones de los que solo se vería el primero.
+         · el área imprimible reserva 14 mm abajo para que el pie no
+           se encime con el contenido de la página. */
+    #piePaginaImpresion {
+        display: block !important;
+        position: fixed !important;
+        bottom: 0; left: 0; right: 0;
+        padding: 1.5mm 0 0.5mm;
+        text-align: center;
+        background: white;
+        border-top: 0.3mm solid #cbd5e1;
+        font-size: 7.5pt;
+        line-height: 1.25;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #475569;
+        white-space: nowrap;
+        z-index: 9999;
+    }
+    body.printing-modal #rutinaPrintableArea { padding-bottom: 10mm !important; }
+
+    /* Ningún renglón de tabla debe partirse ni quedar por debajo del
+       pie: si no cabe completo en la hoja, pasa entero a la siguiente. */
+    #rutinaTablaContainer tr,
+    #rutActividades tr,
+    #rutPatronDetalle tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+    /* La leyenda del final del documento se elimina: ahora va en el pie */
+    #rutinaLeyendaLegal { display: none !important; }
+
+    /* v2.9.1: tabla de equipos de calibración (puede traer varios) */
+    #rutPatronDetalle { overflow: visible !important; }
+    #rutPatronDetalle table { width: 100% !important; font-size: 9px !important; }
+    #rutPatronDetalle tr { break-inside: avoid; page-break-inside: avoid; }
+}
+
+/* v2.8: tarjeta de gráfica por parámetro */
+.grafica-medicion .lienzo-grafica { position: relative; width: 100%; height: 190px; }
+img.print-canvas-img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+/* Placeholders de los campos editables (no se imprimen) */
+#rutNombreAutorizado:empty::before,
+#rutObservaciones:empty::before,
+#rutTemperatura:empty::before,
+#rutHumedad:empty::before,
+#rutinaModifMotivo:empty::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    font-weight: 400;
+}
+@media print {
+    #rutNombreAutorizado:empty::before,
+    #rutObservaciones:empty::before,
+    #rutTemperatura:empty::before,
+    #rutHumedad:empty::before,
+    #rutinaModifMotivo:empty::before { content: '' !important; }
+    /* Las celdas editables se imprimen como texto normal */
+    [data-edit-campo] { background: transparent !important; }
+}

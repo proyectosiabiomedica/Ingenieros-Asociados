@@ -1,5 +1,5 @@
 /* ============================================================================
- *  INGENIEROS ASOCIADOS — Service Worker de la plataforma        sw.js  v5.5
+ *  INGENIEROS ASOCIADOS — Service Worker de la plataforma        sw.js  v5.6
  * ----------------------------------------------------------------------------
  *  Qué resuelve:
  *
@@ -7,7 +7,7 @@
  *      teléfono o al escritorio, y abrirla como aplicación, sin barra del
  *      navegador.
  *
- *   2. RED DE HOSPITAL. Las librerías externas (Tailwind, Chart.js, PapaParse,
+ *   2. RED DE HOSPITAL. Las librerías externas (Chart.js, PapaParse,
  *      la tipografía) quedan guardadas en el equipo tras la primera visita. Si
  *      el hospital bloquea o ralentiza esos dominios —cosa que pasa—, la
  *      plataforma sigue abriendo con la copia local.
@@ -26,14 +26,20 @@
  *     el mismo día. La copia local es el respaldo, no la fuente.
  * ==========================================================================*/
 
-const VERSION = 'v5.5';
+const VERSION = 'v5.6';
 const CACHE_APP    = 'ia-app-' + VERSION;     // la página y sus iconos
 const CACHE_LIBS   = 'ia-libs-' + VERSION;    // librerías externas
 const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
 
+/* v5.6: la página se separó en tres archivos. estilos.css y app.js llevan
+   la versión en la dirección (?v=…), así que cada versión nueva es un archivo
+   distinto: se sirven desde la copia local sin riesgo de quedar viejos. */
+const VERSION_ARCHIVOS = '5.6';   // debe coincidir con ?v= en index.html
 const ARCHIVOS_APP = [
   './',
   './index.html',
+  './estilos.css?v=' + VERSION_ARCHIVOS,
+  './app.js?v=' + VERSION_ARCHIVOS,
   './manifest.json',
   './icono-192.png',
   './icono-512.png',
@@ -41,8 +47,8 @@ const ARCHIVOS_APP = [
   './apple-touch-icon.png'
 ];
 
+// v5.6: Tailwind ya no se descarga: sus estilos vienen en estilos.css
 const LIBRERIAS = [
-  'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0',
   'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js'
