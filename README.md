@@ -1136,6 +1136,28 @@ Con cada versión entregada, `estilos.css` ya viene regenerado.
 2. Subir a GitHub `index.html`, `app.js`, `estilos.css` y `sw.js`. Los dos primeros son nuevos y van en la raíz, junto a los demás.
 3. Opcionalmente, subir también `tailwind.config.js` y `estilos-fuente.css` para tenerlos a mano.
 
+## 4.27 Asignación de tarifa por palabras (v5.7)
+
+**El problema.** Con *Monitor de signos vitales avanzado* y *Monitor de signos vitales básico* en el tarifario, una orden que solo decía *Monitor de signos vitales* se comparaba por contención de texto. Coincidía con los dos y ganaba el nombre más largo: el avanzado, que es el más caro. Afectaba al tarifario de las pestañas, a la auditoría financiera y al calendario.
+
+**La regla nueva** compara por palabras, sin importar mayúsculas, acentos, artículos ni plurales simples:
+
+1. Un concepto se asigna si **todas sus palabras** aparecen en el nombre de la orden. Si varios cumplen, gana el más específico. Las palabras de más en la orden (marca, modelo) no estorban.
+2. Las palabras de **variante base** son opcionales: *básico, básica, estándar, standard, sencillo, convencional, normal, general*. Por eso *Monitor de signos vitales básico* sí se asigna a una orden que solo dice *Monitor de signos vitales*.
+3. **Avanzado** (o cualquier otra palabra) no es opcional. Para cobrar el avanzado, la orden tiene que decir *avanzado*.
+4. Si la orden es más corta que todos los conceptos, gana el que menos palabras agrega. En empate, la variante base y después el de menor precio. Nunca se asume el más caro sin que la orden lo diga.
+5. Como último recurso queda la comparación anterior, para no dejar sin tarifa lo que antes sí la tenía.
+
+| Orden dice | Se asigna |
+|---|---|
+| Monitor de signos vitales | Monitor de signos vitales **básico** |
+| Monitor de signos vitales Mindray iMEC10 | Monitor de signos vitales **básico** |
+| Monitor de Signos Vitales Avanzado | Monitor de signos vitales **avanzado** |
+| Monitor signo vital avanzado Mindray | Monitor de signos vitales **avanzado** |
+| Ventiladores mecánicos | Ventilador mecánico |
+
+Las palabras de variante base están en `PALABRAS_VARIANTE_BASE` de `app.js`.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1218,6 +1240,7 @@ Con cada versión entregada, `estilos.css` ya viene regenerado.
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.7 | **Tarifa por palabras.** Una orden que solo dice *Monitor de signos vitales* toma el concepto **básico**, no el avanzado: para asignar un concepto, todas sus palabras deben estar en la orden; *básico/estándar/sencillo* son opcionales; en empate gana la variante base o el menor precio. Aplica al tarifario, la auditoría y el calendario |
 | 5.6 | **Rendimiento.** Estilos precompilados en `estilos.css` (≈38 KB) en lugar del compilador de Tailwind en el navegador. La página se separa en `index.html`, `app.js` y `estilos.css`, con versión en la dirección para que el service worker los guarde sin riesgo de servir copias viejas. El servidor envía solo las ~25 columnas de "Orden de Trabajo" que usa la plataforma (`CORPUS_CANDIDATOS`); en la prueba, 348 KB → 54 KB con resultados idénticos |
 | 5.5 | **Diseño.** Icono de iPhone y favicon desde los PNG cuadrados; texto mínimo de 12 px; foco visible; ventanas accesibles (foco, Tab, Esc); estados con ⚠ además del color; se quitó *Copiar enlace*. **Firma predeterminada** en las cotizaciones: se sube una imagen, se le quita el fondo y se imprime sobre la línea de «Atentamente» |
 | 5.4 | **Flujo de trabajo.** Los seguimientos se fusionan en lugar de reemplazarse: ya no se pierden avances escritos al mismo tiempo. Nuevo apartado **Próximos mantenimientos** con todas las unidades, filtros, indicadores y exportación a Excel. **Enlaces directos** por vista (`#unidad/…/cal`, `#proximos`…), botón Atrás y Copiar enlace. Avisos y confirmaciones propios en lugar de `alert()`/`confirm()`. El menú lateral ya no deja resaltado el apartado anterior |

@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '5.6';
+        const VERSION_APP = '5.7';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1157,6 +1157,46 @@
         /* Busca la tarifa de un equipo. 'servicio' filtra por tipo cuando el
            tarifario lo declara; si no hay renglón para ese servicio se usa el
            de Preventivo, que es el caso general. */
+        /* v5.7 — ASIGNACIÓN DE TARIFA POR PALABRAS
+           Antes se comparaba por contención de texto y ganaba el nombre más
+           largo: con "Monitor de signos vitales avanzado" y "… básico" en el
+           tarifario, una orden que solo decía "Monitor de signos vitales"
+           contenía en ambos y se le asignaba el AVANZADO (más largo por una
+           letra), es decir, el precio mayor.
+
+           Ahora se compara por palabras:
+           1. Un concepto CUBRE la orden si todas sus palabras aparecen en el
+              nombre de la orden. Entre los que la cubren gana el más específico
+              (el de más palabras). Las palabras sobran en la orden no estorban:
+              "Monitor de signos vitales Mindray" sigue siendo el monitor.
+           2. Las palabras de VARIANTE BASE (básico, estándar, sencillo…) son
+              opcionales: "Monitor de signos vitales básico" cubre una orden que
+              solo dice "Monitor de signos vitales". "Avanzado" NO es opcional:
+              para cobrar el avanzado, la orden tiene que decirlo.
+           3. Si ningún concepto cubre la orden (la orden es más corta que todos,
+              p. ej. solo "Monitor"), se toma el que menos palabras agrega y, en
+              empate, la variante base o el de menor precio. Nunca se asume el
+              más caro sin que la orden lo diga.
+           4. Como último recurso queda la contención de texto anterior, para
+              no dejar sin tarifa lo que antes sí la tenía.
+           Se ignoran mayúsculas, acentos, artículos ("de", "la"…) y plurales
+           simples (signos/signo, vitales/vital). */
+        const PALABRAS_VACIAS_TARIFA = ['de', 'del', 'la', 'el', 'los', 'las', 'para', 'con', 'y', 'e', 'en', 'a', 'al', 'por', 'tipo'];
+        const PALABRAS_VARIANTE_BASE = ['basico', 'basica', 'estandar', 'standard', 'sencillo', 'sencilla', 'convencional', 'normal', 'general'];
+
+        function raizPalabra(w) {
+            if (w.length > 4 && w.endsWith('es')) return w.slice(0, -2);
+            if (w.length > 3 && w.endsWith('s')) return w.slice(0, -1);
+            return w;
+        }
+        function palabrasTarifa(texto) {
+            return normalizar(String(texto || '').toLowerCase())
+                .split(/[^a-z0-9ñ]+/)
+                .filter(w => w && !PALABRAS_VACIAS_TARIFA.includes(w))
+                .map(raizPalabra);
+        }
+        const BASE_RAICES = PALABRAS_VARIANTE_BASE.map(raizPalabra);
+
         function tarifaDeEquipo(nombreEquipo, servicio) {
             const n = normalizar(String(nombreEquipo || '').toLowerCase()).trim();
             if (!n || !catalogoPrecios.length) return null;
@@ -1170,14 +1210,49 @@
             const exacto = candidatos.find(t => normalizar(t.equipo.toLowerCase()).trim() === n);
             if (exacto) return exacto;
 
-            // Por contención, prefiriendo el nombre más específico (el más largo)
+            const orden = new Set(palabrasTarifa(n));
+            if (!orden.size) return null;
+            const precioBase = (t) => {
+                const p = t.precios && t.precios.I;
+                return (p === null || p === undefined || isNaN(p)) ? Infinity : p;
+            };
+            const analizados = candidatos.map(t => {
+                const todas = palabrasTarifa(t.equipo);
+                const requeridas = todas.filter(w => !BASE_RAICES.includes(w));
+                return {
+                    t: t,
+                    requeridas: requeridas,
+                    esBase: todas.some(w => BASE_RAICES.includes(w)),
+                    faltan: requeridas.filter(w => !orden.has(w)).length,
+                    // cuántas palabras de la orden explica el concepto
+                    coinciden: requeridas.filter(w => orden.has(w)).length
+                };
+            }).filter(x => x.requeridas.length > 0);
+
+            // 1–2. Conceptos que la orden describe por completo: el más específico
+            const cubren = analizados.filter(x => x.faltan === 0)
+                .sort((a, b) => (b.requeridas.length - a.requeridas.length) ||
+                                ((b.esBase ? 1 : 0) - (a.esBase ? 1 : 0)) ||
+                                (precioBase(a.t) - precioBase(b.t)));
+            if (cubren.length) return cubren[0].t;
+
+            // 3. La orden es más corta que los conceptos: todas sus palabras están
+            //    en el concepto. Gana el que menos agrega; en empate, la variante
+            //    base y después el menor precio.
+            const tamOrden = Array.from(orden).filter(w => !BASE_RAICES.includes(w)).length;
+            const contienen = analizados.filter(x => tamOrden > 0 && x.coinciden === tamOrden)
+                .sort((a, b) => (a.faltan - b.faltan) ||
+                                ((b.esBase ? 1 : 0) - (a.esBase ? 1 : 0)) ||
+                                (precioBase(a.t) - precioBase(b.t)));
+            if (contienen.length) return contienen[0].t;
+
+            // 4. Último recurso: contención de texto (criterio anterior a la v5.7)
             const contenidos = candidatos
                 .filter(t => {
                     const te = normalizar(t.equipo.toLowerCase()).trim();
                     return te.length >= 4 && (n.includes(te) || te.includes(n));
                 })
-                .sort((a, b) => b.equipo.length - a.equipo.length);
-
+                .sort((a, b) => (precioBase(a) - precioBase(b)) || (b.equipo.length - a.equipo.length));
             return contenidos[0] || null;
         }
 
