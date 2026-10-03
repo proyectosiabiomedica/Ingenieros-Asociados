@@ -1056,7 +1056,7 @@ Cada vista tiene su dirección: `#unidad/Hospital X/cal`, `#proximos`, `#cotizad
 
 - Al recargar se queda en la misma vista.
 - El botón **Atrás** del navegador o del teléfono regresa a la vista anterior. Cambiar de pestaña dentro de una unidad no agrega pasos.
-- El botón **Copiar enlace** de la vista de unidad y de Próximos copia la dirección. En el teléfono abre el menú de compartir.
+- Para compartir una vista basta con copiar la dirección del navegador. (El botón *Copiar enlace* de la v5.4 se quitó en la v5.5.)
 - Quien abre un enlace sin sesión entra con su PIN y llega a esa vista. Los apartados de administrador solo se abren con sesión de administrador.
 
 ### Avisos y confirmaciones propios
@@ -1068,6 +1068,33 @@ Los `alert()` y `confirm()` del navegador se reemplazaron por un cuadro dentro d
 - En acciones que borran algo, el botón es rojo y el foco empieza en *Cancelar*, para que un Enter accidental no elimine nada.
 
 **Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*), porque la fusión de seguimientos ocurre en el servidor. Después subir `index.html` y `sw.js`.
+
+## 4.25 Diseño y firma de cotizaciones (v5.5)
+
+### Diseño y accesibilidad
+
+| Cambio | Detalle |
+|---|---|
+| **Icono de iPhone y favicon** | Apuntan a `apple-touch-icon.png` (180×180) e `icono-192.png`. El base64 anterior era de 108×135, no cuadrado, y deformaba el icono en la pantalla de inicio |
+| **Texto mínimo de 12 px** | Los 117 textos de 9, 10 y 11 px pasaron a 12 px (`text-xs`). Los documentos impresos no cambian: usan sus propios tamaños en pt |
+| **Foco visible** | Al navegar con teclado, el elemento activo siempre lleva un contorno azul. Al tocar con el dedo o el ratón no aparece |
+| **Ventanas** | Todas se anuncian como diálogo. Al abrirse, el foco entra en el primer campo; Tab no se escapa a la página de atrás; **Esc** cierra; al cerrarse, el foco regresa a donde estaba |
+| **Botones de cerrar** | Los «×» tienen nombre accesible («Cerrar») para lectores de pantalla |
+| **Estados no solo por color** | *⚠ Vencido* en las pestañas de servicio y *⚠* en los errores de calibración fuera de tolerancia, para que se distingan en impresión en blanco y negro y con daltonismo |
+| **Movimiento reducido** | Si el sistema lo pide, se desactivan animaciones y transiciones |
+| **Copiar enlace** | Se quitó el botón de la vista de unidad y de Próximos. Los enlaces directos siguen funcionando desde la barra de direcciones |
+
+### Firma predeterminada en las cotizaciones
+
+En el formulario de la cotización, sección *Textos del documento*, apartado **Firma**. Solo el administrador ve *Subir firma* y *Quitar*.
+
+- Se acepta PNG o JPG; sirve una foto de la firma en papel blanco.
+- El navegador la prepara antes de subirla. La reduce, vuelve transparente el fondo blanco para que el trazo se monte sobre la línea como tinta, y la recorta al trazo. Una foto de varios MB queda en unos KB.
+- Se imprime sobre la línea de «Atentamente», encima del nombre de `Firma (nombre)`, en todas las cotizaciones (impresas y en el PDF que se envía por correo), incluidas las ya emitidas al reimprimirlas.
+- Sin firma cargada, la cotización sale como siempre, con el espacio en blanco.
+- Se guarda en la pestaña oculta `Firma_Cotizacion`, partida en renglones porque una celda admite 50 000 caracteres.
+
+**Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Después subir `index.html` y `sw.js`.
 
 ## 5. Comportamientos automáticos relevantes
 
@@ -1151,6 +1178,7 @@ Los `alert()` y `confirm()` del navegador se reemplazaron por un cuadro dentro d
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.5 | **Diseño.** Icono de iPhone y favicon desde los PNG cuadrados; texto mínimo de 12 px; foco visible; ventanas accesibles (foco, Tab, Esc); estados con ⚠ además del color; se quitó *Copiar enlace*. **Firma predeterminada** en las cotizaciones: se sube una imagen, se le quita el fondo y se imprime sobre la línea de «Atentamente» |
 | 5.4 | **Flujo de trabajo.** Los seguimientos se fusionan en lugar de reemplazarse: ya no se pierden avances escritos al mismo tiempo. Nuevo apartado **Próximos mantenimientos** con todas las unidades, filtros, indicadores y exportación a Excel. **Enlaces directos** por vista (`#unidad/…/cal`, `#proximos`…), botón Atrás y Copiar enlace. Avisos y confirmaciones propios en lugar de `alert()`/`confirm()`. El menú lateral ya no deja resaltado el apartado anterior |
 | 5.3 | **Seguridad.** Sesión firmada por el servidor en lugar del token fijo público: todas las acciones la exigen y el nombre y rol salen de ella. Secreto de sesión automático en Propiedades del Script; `cerrarTodasLasSesiones()`. PIN de usuarios mínimo de 6 (se pide cambiar al entrar con uno más corto). Bloqueo por usuario al cambiar PIN y aviso por correo al tope global de intentos. Adjuntos por URL solo de Jotform y Google. Al salir se borra la copia local de las hojas. Fuera las direcciones de CSV publicados y el PIN compartido |
 | 5.2 | **Catálogos en tres pestañas**: Clientes, Servicios y Productos (con **marca**), en la misma hoja mediante la columna *Categoría*; cada catálogo se **exporta a Excel**. **Cotización por correo** al correo del cliente, con el PDF adjunto y paso a *Enviada*. **PDF del calendario de próximos mantenimientos** rediseñado para que los doce meses quepan en carta horizontal |

@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ingenieros Asociados · Plataforma de Gestión de Mantenimiento</title>
 
-    <!-- v2.8: favicon con el isotipo institucional (embebido: funciona sin conexión) -->
-    <link rel="icon" type="image/png" href="data:image/png;base64,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">
-    <link rel="apple-touch-icon" href="data:image/png;base64,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">
+    <!-- v5.5: favicon e icono de iPhone desde los PNG cuadrados (el service worker
+         los guarda, así que también funcionan sin conexión). El base64 anterior
+         era de 108×135, no cuadrado, y deformaba el icono en la pantalla de inicio. -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 
     <!-- v3.4: la plataforma se puede instalar como aplicación (PWA) -->
     <link rel="manifest" href="manifest.json">
@@ -45,6 +47,14 @@
         }
     </script>
     <style>
+        /* v5.5 — accesibilidad: el foco del teclado siempre se ve (antes varios
+           botones lo ocultaban con focus:outline-none), sin mostrarlo al tocar
+           con el dedo o el ratón. */
+        :focus-visible { outline: 2px solid #0E77B8 !important; outline-offset: 2px; border-radius: 4px; }
+        :focus:not(:focus-visible) { outline: none; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
         body { font-family: 'Inter', sans-serif; overflow: hidden; }
         .fade-in { animation: fadeIn 0.4s ease-out forwards; opacity: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -350,7 +360,7 @@
                  class="h-12 w-auto shrink-0 bg-white rounded-lg p-1 shadow-sm">
             <div class="min-w-0">
                 <h2 class="text-sm font-bold text-white tracking-tight leading-tight">Ingenieros Asociados</h2>
-                <p class="text-[10px] uppercase tracking-wider text-brand-200 leading-tight mt-0.5">Innovando espacios,<br>equipando soluciones</p>
+                <p class="text-xs uppercase tracking-wider text-brand-200 leading-tight mt-0.5">Innovando espacios,<br>equipando soluciones</p>
             </div>
         </div>
         <nav class="flex-1 overflow-y-auto sidebar-scroll py-4" id="sidebarMenu">
@@ -364,7 +374,7 @@
                 <div class="flex items-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     Próximos mantenimientos
-                    <span id="badgeProximos" class="hidden ml-auto text-[11px] font-bold bg-red-500 text-white rounded-full px-2 py-0.5" title="Equipos con mantenimiento vencido"></span>
+                    <span id="badgeProximos" aria-label="equipos vencidos" class="hidden ml-auto text-xs font-bold bg-red-500 text-white rounded-full px-2 py-0.5" title="Equipos con mantenimiento vencido"></span>
                 </div>
             </button>
             <button onclick="mostrarCotizador()" id="btnCotizador" class="w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
@@ -404,7 +414,7 @@
         <div id="sidebarFooter" class="hidden p-4 bg-slate-950/50 border-t border-slate-800">
             <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Sesión activa</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sesión activa</p>
                     <p id="sidebarUsuario" class="text-sm text-slate-200 font-semibold truncate" title=""></p>
                     <span id="sidebarRol" class="inline-block mt-1"></span>
                 </div>
@@ -417,10 +427,10 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
                 Instalar aplicación
             </button>
-            <button onclick="abrirCambiarPin()" class="w-full mt-2 text-[11px] font-semibold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg py-1.5 transition-colors">
+            <button onclick="abrirCambiarPin()" class="w-full mt-2 text-xs font-semibold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg py-1.5 transition-colors">
                 Cambiar mi PIN
             </button>
-            <button onclick="ejecutarDiagnostico()" class="w-full mt-2 text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
+            <button onclick="ejecutarDiagnostico()" class="w-full mt-2 text-xs text-slate-500 hover:text-slate-300 transition-colors">
                 Diagnóstico de instalación
             </button>
         </div>
@@ -471,7 +481,7 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <p class="font-bold text-lg flex-1">Error al cargar información</p>
                     <!-- v4.2: el error tampoco debe quedarse fijo si ya se resolvió -->
-                    <button onclick="ocultarError()" class="shrink-0 text-red-500 hover:text-red-800 text-xl leading-none" title="Cerrar">&times;</button>
+                    <button onclick="ocultarError()" class="shrink-0 text-red-500 hover:text-red-800 text-xl leading-none" title="Cerrar" aria-label="Cerrar">&times;</button>
                 </div>
                 <p id="errorTexto" class="mt-2 font-medium">Revisa la consola para más detalles.</p>
             </div>
@@ -483,7 +493,7 @@
         <div id="avisoBanner" class="hidden max-w-7xl mx-auto px-4 mt-6 fade-in no-print">
             <div class="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-xl shadow-sm text-sm font-medium flex items-start gap-3">
                 <span id="avisoTexto" class="flex-1"></span>
-                <button onclick="ocultarAviso()" class="shrink-0 text-amber-600 hover:text-amber-900 text-lg leading-none -mt-0.5" title="Cerrar">&times;</button>
+                <button onclick="ocultarAviso()" class="shrink-0 text-amber-600 hover:text-amber-900 text-lg leading-none -mt-0.5" title="Cerrar" aria-label="Cerrar">&times;</button>
             </div>
         </div>
 
@@ -607,7 +617,6 @@
                 <div class="pl-12 lg:pl-0">
                     <div class="flex items-center gap-3 flex-wrap">
                         <h1 class="text-3xl font-bold text-slate-900 tracking-tight" id="clienteTitulo">Nombre Hospital</h1>
-                        <button onclick="compartirEnlace()" class="no-print text-xs font-semibold text-brand-600 hover:text-brand-800 border border-brand-200 hover:border-brand-400 rounded-lg px-3 py-1.5 transition-colors" title="Copia un enlace directo a esta unidad y pestaña">Copiar enlace</button>
                     </div>
                     <div class="mt-3 flex flex-col sm:flex-row gap-4 text-sm text-slate-600">
                         <div class="flex items-center gap-1">
@@ -667,7 +676,7 @@
                     </button>
                     <button id="tabCom" onclick="cambiarPestana('com')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
                         Comunicación y Seguimiento
-                        <span id="comBadge" class="hidden bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full" title="Pendientes abiertos">0</span>
+                        <span id="comBadge" class="hidden bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full" title="Pendientes abiertos">0</span>
                     </button>
                 </div>
 
@@ -1039,7 +1048,6 @@
                     <p class="text-sm text-slate-500 mt-1">Todas las unidades en una sola lista, para planear rutas y no dejar vencer equipos. Cada equipo se programa a partir de su último preventivo o calibración y de su frecuencia.</p>
                 </div>
                 <div class="flex gap-2 shrink-0">
-                    <button onclick="compartirEnlace()" class="bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Copiar enlace</button>
                     <button onclick="exportarProximosExcel()" class="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Exportar a Excel</button>
                 </div>
             </div>
@@ -1131,29 +1139,29 @@
                                 <button id="catCancelarCli" onclick="limpiarFormCliente()" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800">Cancelar</button>
                             </div>
                             <div class="flex flex-col gap-2.5">
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Razón social *</label>
+                                <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Razón social *</label>
                                     <input id="cliRazon" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 <div class="grid grid-cols-2 gap-2">
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">R.F.C.</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">R.F.C.</label>
                                         <input id="cliRFC" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm uppercase outline-none focus:border-brand-500"></div>
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de convenio</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel de convenio</label>
                                         <select id="cliNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                                             <option value="I">Nivel I</option><option value="II">Nivel II</option><option value="III">Nivel III</option></select></div>
                                 </div>
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Dirección fiscal</label>
+                                <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Dirección fiscal</label>
                                     <textarea id="cliDireccion" rows="2" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea></div>
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Atención a</label>
+                                <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Atención a</label>
                                     <input id="cliAtencion" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 <div class="grid grid-cols-2 gap-2">
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Correo</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Correo</label>
                                         <input id="cliCorreo" type="email" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Teléfono</label>
                                         <input id="cliTelefono" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 </div>
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad en las órdenes de trabajo</label>
+                                <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Unidad en las órdenes de trabajo</label>
                                     <select id="cliUnidad" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
-                                    <p class="text-[10px] text-slate-400 mt-1">Enlaza al cliente con su historial de servicios, facturas y calendario.</p></div>
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Notas</label>
+                                    <p class="text-xs text-slate-400 mt-1">Enlaza al cliente con su historial de servicios, facturas y calendario.</p></div>
+                                <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Notas</label>
                                     <input id="cliNotas" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 <p id="cliMensaje" class="hidden text-xs rounded-lg p-2.5"></p>
                                 <button id="btnGuardarCliente" onclick="guardarClienteDesdeForm()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors">Guardar cliente</button>
@@ -1185,28 +1193,28 @@
                                     <span id="preClave" class="font-mono text-sm text-slate-800">Se asigna al guardar</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tipo</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Tipo</label>
                                         <input id="preServicio" list="listaTiposPrecio" placeholder="Preventivo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                                         <datalist id="listaTiposPrecio"></datalist></div>
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
                                         <input id="preUnidad" placeholder="Servicio, Pieza…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 </div>
-                                <div><label id="preConceptoEt" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Concepto o tipo de equipo *</label>
+                                <div><label id="preConceptoEt" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Concepto o tipo de equipo *</label>
                                     <textarea id="preConcepto" rows="2" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
-                                    <p id="preConceptoAyuda" class="text-[10px] text-slate-400 mt-1">En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.</p></div>
-                                <div id="preMarcaWrap" class="hidden"><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Marca</label>
+                                    <p id="preConceptoAyuda" class="text-xs text-slate-400 mt-1">En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.</p></div>
+                                <div id="preMarcaWrap" class="hidden"><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Marca</label>
                                     <input id="preMarca" list="listaMarcasPrecio" placeholder="Philips, Mindray, Nellcor…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                                     <datalist id="listaMarcasPrecio"></datalist></div>
                                 <div class="grid grid-cols-3 gap-2">
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel I</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel I</label>
                                         <input id="preN1" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel II</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel II</label>
                                         <input id="preN2" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
-                                    <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel III</label>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel III</label>
                                         <input id="preN3" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
                                 </div>
-                                <p class="text-[10px] text-slate-400">Si el precio es igual en los tres niveles, captúralo solo en Nivel I: se copia a los vacíos al guardar.</p>
-                                <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Notas</label>
+                                <p class="text-xs text-slate-400">Si el precio es igual en los tres niveles, captúralo solo en Nivel I: se copia a los vacíos al guardar.</p>
+                                <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Notas</label>
                                     <input id="preNotas" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 <p id="preMensaje" class="hidden text-xs rounded-lg p-2.5"></p>
                                 <button id="btnGuardarPrecio" onclick="guardarPrecioDesdeForm()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors">Guardar concepto</button>
@@ -1251,43 +1259,43 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Cliente del catálogo</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Cliente del catálogo</label>
                             <select id="cotCliente" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Cliente (razón social)</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Cliente (razón social)</label>
                             <input type="text" id="cotRazonSocial" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                         </div>
                         <div class="md:col-span-2">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Dirección</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Dirección</label>
                             <input type="text" id="cotDireccion" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">R.F.C.</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">R.F.C.</label>
                             <input type="text" id="cotRFC" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm uppercase outline-none focus:border-brand-500">
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Atención a</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Atención a</label>
                             <input type="text" id="cotAtencion" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Fecha</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Fecha</label>
                             <input type="date" id="cotFecha" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
                             <select id="cotNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                                 <option value="I">Nivel I</option><option value="II">Nivel II</option><option value="III">Nivel III</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Condiciones</label>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Condiciones</label>
                             <select id="cotCondiciones" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                                 <option>CRÉDITO</option><option>CONTADO</option><option>ANTICIPO 50%</option>
                             </select>
                         </div>
                     </div>
-                    <p class="text-[11px] text-slate-400 mt-2">Al elegir un cliente del catálogo se llenan sus datos fiscales y su nivel de convenio. Para uno nuevo, captúralo aquí y, si eres administrador, guárdalo en el catálogo.</p>
+                    <p class="text-xs text-slate-400 mt-2">Al elegir un cliente del catálogo se llenan sus datos fiscales y su nivel de convenio. Para uno nuevo, captúralo aquí y, si eres administrador, guárdalo en el catálogo.</p>
                     <button id="btnGuardarClienteDesdeCot" onclick="guardarClienteDesdeCotizacion()" class="hidden mt-2 text-xs font-semibold text-brand-600 hover:text-brand-800">+ Guardar estos datos como cliente del catálogo</button>
                 </div>
 
@@ -1310,20 +1318,37 @@
                     <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
                         <div>
                             <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Textos del documento</h3>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Vienen con los predeterminados. Lo que cambies aquí aplica solo a esta cotización.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Vienen con los predeterminados. Lo que cambies aquí aplica solo a esta cotización.</p>
                         </div>
                         <div class="flex items-center gap-3">
                             <button onclick="restablecerTextosCot()" class="text-xs font-semibold text-slate-500 hover:text-slate-800">Restablecer predeterminados</button>
                             <button id="btnTextosDefault" onclick="guardarTextosComoDefault()" class="hidden text-xs font-semibold text-brand-600 hover:text-brand-800">Guardar como predeterminados</button>
                         </div>
                     </div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Observaciones</label>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Observaciones</label>
                     <textarea id="cotObservaciones" rows="4" class="w-full mt-1 mb-3 p-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Condiciones importantes</label>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Condiciones importantes</label>
                     <textarea id="cotCondImportantes" rows="7" class="w-full mt-1 mb-3 p-3 border border-slate-300 rounded-lg text-xs outline-none focus:border-brand-500"></textarea>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Garantía</label>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Garantía</label>
                     <textarea id="cotGarantia" rows="3" class="w-full mt-1 p-3 border border-slate-300 rounded-lg text-xs outline-none focus:border-brand-500"></textarea>
-                    <p class="text-[11px] text-slate-400 mt-2">Un renglón por línea. Si un texto es largo, la segunda hoja reduce la letra para que quepa completa.</p>
+                    <p class="text-xs text-slate-400 mt-2">Un renglón por línea. Si un texto es largo, la segunda hoja reduce la letra para que quepa completa.</p>
+
+                    <!-- v5.5: firma predeterminada -->
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Firma</p>
+                                <p class="text-xs text-slate-500 mt-0.5">Se imprime sobre la línea de «Atentamente», en todas las cotizaciones y en el PDF que se envía por correo.</p>
+                            </div>
+                            <div id="cotFirmaAcciones" class="hidden flex items-center gap-3">
+                                <label for="cotFirmaArchivo" class="cursor-pointer text-xs font-semibold text-brand-600 hover:text-brand-800">Subir firma</label>
+                                <input type="file" id="cotFirmaArchivo" accept="image/png,image/jpeg" class="sr-only">
+                                <button id="btnQuitarFirma" onclick="quitarFirmaCotizacion()" class="hidden text-xs font-semibold text-red-500 hover:text-red-700">Quitar</button>
+                            </div>
+                        </div>
+                        <div id="cotFirmaVista" class="mt-2 h-24 flex items-center justify-center border border-dashed border-slate-300 rounded-lg bg-white text-xs text-slate-400"></div>
+                        <p id="cotFirmaMensaje" class="hidden text-xs mt-2"></p>
+                    </div>
                 </div>
 
                 <p id="cotMensaje" class="hidden text-xs rounded-lg p-3 mb-4"></p>
@@ -1347,15 +1372,15 @@
             <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6 no-print">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <div>
-                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
                         <select id="audCliente" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Año</label>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Año</label>
                         <select id="audAnio" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Periodo</label>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Periodo</label>
                         <select id="audPeriodo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                             <option value="anual">Todo el año</option>
                             <option value="s1">Enero – Junio</option>
@@ -1363,7 +1388,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel de precio</label>
                         <select id="audNivel" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                             <option value="I">Nivel I</option>
                             <option value="II">Nivel II</option>
@@ -1371,7 +1396,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Buscar</label>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Buscar</label>
                         <input type="text" id="audTexto" placeholder="Factura, orden, equipo…"
                                class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                     </div>
@@ -1390,7 +1415,7 @@
                     </button>
                     <button id="tabAudPend" onclick="cambiarPestanaAuditoria('pendiente')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
                         Servicios sin facturar
-                        <span id="audBadgePend" class="hidden bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                        <span id="audBadgePend" class="hidden bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
                     </button>
                     <div class="ml-auto flex items-center gap-2 py-2.5">
                         <!-- v4.4: registrar en una pasada todas las facturas del mes -->
@@ -1431,7 +1456,7 @@
                     </select>
                 </div>
                 <div class="flex items-center justify-between gap-3 mt-4">
-                    <p class="text-[11px] text-slate-400 leading-snug">
+                    <p class="text-xs text-slate-400 leading-snug">
                         Al editar, deja el PIN vacío para conservar el actual.
                         El PIN no se guarda en claro, se almacena su huella. <strong>Cada persona necesita un PIN distinto</strong>:
                         como el ingreso es solo con PIN, es lo que la identifica en la bitácora.
@@ -1445,7 +1470,7 @@
                 <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
                     <div>
                         <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Tarifario de mantenimiento</h3>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Se captura en la pestaña <span class="font-mono">Precios_Mantenimiento</span>. Aplica a preventivos y calibraciones.</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Se captura en la pestaña <span class="font-mono">Precios_Mantenimiento</span>. Aplica a preventivos y calibraciones.</p>
                     </div>
                     <button onclick="renderTarifario()" class="text-xs font-semibold text-brand-600 hover:text-brand-700">Actualizar</button>
                 </div>
@@ -1464,7 +1489,7 @@
     </main>
 
     <!-- Modal Rutina de Mantenimiento -->
-    <div id="modalRutina" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50 overflow-y-auto py-8 no-print">
+    <div id="modalRutina" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50 overflow-y-auto py-8 no-print">
         <div class="bg-white w-full max-w-4xl rounded-xl shadow-2xl relative flex flex-col mx-4 my-auto print:w-full print:max-w-none print:shadow-none print:rounded-none">
 
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl no-print-modal sticky top-0 z-10">
@@ -1472,7 +1497,7 @@
                     <h3 class="text-lg font-bold text-slate-800">Generador de Rutina</h3>
                     <!-- v3.0: el encabezado y el pie del NAVEGADOR no se pueden
                          desactivar por código; hay que quitarlos en el diálogo. -->
-                    <p class="text-[11px] text-slate-500 mt-0.5">
+                    <p class="text-xs text-slate-500 mt-0.5">
                         Al imprimir, desactive <span class="font-semibold">“Encabezados y pies de página”</span> en el diálogo del navegador:
                         el documento ya trae su propia leyenda al pie.
                     </p>
@@ -1557,8 +1582,8 @@
                             <span class="font-bold text-base text-slate-900 w-8">%</span>
                         </div>
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1 px-3 italic">Condiciones registradas en el sitio al momento de la medición.</p>
-                    <p id="rutAmbientalOrigen" class="hidden text-[10px] text-slate-400 px-3 italic no-print"></p>
+                    <p class="text-xs text-slate-400 mt-1 px-3 italic">Condiciones registradas en el sitio al momento de la medición.</p>
+                    <p id="rutAmbientalOrigen" class="hidden text-xs text-slate-400 px-3 italic no-print"></p>
                 </div>
 
                 <!-- v2.9: Datos del equipo patrón tomados del catálogo de la hoja -->
@@ -1569,7 +1594,7 @@
                          del equipo usado: el dato válido es el del catálogo. -->
                     <div class="text-sm px-3 border border-slate-200 rounded-lg p-3 bg-slate-50/50">
                         <div id="rutPatronDetalle" class="hidden"></div>
-                        <p id="rutPatronAviso" class="hidden text-[11px] italic text-slate-500"></p>
+                        <p id="rutPatronAviso" class="hidden text-xs italic text-slate-500"></p>
                     </div>
                 </div>
 
@@ -1633,7 +1658,7 @@
                             <div class="border-t-2 border-slate-800 w-full text-center pt-2">
                                 <p class="font-black uppercase tracking-widest text-sm text-slate-900">Autorizo</p>
                                 <p id="rutNombreAutorizado" contenteditable="true" spellcheck="false" data-placeholder="Nombre del responsable autorizado" class="mt-1 text-sm font-semibold text-slate-800 outline-none min-h-[1.5rem] focus:bg-brand-50 rounded px-2 transition-colors"></p>
-                                <p class="text-[10px] uppercase tracking-wider text-slate-500 mt-0.5">Nombre y firma del responsable autorizado</p>
+                                <p class="text-xs uppercase tracking-wider text-slate-500 mt-0.5">Nombre y firma del responsable autorizado</p>
                             </div>
                         </div>
                     </div>
@@ -1646,7 +1671,7 @@
 
                 <!-- v2.8: leyenda legal al final del documento (sustituida por el pie en impresión) -->
                 <div id="rutinaLeyendaLegal" class="mt-6 pt-3 border-t border-slate-300 text-center">
-                    <p class="text-[10px] uppercase tracking-widest font-semibold text-slate-500">
+                    <p class="text-xs uppercase tracking-widest font-semibold text-slate-500">
                         Prohibida su reproducción parcial o total sin la autorización de la empresa
                     </p>
                 </div>
@@ -1655,11 +1680,11 @@
     </div>
 
     <!-- Modal Ventas -->
-    <div id="modalOportunidades" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center z-50 fade-in no-print">
+    <div id="modalOportunidades" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center z-50 fade-in no-print">
         <div class="bg-white rounded-2xl w-11/12 max-w-5xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h3 class="text-lg font-bold text-slate-800">Detalle de Oportunidades de Venta</h3>
-                <button id="cerrarModal" class="text-slate-400 hover:text-slate-600 focus:outline-none bg-white rounded-full p-1 shadow-sm transition-colors hover:bg-slate-100">
+                <button id="cerrarModal" aria-label="Cerrar" class="text-slate-400 hover:text-slate-600 focus:outline-none bg-white rounded-full p-1 shadow-sm transition-colors hover:bg-slate-100">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -1683,14 +1708,14 @@
     </div>
 
     <!-- ============ v4.4: carga masiva de facturas ============ -->
-    <div id="modalLote" class="hidden fixed inset-0 z-[78] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+    <div id="modalLote" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[78] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-5xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
             <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
                 <div>
                     <h3 class="text-base font-bold text-slate-800">Carga masiva de facturas</h3>
                     <p id="loteSubtitulo" class="text-xs text-slate-500 mt-0.5"></p>
                 </div>
-                <button onclick="cerrarModalLote()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+                <button onclick="cerrarModalLote()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Cerrar">&times;</button>
             </div>
 
             <div id="loteResumen" class="px-5 pt-4"></div>
@@ -1710,14 +1735,14 @@
     </div>
 
     <!-- ============ v3.9: exportación del calendario de servicios ============ -->
-    <div id="modalExportar" class="hidden fixed inset-0 z-[76] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+    <div id="modalExportar" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[76] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
             <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
                 <div>
                     <h3 class="text-base font-bold text-slate-800">Exportar calendario de próximos mantenimientos</h3>
                     <p id="expSubtitulo" class="text-xs text-slate-500 mt-0.5"></p>
                 </div>
-                <button onclick="cerrarModalExportar()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+                <button onclick="cerrarModalExportar()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Cerrar">&times;</button>
             </div>
 
             <div class="p-5 overflow-y-auto flex flex-col gap-4">
@@ -1732,7 +1757,7 @@
                         <select id="expAnio" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                         <select id="expRango" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     </div>
-                    <p class="text-[11px] text-slate-400 mt-1">Por año calendario: el primer semestre va de enero a junio y el segundo de julio a diciembre. Cada equipo se programa a partir de su último servicio y de su frecuencia de mantenimiento.</p>
+                    <p class="text-xs text-slate-400 mt-1">Por año calendario: el primer semestre va de enero a junio y el segundo de julio a diciembre. Cada equipo se programa a partir de su último servicio y de su frecuencia de mantenimiento.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1786,14 +1811,14 @@
     </div>
 
     <!-- ============ v5.2: envío de la cotización por correo ============ -->
-    <div id="modalCorreoCot" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[77] items-center justify-center p-4 no-print">
+    <div id="modalCorreoCot" role="dialog" aria-modal="true" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[77] items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
             <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
                 <div>
                     <h3 class="text-base font-bold text-slate-800">Enviar cotización por correo</h3>
                     <p id="ccotContexto" class="text-xs text-slate-500 mt-0.5"></p>
                 </div>
-                <button onclick="cerrarCorreoCotizacion()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" title="Cerrar">&times;</button>
+                <button onclick="cerrarCorreoCotizacion()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" title="Cerrar" aria-label="Cerrar">&times;</button>
             </div>
             <div class="p-5 overflow-y-auto flex flex-col gap-3">
                 <div>
@@ -1845,14 +1870,14 @@
     <div id="cotizacionImprimible" class="hidden"></div>
 
     <!-- ============ v3.8: registro de factura ============ -->
-    <div id="modalFactura" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+    <div id="modalFactura" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
             <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
                 <div>
                     <h3 id="tituloModalFactura" class="text-base font-bold text-slate-800">Registrar factura</h3>
                     <p id="subtituloModalFactura" class="text-xs text-slate-500 mt-0.5"></p>
                 </div>
-                <button onclick="cerrarModalFactura()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+                <button onclick="cerrarModalFactura()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Cerrar">&times;</button>
             </div>
             <div class="p-5 overflow-y-auto flex flex-col gap-3">
                 <!-- v4.3: leer el comprobante evita recapturar a mano lo que ya viene en él -->
@@ -1860,14 +1885,14 @@
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p class="text-xs font-bold text-slate-700">Leer la factura</p>
-                            <p class="text-[11px] text-slate-500 leading-snug">El XML del CFDI llena folio, fecha, folio fiscal e importes por orden.</p>
+                            <p class="text-xs text-slate-500 leading-snug">El XML del CFDI llena folio, fecha, folio fiscal e importes por orden.</p>
                         </div>
                         <label class="shrink-0 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer transition-colors">
                             Elegir XML o PDF
                             <input type="file" id="facComprobante" accept=".xml,.pdf,text/xml,application/pdf" class="hidden">
                         </label>
                     </div>
-                    <div id="facLecturaCFDI" class="hidden mt-3 text-[11px] rounded-lg p-3"></div>
+                    <div id="facLecturaCFDI" class="hidden mt-3 text-xs rounded-lg p-3"></div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1899,11 +1924,11 @@
                 </div>
                 <div class="border border-slate-200 rounded-lg overflow-hidden">
                     <div class="bg-slate-50 px-4 py-2 flex items-center justify-between">
-                        <span class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Órdenes que cubre esta factura</span>
+                        <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Órdenes que cubre esta factura</span>
                         <span id="facTotal" class="text-xs font-bold text-slate-700"></span>
                     </div>
                     <div id="facListaOrdenes" class="max-h-64 overflow-y-auto divide-y divide-slate-100"></div>
-                    <p class="text-[11px] text-slate-400 px-4 py-2 border-t border-slate-100 leading-snug">
+                    <p class="text-xs text-slate-400 px-4 py-2 border-t border-slate-100 leading-snug">
                         Preventivos y calibraciones traen el importe sugerido por el tarifario según el nivel de convenio;
                         corrígelo si se facturó otra cantidad. Correctivos y entregas son de precio variable: su importe se captura aquí.
                     </p>
@@ -1921,14 +1946,14 @@
     </div>
 
     <!-- ============ v3.6: cada quien cambia su propio PIN ============ -->
-    <div id="modalCambiarPin" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+    <div id="modalCambiarPin" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[75] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-md rounded-xl shadow-2xl">
             <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
                 <div>
                     <h3 class="text-base font-bold text-slate-800">Cambiar mi PIN</h3>
                     <p class="text-xs text-slate-500 mt-0.5">Nadie más lo conoce, ni el administrador.</p>
                 </div>
-                <button onclick="cerrarCambiarPin()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+                <button onclick="cerrarCambiarPin()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Cerrar">&times;</button>
             </div>
             <div class="p-5 flex flex-col gap-3">
                 <div>
@@ -1946,7 +1971,7 @@
                     <input type="password" id="pinConfirmar" autocomplete="off"
                            class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                 </div>
-                <p class="text-[11px] text-slate-400 leading-snug">
+                <p class="text-xs text-slate-400 leading-snug">
                     Mínimo 4 caracteres; se recomiendan 6. En cuanto lo cambies, el anterior deja de servir.
                 </p>
                 <p id="mensajePin" class="hidden text-xs rounded-lg p-3"></p>
@@ -1966,7 +1991,7 @@
                     <h3 class="text-base font-bold text-slate-800">Diagnóstico de instalación</h3>
                     <p class="text-xs text-slate-500 mt-0.5">Revisa uno por uno los requisitos que exige el navegador para ofrecer la instalación.</p>
                 </div>
-                <button onclick="cerrarDiagnostico()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+                <button onclick="cerrarDiagnostico()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Cerrar">&times;</button>
             </div>
             <div id="resultadoDiagnostico" class="p-5 overflow-y-auto text-sm"></div>
             <div class="flex justify-between items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
@@ -1981,10 +2006,10 @@
                                         bg-slate-900 text-white rounded-xl shadow-2xl px-5 py-3 flex items-center gap-4">
         <div>
             <p class="text-sm font-semibold">Hay una versión nueva de la plataforma</p>
-            <p class="text-[11px] text-slate-400">Se aplica al recargar. Tu sesión no se pierde.</p>
+            <p class="text-xs text-slate-400">Se aplica al recargar. Tu sesión no se pierde.</p>
         </div>
         <button id="btnAplicarActualizacion" class="shrink-0 bg-brand-500 hover:bg-brand-400 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">Actualizar</button>
-        <button id="btnPosponerActualizacion" class="shrink-0 text-slate-400 hover:text-white text-lg leading-none px-1" title="Más tarde">&times;</button>
+        <button id="btnPosponerActualizacion" class="shrink-0 text-slate-400 hover:text-white text-lg leading-none px-1" title="Más tarde" aria-label="Más tarde">&times;</button>
     </div>
 
     <!-- ============ v3.1: Administración de usuarios (solo administrador) ============ -->
@@ -1993,7 +2018,7 @@
     
 
     <!-- ============ v2.6: Modal de control de acceso ============ -->
-    <div id="modalAcceso" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-sm items-center justify-center z-[70] no-print px-4">
+    <div id="modalAcceso" role="dialog" aria-modal="true" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-sm items-center justify-center z-[70] no-print px-4">
         <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 fade-in">
             <div class="flex flex-col items-center text-center mb-6">
                 <!-- v2.8: logotipo institucional en la pantalla de acceso -->
@@ -2009,7 +2034,7 @@
                 <input type="hidden" id="accesoNombre" value="">
                 <input type="password" id="accesoPin" placeholder="PIN de acceso" inputmode="numeric" autocomplete="off"
                        class="w-full p-3 border border-slate-300 rounded-xl text-lg text-center tracking-[0.4em] outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-300">
-                <p class="text-[11px] text-slate-400 text-center leading-snug">Tu PIN te identifica: el nombre se registra solo. Si administras la plataforma, escribe aquí tu código maestro.</p>
+                <p class="text-xs text-slate-400 text-center leading-snug">Tu PIN te identifica: el nombre se registra solo. Si administras la plataforma, escribe aquí tu código maestro.</p>
                 <p id="accesoError" class="hidden text-xs font-semibold text-red-600 text-center"></p>
                 <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-xl shadow-sm transition-colors mt-1">Entrar al panel</button>
             </form>
@@ -2017,7 +2042,7 @@
     </div>
 
     <!-- ============ v2.7: Modal de envío de correo al cliente ============ -->
-    <div id="modalCorreo" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] items-center justify-center p-4 no-print">
+    <div id="modalCorreo" role="dialog" aria-modal="true" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
 
             <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
@@ -2025,7 +2050,7 @@
                     <h3 class="text-base font-bold text-slate-800">Enviar seguimiento por correo</h3>
                     <p id="correoContexto" class="text-xs text-slate-500 mt-0.5"></p>
                 </div>
-                <button data-accion="cerrar-correo" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" title="Cerrar">&times;</button>
+                <button data-accion="cerrar-correo" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" title="Cerrar" aria-label="Cerrar">&times;</button>
             </div>
 
             <div class="p-5 overflow-y-auto flex flex-col gap-3">
@@ -2033,7 +2058,7 @@
                     <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Para</label>
                     <input type="text" id="correoPara" placeholder="contacto@hospital.mx, jefatura@hospital.mx"
                            class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
-                    <p id="correoSugerencias" class="text-[11px] text-slate-500 mt-1"></p>
+                    <p id="correoSugerencias" class="text-xs text-slate-500 mt-1"></p>
                 </div>
 
                 <div>
@@ -2067,7 +2092,7 @@
                         <input type="checkbox" id="correoEvidencia" class="rounded border-slate-300">
                         <span>Adjuntar la evidencia fotográfica de la orden vinculada</span>
                     </label>
-                    <p class="text-[11px] text-slate-400 mt-2">Máximo 10 MB en total. Para archivos más pesados, sube a Drive y pega el enlace en el mensaje.</p>
+                    <p class="text-xs text-slate-400 mt-2">Máximo 10 MB en total. Para archivos más pesados, sube a Drive y pega el enlace en el mensaje.</p>
                 </div>
 
                 <div class="flex items-center gap-2">
@@ -2156,7 +2181,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '5.4';
+        const VERSION_APP = '5.5';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -3468,7 +3493,7 @@
 
             // La columna Laboratorio solo aparece si algún registro la tiene
             const hayLab = patrones.some(p => p.laboratorio);
-            const th = 'text-left font-semibold text-slate-600 uppercase text-[10px] tracking-wider px-2 py-1.5 border border-slate-200';
+            const th = 'text-left font-semibold text-slate-600 uppercase text-xs tracking-wider px-2 py-1.5 border border-slate-200';
             const td = 'px-2 py-1.5 border border-slate-200 align-top';
 
             detalle.innerHTML =
@@ -3494,7 +3519,7 @@
                             (hayLab ? '<td class="' + td + '">' + esc(p.laboratorio || '—') + '</td>' : '') +
                         '</tr>').join('') +
                     '</tbody></table></div>' +
-                '<p class="text-[10px] text-slate-400 mt-2 italic">' +
+                '<p class="text-xs text-slate-400 mt-2 italic">' +
                     patrones.length + ' equipo' + (patrones.length === 1 ? '' : 's') +
                     ' de calibración utilizado' + (patrones.length === 1 ? '' : 's') + ' en este servicio.</p>';
             detalle.classList.remove('hidden');
@@ -3788,7 +3813,7 @@
             if (!f) return '<span class="text-slate-300">—</span>';
             return '<button data-factura="' + esc(f.id) + '" class="btn-ver-factura text-left group">' +
                        '<span class="block text-xs font-bold text-green-700 group-hover:underline">' + esc(f.numero) + '</span>' +
-                       '<span class="block text-[10px] text-slate-500">' + esc(fechaCortaFactura(f.fecha)) + '</span>' +
+                       '<span class="block text-xs text-slate-500">' + esc(fechaCortaFactura(f.fecha)) + '</span>' +
                    '</button>';
         }
 
@@ -4014,9 +4039,9 @@
 
         function tarjetaIndicador(titulo, valor, detalle, color) {
             return '<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">' +
-                       '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">' + esc(titulo) + '</p>' +
+                       '<p class="text-xs font-bold uppercase tracking-wide text-slate-500">' + esc(titulo) + '</p>' +
                        '<p class="text-2xl font-bold mt-1 ' + (color || 'text-slate-900') + '">' + valor + '</p>' +
-                       '<p class="text-[11px] text-slate-500 mt-0.5">' + esc(detalle) + '</p>' +
+                       '<p class="text-xs text-slate-500 mt-0.5">' + esc(detalle) + '</p>' +
                    '</div>';
         }
 
@@ -4065,7 +4090,7 @@
                 const detalle = !abierta ? '' :
                     '<div class="border-t border-slate-200 bg-slate-50">' +
                         '<table class="min-w-full text-xs">' +
-                        '<thead><tr class="text-[10px] uppercase tracking-wide text-slate-500">' +
+                        '<thead><tr class="text-xs uppercase tracking-wide text-slate-500">' +
                             '<th class="px-4 py-2 text-left">Orden</th><th class="px-4 py-2 text-left">Equipo</th>' +
                             '<th class="px-4 py-2 text-left">Serie</th><th class="px-4 py-2 text-left">Servicio</th>' +
                             '<th class="px-4 py-2 text-left">Fecha</th>' +
@@ -4078,15 +4103,15 @@
                               '<td colspan="7" class="px-4 py-2 text-red-600 italic">La orden ya no está en el historial descargado</td></tr>'
                             : '<tr class="border-t border-slate-200">' +
                                 '<td class="px-4 py-2 font-bold text-slate-700">' + esc(sv.id) + '</td>' +
-                                '<td class="px-4 py-2">' + esc(sv.equipo) + '<span class="block text-[10px] text-slate-500">' + esc(sv.marca + ' / ' + sv.modelo) + '</span></td>' +
+                                '<td class="px-4 py-2">' + esc(sv.equipo) + '<span class="block text-xs text-slate-500">' + esc(sv.marca + ' / ' + sv.modelo) + '</span></td>' +
                                 '<td class="px-4 py-2 text-slate-600">' + esc(sv.serie) + '</td>' +
                                 '<td class="px-4 py-2 text-slate-500">' + esc(sv.tipo) + '</td>' +
                                 '<td class="px-4 py-2 text-slate-600">' + esc(sv.fecha) + '</td>' +
                                 '<td class="px-4 py-2 text-right font-semibold ' + (sv.facturado === null ? 'text-amber-600' : 'text-slate-800') + '">' +
                                     (sv.facturado === null ? 'sin capturar' : fmtMoneda(sv.facturado, 'MXN')) + '</td>' +
                                 '<td class="px-4 py-2 text-right text-slate-500">' +
-                                    (sv.variable ? '<span class="text-[10px] uppercase tracking-wide">variable</span>'
-                                                 : (sv.sinTarifa ? '<span class="text-amber-600 text-[10px] uppercase">sin tarifa</span>'
+                                    (sv.variable ? '<span class="text-xs uppercase tracking-wide">variable</span>'
+                                                 : (sv.sinTarifa ? '<span class="text-amber-600 text-xs uppercase">sin tarifa</span>'
                                                                  : fmtMoneda(sv.esperado, 'MXN'))) + '</td>' +
                                 '<td class="px-4 py-2 text-right font-semibold ' +
                                     (sv.diferencia === null ? 'text-slate-300' : (sv.diferencia === 0 ? 'text-green-700' : 'text-amber-700')) + '">' +
@@ -4102,9 +4127,9 @@
                         '<span class="text-xs text-slate-500">' + esc(fechaCortaFactura(f.fecha)) + '</span>' +
                         '<span class="text-xs text-slate-700 font-semibold">' + esc(f.cliente || '—') + '</span>' +
                         '<span class="text-xs text-slate-500">' + f.servicios.length + ' servicio(s)</span>' +
-                        (f.conDiferencia ? '<span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">' + f.conDiferencia + ' con diferencia</span>' : '') +
-                        (f.sinImporte ? '<span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">' + f.sinImporte + ' sin importe</span>' : '') +
-                        (f.huerfanas ? '<span class="text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">' + f.huerfanas + ' sin respaldo</span>' : '') +
+                        (f.conDiferencia ? '<span class="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">' + f.conDiferencia + ' con diferencia</span>' : '') +
+                        (f.sinImporte ? '<span class="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">' + f.sinImporte + ' sin importe</span>' : '') +
+                        (f.huerfanas ? '<span class="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">' + f.huerfanas + ' sin respaldo</span>' : '') +
                         '<span class="ml-auto font-bold text-green-700">' + fmtMoneda(f.importe, 'MXN') + '</span>' +
                         '<span class="text-slate-400 text-xs no-print">' + (abierta ? '▲' : '▼') + '</span>' +
                     '</button>' + detalle +
@@ -4119,7 +4144,7 @@
                                  'Todos los servicios del periodo están facturados.</p>';
                 return;
             }
-            const th = 'px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const th = 'px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML =
                 '<div class="overflow-x-auto rounded-lg border border-slate-200">' +
                 '<table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr>' +
@@ -4133,7 +4158,7 @@
                         '<td class="px-4 py-3 font-bold text-slate-700">' + esc(x.id) + '</td>' +
                         '<td class="px-4 py-3 text-slate-600">' + esc(x.cliente) + '</td>' +
                         '<td class="px-4 py-3">' + esc(x.equipo) +
-                            '<span class="block text-[10px] text-slate-500">' + esc(x.marca + ' / ' + x.modelo) + '</span></td>' +
+                            '<span class="block text-xs text-slate-500">' + esc(x.marca + ' / ' + x.modelo) + '</span></td>' +
                         '<td class="px-4 py-3 text-slate-600">' + esc(x.serie) + '</td>' +
                         '<td class="px-4 py-3 text-slate-500 text-xs">' + esc(x.tipo) + '</td>' +
                         '<td class="px-4 py-3 text-slate-600">' + esc(x.fecha) + '</td>' +
@@ -4929,6 +4954,63 @@
             return abrirDialogo(texto, Object.assign({ titulo: 'Confirmar', textoSi: 'Sí, continuar', textoNo: 'Cancelar' }, opciones || {}));
         }
 
+
+        /* ============================================================
+           v5.5 — VENTANAS ACCESIBLES
+           Al abrirse cualquier ventana (#modal…) el foco entra en ella, Tab
+           no se escapa a la página de atrás y Esc la cierra con su propio
+           botón de cerrar. Al cerrarse, el foco regresa a donde estaba. Se
+           hace observando las ventanas, sin tocar el código de cada una.
+           ============================================================ */
+        (function ventanasAccesibles() {
+            const FOCO = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+            const visibles = (m) => Array.from(m.querySelectorAll(FOCO)).filter(e => e.offsetParent !== null);
+            const abierta = (m) => !m.classList.contains('hidden') && getComputedStyle(m).display !== 'none';
+            const previo = new Map();
+            const pila = [];
+
+            const alAbrir = (m) => {
+                if (pila.includes(m)) return;
+                pila.push(m);
+                previo.set(m, document.activeElement);
+                setTimeout(() => {
+                    if (m.contains(document.activeElement)) return;
+                    const campo = m.querySelector('input:not([type=hidden]):not([disabled]), textarea, select');
+                    const destino = (campo && campo.offsetParent !== null) ? campo : visibles(m)[0];
+                    if (destino) destino.focus();
+                }, 60);
+            };
+            const alCerrar = (m) => {
+                const i = pila.indexOf(m);
+                if (i === -1) return;
+                pila.splice(i, 1);
+                const p = previo.get(m);
+                previo.delete(m);
+                try { if (p && document.contains(p) && p.focus) p.focus(); } catch (_) {}
+            };
+
+            document.querySelectorAll('[id^="modal"]').forEach(m => {
+                if (m.id === 'modalDialogo') return;   // ese ya lo maneja abrirDialogo()
+                new MutationObserver(() => (abierta(m) ? alAbrir : alCerrar)(m))
+                    .observe(m, { attributes: true, attributeFilter: ['class', 'style'] });
+            });
+
+            document.addEventListener('keydown', (e) => {
+                const m = pila[pila.length - 1];
+                if (!m || !abierta(m)) return;
+                if (e.key === 'Escape') {
+                    const cerrar = m.querySelector('[aria-label="Cerrar"], [aria-label="Más tarde"]');
+                    if (cerrar) { e.preventDefault(); cerrar.click(); }
+                } else if (e.key === 'Tab') {
+                    const f = visibles(m);
+                    if (!f.length) return;
+                    const i = f.indexOf(document.activeElement);
+                    if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }
+                    else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
+                }
+            });
+        })();
+
         let navegandoDesdeHash = false;
 
         function hashUnidad(unidad, tab) {
@@ -5007,21 +5089,6 @@
             envolver('cambiarPestanaCatalogo', (t) => '#catalogos/' + t);
         })();
 
-        async function compartirEnlace() {
-            const url = location.href;
-            const titulo = document.title;
-            try {
-                if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-                    await navigator.share({ title: titulo, url: url });
-                    return;
-                }
-                await navigator.clipboard.writeText(url);
-                mostrarAviso('Enlace copiado. Quien lo abra entra con su PIN y llega a esta misma vista.');
-            } catch (err) {
-                if (err && err.name === 'AbortError') return;
-                avisar('No se pudo copiar automáticamente. Copia esta dirección:\n\n' + url);
-            }
-        }
 
         document.getElementById('btnExportarExcel').addEventListener('click', exportarCalendarioExcel);
         document.getElementById('btnExportarPDF').addEventListener('click', exportarCalendarioPDF);
@@ -5240,7 +5307,7 @@
                 ok:    'bg-green-50 text-green-800 border border-green-200',
                 aviso: 'bg-amber-50 text-amber-800 border border-amber-200'
             };
-            el.className = 'mt-3 text-[11px] rounded-lg p-3 ' + (estilos[tipo] || estilos.ok);
+            el.className = 'mt-3 text-xs rounded-lg p-3 ' + (estilos[tipo] || estilos.ok);
             el.innerHTML = html;
             el.classList.toggle('hidden', !html);
         }
@@ -5299,7 +5366,7 @@
             partes.push('<p>' + esc(datos.numero || 'sin folio') + ' · ' + esc(datos.fecha || 'sin fecha') +
                         (datos.subtotal !== null ? ' · subtotal ' + fmtMoneda(datos.subtotal, 'MXN') : '') + '</p>');
             if (datos.receptor) partes.push('<p class="opacity-80">Receptor: ' + esc(datos.receptor) + '</p>');
-            if (datos.uuid) partes.push('<p class="font-mono text-[10px] opacity-80">' + esc(datos.uuid) + '</p>');
+            if (datos.uuid) partes.push('<p class="font-mono text-xs opacity-80">' + esc(datos.uuid) + '</p>');
 
             if (asignadas.length) {
                 partes.push('<p>' + asignadas.length + ' orden(es) con importe asignado' +
@@ -5726,14 +5793,14 @@
                     (catalogoClientes.length ? 'Ningún cliente coincide.' : 'Todavía no hay clientes. Captura el primero con el formulario.') + '</p>';
                 return;
             }
-            const th = 'px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const th = 'px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
                 '<th class="' + th + '">Cliente</th><th class="' + th + '">RFC</th><th class="' + th + '">Unidad</th>' +
                 '<th class="' + th + '">Nivel</th><th class="' + th + '"></th></tr></thead><tbody class="divide-y divide-slate-100">' +
                 lista.map(c =>
                     '<tr class="hover:bg-slate-50">' +
                         '<td class="px-3 py-2"><p class="font-semibold text-slate-800">' + esc(c.razonSocial) + '</p>' +
-                            '<p class="text-[11px] text-slate-500">' + esc(c.atencion || c.correo || '') + '</p></td>' +
+                            '<p class="text-xs text-slate-500">' + esc(c.atencion || c.correo || '') + '</p></td>' +
                         '<td class="px-3 py-2 font-mono text-xs text-slate-600">' + esc(c.rfc || '—') + '</td>' +
                         '<td class="px-3 py-2 text-xs text-slate-600">' + (c.unidad ? esc(c.unidad)
                             : '<span class="text-amber-600">sin enlazar</span>') + '</td>' +
@@ -5863,7 +5930,7 @@
                                           : (esProd ? 'Sin productos todavía.' : 'Sin servicios todavía.')) + '</p>';
                 return;
             }
-            const th = 'px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const th = 'px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50 sticky top-0"><tr>' +
                 '<th class="' + th + ' text-left whitespace-nowrap">No. cat.</th>' +
                 '<th class="' + th + ' text-left">Tipo</th><th class="' + th + ' text-left">' + (esProd ? 'Producto' : 'Concepto') + '</th>' +
@@ -5876,7 +5943,7 @@
                         '<td class="px-3 py-2 font-mono text-xs text-slate-700 whitespace-nowrap">' + (x.clave ? esc(x.clave) : '<span class="text-slate-400">—</span>') + '</td>' +
                         '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + esc(x.servicio) + '</td>' +
                         '<td class="px-3 py-2"><p class="text-slate-800">' + esc(x.concepto) + '</p>' +
-                            (x.unidad ? '<p class="text-[10px] text-slate-400">' + esc(x.unidad) + '</p>' : '') + '</td>' +
+                            (x.unidad ? '<p class="text-xs text-slate-400">' + esc(x.unidad) + '</p>' : '') + '</td>' +
                         (esProd ? '<td class="px-3 py-2 text-xs text-slate-600">' + (x.marca ? esc(x.marca) : '<span class="text-slate-400">—</span>') + '</td>' : '') +
                         ['n1', 'n2', 'n3'].map(k => '<td class="px-3 py-2 text-right font-mono text-xs whitespace-nowrap">' +
                             fmtMoneda(x[k], x.moneda) + '</td>').join('') +
@@ -6062,6 +6129,112 @@
             } catch (err) { mensajeCotUI(err.message, 'error'); }
         }
 
+        /* ============================================================
+           v5.5 — FIRMA PREDETERMINADA
+           La imagen se prepara en el navegador antes de subirla:
+           · se reduce a 600 × 240 px como máximo (de sobra para 62 mm impresos);
+           · el fondo blanco o casi blanco se vuelve transparente, para que la
+             firma se monte sobre la línea como si fuera tinta;
+           · se recorta al trazo, para que no la descentren los márgenes.
+           Así una foto de la firma de 3 MB queda en 20–60 KB.
+           ============================================================ */
+        let firmaCotizacion = '';
+
+        async function cargarFirmaCotizacion() {
+            if (!hayBackend()) return;
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'firmaCotizacion', token: tokenSesion() })
+                });
+                const j = await r.json().catch(() => null);
+                firmaCotizacion = (j && j.ok && j.firma) ? j.firma : '';
+            } catch (_) { /* sin firma: se imprime el espacio en blanco de siempre */ }
+            pintarFirmaCotizacion();
+        }
+
+        function pintarFirmaCotizacion() {
+            const vista = document.getElementById('cotFirmaVista');
+            if (!vista) return;
+            vista.innerHTML = firmaCotizacion
+                ? '<img src="' + firmaCotizacion + '" alt="Firma predeterminada" class="max-h-20 max-w-full object-contain">'
+                : 'Sin firma: la cotización sale con el espacio en blanco para firmar a mano.';
+            document.getElementById('cotFirmaAcciones').classList.toggle('hidden', !esAdministrador());
+            document.getElementById('btnQuitarFirma').classList.toggle('hidden', !firmaCotizacion);
+        }
+
+        function mensajeFirmaUI(texto, tipo) {
+            const el = document.getElementById('cotFirmaMensaje');
+            el.innerText = texto;
+            el.className = 'text-xs mt-2 ' + (tipo === 'error' ? 'text-red-600' : 'text-green-700');
+            el.classList.toggle('hidden', !texto);
+        }
+
+        function prepararImagenFirma(archivo) {
+            return new Promise((resolve, reject) => {
+                const lector = new FileReader();
+                lector.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+                lector.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('El archivo no es una imagen válida.'));
+                    img.onload = () => {
+                        const escala = Math.min(1, 600 / img.width, 240 / img.height);
+                        const w = Math.max(1, Math.round(img.width * escala)), h = Math.max(1, Math.round(img.height * escala));
+                        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+                        const ctx = cv.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        const datos = ctx.getImageData(0, 0, w, h), p = datos.data;
+                        let x0 = w, y0 = h, x1 = -1, y1 = -1;
+                        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+                            const i = (y * w + x) * 4;
+                            const luz = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+                            if (p[i + 3] < 20 || luz > 225) { p[i + 3] = 0; continue; }          // fondo → transparente
+                            if (luz > 170) p[i + 3] = Math.round(p[i + 3] * (225 - luz) / 55);    // bordes suaves
+                            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+                        }
+                        if (x1 < 0) { reject(new Error('No se encontró trazo en la imagen. ¿Está en blanco?')); return; }
+                        ctx.putImageData(datos, 0, 0);
+                        const m = 4;
+                        x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(w - 1, x1 + m); y1 = Math.min(h - 1, y1 + m);
+                        const out = document.createElement('canvas');
+                        out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+                        out.getContext('2d').drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+                        resolve(out.toDataURL('image/png'));
+                    };
+                    img.src = lector.result;
+                };
+                lector.readAsDataURL(archivo);
+            });
+        }
+
+        document.getElementById('cotFirmaArchivo').addEventListener('change', async (e) => {
+            const archivo = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (!archivo) return;
+            if (!/^image\/(png|jpeg)$/.test(archivo.type)) { mensajeFirmaUI('Usa una imagen PNG o JPG.', 'error'); return; }
+            try {
+                mensajeFirmaUI('Preparando la imagen…', 'ok');
+                const dataUrl = await prepararImagenFirma(archivo);
+                if (dataUrl.length > 550000) throw new Error('La firma resultó demasiado grande. Prueba con una imagen más sencilla.');
+                await peticionAdmin('guardarFirmaCotizacion', { firma: dataUrl });
+                firmaCotizacion = dataUrl;
+                pintarFirmaCotizacion();
+                mensajeFirmaUI('Firma guardada. Ya sale en las cotizaciones.', 'ok');
+                registrarEvento('firma_cotizacion', 'Firma actualizada');
+            } catch (err) { mensajeFirmaUI(err.message, 'error'); }
+        });
+
+        async function quitarFirmaCotizacion() {
+            if (!(await confirmar('¿Quitar la firma predeterminada? Las cotizaciones volverán a salir con el espacio en blanco para firmar a mano.',
+                                  { titulo: 'Quitar firma', textoSi: 'Quitar', peligro: true }))) return;
+            try {
+                await peticionAdmin('guardarFirmaCotizacion', { firma: '' });
+                firmaCotizacion = '';
+                pintarFirmaCotizacion();
+                mensajeFirmaUI('Firma quitada.', 'ok');
+            } catch (err) { mensajeFirmaUI(err.message, 'error'); }
+        }
+
         async function cargarDatosCotizador() {
             const leer = async (hoja, procesar) => {
                 try {
@@ -6076,7 +6249,8 @@
             await Promise.all([
                 leer('config_cot', procesarConfigCotizacion),
                 leer('catalogo_cot', procesarCatalogoCotizacion),
-                cargarCatalogoClientes()                       // v4.9
+                cargarCatalogoClientes(),                      // v4.9
+                cargarFirmaCotizacion()                        // v5.5
             ]);
 
             if (hayBackend()) {
@@ -6149,7 +6323,7 @@
                     (cotizaciones.length ? 'Ninguna cotización coincide con el filtro.' : 'Todavía no hay cotizaciones registradas.') + '</p>';
                 return;
             }
-            const th = 'px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const th = 'px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML =
                 '<table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr>' +
                     '<th class="' + th + '">Folio</th><th class="' + th + '">Fecha</th><th class="' + th + '">Cliente</th>' +
@@ -6164,7 +6338,7 @@
                         '<td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">' +
                             esc((c.partidas || []).map(p => p.descripcion).join(' · ')) + '</td>' +
                         '<td class="px-4 py-3 text-right font-semibold">' + fmtMoneda(c.total, 'MXN') + '</td>' +
-                        '<td class="px-4 py-3"><select data-cot-estado="' + esc(c.folio) + '" class="text-[11px] font-bold rounded-full px-2 py-1 border-0 ' +
+                        '<td class="px-4 py-3"><select data-cot-estado="' + esc(c.folio) + '" class="text-xs font-bold rounded-full px-2 py-1 border-0 ' +
                             (COLOR_ESTADO[c.estado] || COLOR_ESTADO.Emitida) + '">' +
                             ['Emitida', 'Enviada', 'Aceptada', 'Rechazada', 'Vencida'].map(e =>
                                 '<option' + (e === c.estado ? ' selected' : '') + '>' + e + '</option>').join('') +
@@ -6252,6 +6426,7 @@
             document.getElementById('cotGarantia').value = (c && c.garantia) || valorConfig('Garantía');
             document.getElementById('cotNivel').value = (c && c.nivel) || 'I';
             document.getElementById('btnTextosDefault').classList.toggle('hidden', !esAdministrador());
+            pintarFirmaCotizacion();   // v5.5
 
             partidasCot = c ? (c.partidas || []).map(p => ({ ...p })) : [];
             renderPartidas();
@@ -6384,7 +6559,7 @@
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic px-5 py-6">Agrega una partida del catálogo o una partida libre.</p>';
             } else {
                 const inp = 'w-full p-1.5 border border-slate-300 rounded text-sm outline-none focus:border-brand-500';
-                cont.innerHTML = '<table class="min-w-full text-sm"><thead class="bg-slate-50"><tr class="text-[10px] uppercase tracking-wide text-slate-500">' +
+                cont.innerHTML = '<table class="min-w-full text-sm"><thead class="bg-slate-50"><tr class="text-xs uppercase tracking-wide text-slate-500">' +
                     '<th class="px-3 py-2 text-left whitespace-nowrap">No. cat.</th>' +
                     '<th class="px-3 py-2 text-left w-1/2">Descripción</th><th class="px-3 py-2 text-left">Unidad</th>' +
                     '<th class="px-3 py-2 text-right">Cantidad</th><th class="px-3 py-2 text-right">Precio</th>' +
@@ -6413,7 +6588,7 @@
                 '<p><span class="text-slate-500">Subtotal</span> <span class="font-semibold ml-4">' + fmtMoneda(t.subtotal, 'MXN') + '</span></p>' +
                 '<p><span class="text-slate-500">I.V.A. ' + Math.round(t.tasa * 100) + '%</span> <span class="font-semibold ml-4">' + fmtMoneda(t.iva, 'MXN') + '</span></p>' +
                 '<p class="text-base"><span class="font-bold">Total</span> <span class="font-bold ml-4">' + fmtMoneda(t.total, 'MXN') + '</span></p>' +
-                '<p class="text-[11px] text-slate-500 mt-1">(' + esc(numeroALetras(t.total)) + ')</p>';
+                '<p class="text-xs text-slate-500 mt-1">(' + esc(numeroALetras(t.total)) + ')</p>';
         }
 
         document.getElementById('cotPartidas').addEventListener('input', (e) => {
@@ -6695,7 +6870,11 @@
                   (textoGar ? '<div style="' + B + 'padding:2mm;font-size:0.95em;line-height:1.4;margin-bottom:5mm"><b>GARANTÍA</b>: ' +
                     lineas(textoGar).replace(/<br>$/, '') + '</div>' : '') +
                   '<p style="text-align:center;font-size:1.1em;margin:0">Atentamente</p>' +
-                  '<div style="height:14mm"></div>' +
+                  // v5.5: firma predeterminada sobre la línea, si existe
+                  (firmaCotizacion
+                    ? '<div style="height:16mm;display:flex;align-items:flex-end;justify-content:center;margin-bottom:-2mm">' +
+                      '<img src="' + firmaCotizacion + '" alt="Firma" style="max-height:18mm;max-width:62mm;object-fit:contain"></div>'
+                    : '<div style="height:14mm"></div>') +
                   '<p style="text-align:center;font-size:1.1em;margin:0 0 4mm;border-top:0.3mm solid #000;width:70mm;margin-left:auto;margin-right:auto;padding-top:1mm">' +
                     esc(valorConfig('Firma (nombre)')) + '</p>' +
                   '<table style="width:100%;border-collapse:collapse;font-size:1.05em;break-inside:avoid"><tr>' +
@@ -7131,10 +7310,10 @@
 
             document.getElementById('loteResumen').innerHTML =
                 '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">' +
-                    '<div class="bg-slate-50 border border-slate-200 rounded-lg py-2"><p class="text-xl font-bold text-slate-900">' + listas.length + '</p><p class="text-[10px] uppercase tracking-wide text-slate-500">archivos</p></div>' +
-                    '<div class="bg-green-50 border border-green-200 rounded-lg py-2"><p class="text-xl font-bold text-green-700">' + listos.length + '</p><p class="text-[10px] uppercase tracking-wide text-green-800">listas</p></div>' +
-                    '<div class="bg-amber-50 border border-amber-200 rounded-lg py-2"><p class="text-xl font-bold text-amber-700">' + conAviso.length + '</p><p class="text-[10px] uppercase tracking-wide text-amber-800">con observación</p></div>' +
-                    '<div class="bg-red-50 border border-red-200 rounded-lg py-2"><p class="text-xl font-bold text-red-700">' + bloqueadas.length + '</p><p class="text-[10px] uppercase tracking-wide text-red-800">no registrables</p></div>' +
+                    '<div class="bg-slate-50 border border-slate-200 rounded-lg py-2"><p class="text-xl font-bold text-slate-900">' + listas.length + '</p><p class="text-xs uppercase tracking-wide text-slate-500">archivos</p></div>' +
+                    '<div class="bg-green-50 border border-green-200 rounded-lg py-2"><p class="text-xl font-bold text-green-700">' + listos.length + '</p><p class="text-xs uppercase tracking-wide text-green-800">listas</p></div>' +
+                    '<div class="bg-amber-50 border border-amber-200 rounded-lg py-2"><p class="text-xl font-bold text-amber-700">' + conAviso.length + '</p><p class="text-xs uppercase tracking-wide text-amber-800">con observación</p></div>' +
+                    '<div class="bg-red-50 border border-red-200 rounded-lg py-2"><p class="text-xl font-bold text-red-700">' + bloqueadas.length + '</p><p class="text-xs uppercase tracking-wide text-red-800">no registrables</p></div>' +
                 '</div>' +
                 '<p class="text-xs text-slate-600 mt-3">Importe de lo seleccionado: <span class="font-bold">' + fmtMoneda(importe, 'MXN') + '</span></p>';
 
@@ -7155,14 +7334,14 @@
                                 '<span class="ml-auto font-bold ' + (bloqueada ? 'text-slate-400' : 'text-green-700') + '">' +
                                     fmtMoneda(p.total, 'MXN') + '</span>' +
                             '</div>' +
-                            '<p class="text-[10px] text-slate-400 mt-0.5 font-mono truncate">' + esc(p.archivo) + '</p>' +
+                            '<p class="text-xs text-slate-400 mt-0.5 font-mono truncate">' + esc(p.archivo) + '</p>' +
                             (p.ordenes.length
-                                ? '<p class="text-[11px] text-slate-600 mt-1">' +
+                                ? '<p class="text-xs text-slate-600 mt-1">' +
                                   p.ordenes.map(o => esc(o.id) + ' → ' + (o.importe === null ? 'sin importe' : fmtMoneda(o.importe, 'MXN'))).join('  ·  ') +
                                   '</p>'
                                 : '') +
-                            p.errores.map(e => '<p class="text-[11px] text-red-700 font-semibold mt-1">✕ ' + esc(e) + '</p>').join('') +
-                            p.avisos.map(x => '<p class="text-[11px] text-amber-700 mt-1">· ' + esc(x) + '</p>').join('') +
+                            p.errores.map(e => '<p class="text-xs text-red-700 font-semibold mt-1">✕ ' + esc(e) + '</p>').join('') +
+                            p.avisos.map(x => '<p class="text-xs text-amber-700 mt-1">· ' + esc(x) + '</p>').join('') +
                         '</div>' +
                     '</div>' +
                 '</div>';
@@ -7318,7 +7497,7 @@
                            '<div class="min-w-0 flex-1">' +
                                '<p class="text-xs font-bold text-slate-700">' + esc(o.id) +
                                    (d ? ' <span class="font-normal text-slate-400">· ' + esc(d.FechaEjecucionStr) + '</span>' : '') + '</p>' +
-                               '<p class="text-[11px] text-slate-500 truncate">' + nota + '</p>' +
+                               '<p class="text-xs text-slate-500 truncate">' + nota + '</p>' +
                            '</div>' +
                            '<div class="shrink-0 flex items-center gap-2">' +
                                '<input type="number" step="0.01" min="0" data-importe-orden="' + esc(o.id) + '" ' +
@@ -7326,7 +7505,7 @@
                                    'placeholder="' + (conTarifa ? '0.00' : 'por definir') + '" ' +
                                    'class="w-28 p-1.5 border rounded-lg text-xs text-right outline-none focus:border-brand-500 ' +
                                    (difiere ? 'border-amber-400 bg-amber-50' : 'border-slate-300') + '">' +
-                               '<button data-quitar-orden="' + esc(o.id) + '" class="text-[11px] font-semibold text-red-500 hover:text-red-700">Quitar</button>' +
+                               '<button data-quitar-orden="' + esc(o.id) + '" class="text-xs font-semibold text-red-500 hover:text-red-700">Quitar</button>' +
                            '</div>' +
                        '</div>';
             }).join('');
@@ -7411,7 +7590,7 @@
             document.getElementById('btnEliminarFactura').classList.remove('hidden');
             facturaUUID = f.uuid || '';
             mensajeCFDI(f.uuid
-                ? '<p class="font-bold">Comprobante asociado</p><p class="font-mono text-[10px]">' + esc(f.uuid) + '</p>'
+                ? '<p class="font-bold">Comprobante asociado</p><p class="font-mono text-xs">' + esc(f.uuid) + '</p>'
                 : '', 'ok');
 
             renderListaOrdenesFactura();
@@ -7566,7 +7745,7 @@
                 if (c.conProximo) {
                     const vencido = d.ProximoMantDate && d.ProximoMantDate < hoy;
                     const badge = vencido
-                        ? '<span class="ml-2 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Vencido</span>'
+                        ? '<span class="ml-2 bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full uppercase">⚠ Vencido</span>'
                         : '';
                     tr.innerHTML = celdaChk + `
                         <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">${esc(d.ID)}</td>
@@ -8602,17 +8781,17 @@
             if (!a.compuesto) {
                 const c = a.componentes[0];
                 return {
-                    html: '<span class="' + (c.fuera ? 'text-red-600 font-bold' : 'text-slate-700') + '">' + fmtErrorPct(c) + '</span>',
+                    html: '<span class="' + (c.fuera ? 'text-red-600 font-bold' : 'text-slate-700') + '">' + (c.fuera ? '⚠ ' : '') + fmtErrorPct(c) + '</span>',
                     cls: 'p-3 text-center ' + (c.fuera ? 'bg-red-50' : ''),
                     title: 'Error absoluto ' + fmtError(c.error) + u + ' · tolerancia ' + tol +
                            ' · ' + a.origen + ' contra ' + a.origenRef
                 };
             }
             const filas = a.componentes.map(c =>
-                '<div class="flex items-baseline justify-between gap-3 text-[11px] leading-snug">' +
+                '<div class="flex items-baseline justify-between gap-3 text-xs leading-snug">' +
                     '<span class="text-slate-500">' + esc(c.etiqueta) + '</span>' +
                     '<span class="' + (c.fuera ? 'text-red-600 font-bold' : 'text-slate-700 font-semibold') + '">' +
-                        fmtErrorPct(c) + '</span>' +
+                        (c.fuera ? '⚠ ' : '') + fmtErrorPct(c) + '</span>' +
                 '</div>'
             ).join('');
             return {
@@ -8667,7 +8846,7 @@
                     <td data-err-idx="${idx}" class="${err.cls}" title="${esc(err.title)}">${err.html}</td>
                 </tr>`;
                 if (a.compuesto) {
-                    tablaHTML += '<tr class="bg-slate-50 text-[11px] text-slate-500">' +
+                    tablaHTML += '<tr class="bg-slate-50 text-xs text-slate-500">' +
                         '<td class="py-1.5 pl-8 italic" colspan="5">' +
                             a.componentes.map(c =>
                                 esc(c.etiqueta) + ': programado ' + c.prog + ' · real ' + c.real +
@@ -8678,7 +8857,7 @@
                 }
             });
             tablaHTML += '</tbody></table>' +
-                '<p class="text-[10px] text-slate-400 mt-2 italic">Tolerancia aplicada: ' + esc(textoToleranciaCompleto('')) + '. ' +
+                '<p class="text-xs text-slate-400 mt-2 italic">Tolerancia aplicada: ' + esc(textoToleranciaCompleto('')) + '. ' +
                 'Los rangos marcados con * no se capturaron en la orden: provienen de la tabla de configuración del sistema. ' +
                 'El error se expresa como porcentaje respecto al valor de referencia: cuando hay valor programado, ese es la referencia ' +
                 'y se evalúa el medido (o el desplegado si no hay medido); cuando no hay programado, la referencia es el medido ' +
@@ -8963,7 +9142,7 @@
                     '<p class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-1 truncate" title="' + esc(g.titulo) + '">' +
                         esc(g.titulo) + '</p>' +
                     '<div class="lienzo-grafica"><canvas id="rutinaChart_' + i + '"></canvas></div>' +
-                    '<div class="mt-2 pt-2 border-t border-dashed border-slate-200 text-[10px] leading-snug text-slate-600 space-y-0.5">' +
+                    '<div class="mt-2 pt-2 border-t border-dashed border-slate-200 text-xs leading-snug text-slate-600 space-y-0.5">' +
                         leyendaRangosParametro(g) +
                     '</div>';
                 cont.appendChild(tarjeta);
@@ -9504,7 +9683,7 @@
                 const badge = document.getElementById('sidebarRol');
                 if (badge) {
                     badge.innerText = s.rol === 'admin' ? 'ADMINISTRADOR' : 'USUARIO';
-                    badge.className = 'text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ' +
+                    badge.className = 'text-xs font-bold tracking-wider px-1.5 py-0.5 rounded ' +
                         (s.rol === 'admin' ? 'bg-amber-400/20 text-amber-300' : 'bg-slate-700 text-slate-400');
                 }
                 aplicarPermisosInterfaz();
@@ -9748,7 +9927,7 @@
                                  'Mientras no exista ninguno, se sigue aceptando el PIN compartido de la configuración.</p>';
                 return;
             }
-            const th = 'px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const th = 'px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             const td = 'px-4 py-3 text-sm text-slate-700';
             cont.innerHTML =
                 '<table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr>' +
@@ -9763,8 +9942,8 @@
                     '<tr class="hover:bg-slate-50">' +
                         '<td class="' + td + ' font-semibold text-slate-900">' + esc(u.nombre) + '</td>' +
                         '<td class="' + td + '">' + (u.rol === 'admin'
-                            ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">ADMINISTRADOR</span>'
-                            : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">USUARIO</span>') + '</td>' +
+                            ? '<span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">ADMINISTRADOR</span>'
+                            : '<span class="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">USUARIO</span>') + '</td>' +
                         '<td class="' + td + '">' + (u.activo
                             ? '<span class="text-green-700 font-semibold">Activo</span>'
                             : '<span class="text-slate-400">Inactivo</span>') + '</td>' +
@@ -9820,10 +9999,10 @@
             const cifra = (valor, etiqueta, color) =>
                 '<div class="text-center px-4">' +
                     '<p class="text-2xl font-bold ' + (color || 'text-slate-900') + '">' + valor + '</p>' +
-                    '<p class="text-[10px] uppercase tracking-wide text-slate-500 mt-0.5">' + etiqueta + '</p>' +
+                    '<p class="text-xs uppercase tracking-wide text-slate-500 mt-0.5">' + etiqueta + '</p>' +
                 '</div>';
 
-            const th = 'px-4 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider';
+            const th = 'px-4 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             const td = 'px-4 py-2 text-sm text-slate-700';
 
             const detalle = !tarifarioExpandido ? '' :
@@ -9860,7 +10039,7 @@
                 '</div>' +
                 (sinTarifa.length
                     ? '<div class="px-6 py-3 bg-amber-50 border-t border-amber-200">' +
-                          '<p class="text-[11px] text-amber-800 leading-snug"><span class="font-bold">Sin tarifa:</span> ' +
+                          '<p class="text-xs text-amber-800 leading-snug"><span class="font-bold">Sin tarifa:</span> ' +
                           esc(sinTarifa.slice(0, 10).join(' · ')) + (sinTarifa.length > 10 ? ' y ' + (sinTarifa.length - 10) + ' más' : '') +
                           '. Basta capturar el tipo genérico en la hoja.</p>' +
                       '</div>'
@@ -10250,7 +10429,7 @@
         }
 
         // ---- Utilerías de render ----
-        const chip = (txt, cls) => '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ' + cls + '">' + esc(txt) + '</span>';
+        const chip = (txt, cls) => '<span class="text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ' + cls + '">' + esc(txt) + '</span>';
         const canalesDelCliente = () => comData.canales.filter(c => c.cliente === clienteActual && !c.eliminado);
         const seguimientosDelCliente = () => comData.seguimientos.filter(s => s.cliente === clienteActual && !s.eliminado);
 
@@ -10367,7 +10546,7 @@
                     ? '<select data-wa-canal class="p-1.5 border border-slate-300 rounded-lg text-xs bg-white outline-none max-w-[11rem]">' +
                         canalesWA.map(c => '<option value="' + esc(c.id) + '">' + esc(c.nombre) + '</option>').join('') +
                       '</select>'
-                    : '<span class="text-[10px] text-slate-400 italic">Sin WhatsApp registrado: se abrirá el selector de contactos</span>';
+                    : '<span class="text-xs text-slate-400 italic">Sin WhatsApp registrado: se abrirá el selector de contactos</span>';
 
                 const opcionesEstatus = ESTATUS_SEGUIMIENTO.map(e => '<option' + (e === s.estatus ? ' selected' : '') + '>' + esc(e) + '</option>').join('');
 
@@ -10376,7 +10555,7 @@
                         chip(s.prioridad, CLASES_PRIORIDAD[s.prioridad] || 'bg-slate-100 text-slate-600') +
                         chip(s.estatus, CLASES_ESTATUS[s.estatus] || 'bg-slate-100 text-slate-600') +
                         chip(s.tipo, 'bg-slate-100 text-slate-500') +
-                        '<span class="text-[10px] text-slate-400 ml-auto">Creado: ' + esc(fmtFechaCorta(s.creado)) + '</span>' +
+                        '<span class="text-xs text-slate-400 ml-auto">Creado: ' + esc(fmtFechaCorta(s.creado)) + '</span>' +
                     '</div>' +
                     '<div><p class="font-bold text-slate-800 text-sm">' + esc(s.titulo) + '</p>' +
                     (s.ordenId ? '<p class="text-xs text-slate-500 mt-0.5">Orden #' + esc(s.ordenId) + (s.ordenResumen ? ' — ' + esc(s.ordenResumen) : '') + '</p>' : '') + '</div>' +
@@ -10583,18 +10762,18 @@
         function renderAdjuntosCorreo() {
             const cont = document.getElementById('correoListaAdjuntos');
             if (correoCtx.archivos.length === 0) {
-                cont.innerHTML = '<p class="text-[11px] text-slate-400 italic">Sin archivos adjuntos.</p>';
+                cont.innerHTML = '<p class="text-xs text-slate-400 italic">Sin archivos adjuntos.</p>';
                 return;
             }
             const total = totalBytesCorreo();
             cont.innerHTML = correoCtx.archivos.map((a, i) =>
                 '<div class="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">' +
                     '<span class="text-xs text-slate-700 truncate">' + esc(a.name) + '</span>' +
-                    '<span class="text-[11px] text-slate-400 shrink-0">' + bytesLegibles(a.size) + '</span>' +
+                    '<span class="text-xs text-slate-400 shrink-0">' + bytesLegibles(a.size) + '</span>' +
                     '<button data-accion="quitar-adjunto" data-idx="' + i + '" class="text-red-400 hover:text-red-600 text-xs font-bold px-1">Quitar</button>' +
                 '</div>'
             ).join('') +
-            '<p class="text-[11px] ' + (total > MAX_ADJUNTOS_MB_UI * 1048576 ? 'text-red-600 font-bold' : 'text-slate-500') +
+            '<p class="text-xs ' + (total > MAX_ADJUNTOS_MB_UI * 1048576 ? 'text-red-600 font-bold' : 'text-slate-500') +
             ' mt-1">Total: ' + bytesLegibles(total) + ' de ' + MAX_ADJUNTOS_MB_UI + ' MB permitidos</p>';
         }
 
