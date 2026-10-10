@@ -1158,6 +1158,40 @@ Con cada versión entregada, `estilos.css` ya viene regenerado.
 
 Las palabras de variante base están en `PALABRAS_VARIANTE_BASE` de `app.js`.
 
+## 4.28 Rutinas en Drive y gráficas de la rutina (v5.8)
+
+### Guardar e imprimir (v5.9)
+
+Desde la v5.9 hay **un solo botón**, **Guardar e imprimir**, al final de la rutina (después de la autorización). Ya no hay botones de imprimir ni de Drive en el encabezado.
+
+1. Guarda el PDF en la carpeta de la orden en Drive. Si la orden ya tenía rutina, pregunta si se reemplaza; si se elige conservar la anterior, no guarda y sigue.
+2. Abre el cuadro de impresión.
+3. Si el guardado falla (sin señal, sin permiso), avisa el motivo y pregunta si se imprime de todos modos. El mismo botón sirve para reintentar.
+
+### Cómo se guarda en Drive
+
+- Genera el PDF en hoja carta, sin pasar por el diálogo de impresión. El corte de página cae entre secciones, renglones de tabla o tarjetas de gráfica. Cada hoja lleva al pie la leyenda legal y «Orden N · Hoja x de y».
+- Lo guarda en la carpeta de rutinas (`CARPETA_RUTINAS` en `Code.gs`), dentro de la subcarpeta con el número de orden. La subcarpeta se busca por nombre exacto o por un nombre que contenga el número de orden; si no existe, se crea.
+- El archivo se llama `Rutina_<orden>_<equipo>.pdf` y su descripción en Drive dice quién lo guardó y cuándo.
+- Se considera rutina cualquier PDF de la subcarpeta cuyo nombre contenga «rutina» (`PATRON_ARCHIVO_RUTINA`). Si las rutinas anteriores se nombraron de otra forma, hay que ajustar ese patrón.
+
+### Aviso de rutina existente
+
+- Al abrir el generador, la plataforma revisa Drive. Si la orden ya tiene rutina guardada, avisa con la fecha y quién la guardó, y ofrece **Abrir la guardada** o **Generar de nuevo**. Debajo del título queda la línea de estado con el enlace.
+- Si de todos modos se guarda otra, pide confirmar **Reemplazar**. La anterior se manda a la papelera de Drive (recuperable 30 días), no se borra.
+
+### Responsable autorizado
+
+Se llena con el nombre del usuario con sesión activa. Sigue siendo editable antes de imprimir o guardar.
+
+### Gráficas que salían en blanco o equivocadas
+
+- **Gráficas en blanco:** se dibujaban con la ventana todavía oculta, y Chart.js medía un lienzo de 0 px. Ahora se dibujan cuando la ventana ya es visible, con un segundo intento si algún lienzo no tenía medidas. Si se abre otra rutina antes, el dibujo pendiente se descarta.
+- **Restos de una impresión anterior:** en móviles, el navegador no siempre avisa que terminó de imprimir. Quedaban imágenes de gráficas de la rutina anterior y la impresión siguiente salía sin gráficas. Al abrir cada rutina se limpia ese estado.
+- **Temperatura tomada como ambiente:** una temperatura al inicio de la tabla se trataba como temperatura ambiente aunque fuera una medición contra simulador (monitores, termómetros). Desaparecía de la tabla y su gráfica salía incompleta o no salía. Ahora solo se toma como ambiente si se llama así explícitamente, o si no trae valor programado y valor leído a la vez.
+
+**Puesta en marcha:** pegar el `Code.gs` nuevo, ejecutar `autorizarPermisos()` una vez y aceptar el permiso de Google Drive, y volver a implementar (*Nueva versión*). Después subir `index.html`, `app.js` y `sw.js`. La cuenta dueña del script debe tener acceso de edición a la carpeta de rutinas.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1240,6 +1274,8 @@ Las palabras de variante base están en `PALABRAS_VARIANTE_BASE` de `app.js`.
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 5.9 | **Un solo botón al final de la rutina, *Guardar e imprimir***: primero guarda el PDF en la carpeta de la orden en Drive y después abre la impresión. Si el guardado falla, pregunta si se imprime de todos modos |
+| 5.8 | **Rutinas en Drive**: botón *Guardar en Drive* (PDF carta en la subcarpeta de la orden), aviso al abrir una orden que ya tiene rutina y confirmación para reemplazar (la anterior va a la papelera). Responsable autorizado = usuario con sesión. Gráficas de la rutina dibujadas con la ventana visible; limpieza de restos de impresión; la temperatura medida contra simulador ya no se toma como ambiente |
 | 5.7 | **Tarifa por palabras.** Una orden que solo dice *Monitor de signos vitales* toma el concepto **básico**, no el avanzado: para asignar un concepto, todas sus palabras deben estar en la orden; *básico/estándar/sencillo* son opcionales; en empate gana la variante base o el menor precio. Aplica al tarifario, la auditoría y el calendario |
 | 5.6 | **Rendimiento.** Estilos precompilados en `estilos.css` (≈38 KB) en lugar del compilador de Tailwind en el navegador. La página se separa en `index.html`, `app.js` y `estilos.css`, con versión en la dirección para que el service worker los guarde sin riesgo de servir copias viejas. El servidor envía solo las ~25 columnas de "Orden de Trabajo" que usa la plataforma (`CORPUS_CANDIDATOS`); en la prueba, 348 KB → 54 KB con resultados idénticos |
 | 5.5 | **Diseño.** Icono de iPhone y favicon desde los PNG cuadrados; texto mínimo de 12 px; foco visible; ventanas accesibles (foco, Tab, Esc); estados con ⚠ además del color; se quitó *Copiar enlace*. **Firma predeterminada** en las cotizaciones: se sube una imagen, se le quita el fondo y se imprime sobre la línea de «Atentamente» |

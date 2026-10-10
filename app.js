@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '5.7';
+        const VERSION_APP = '5.9';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -6391,7 +6391,15 @@
                         return;
                     }
                 }
-                if (esNombreTemperatura(n) && (explicito || enCabeza)) {
+                /* v5.8: una temperatura al inicio de la tabla solo es la del
+                   ambiente si NO trae valor programado y valor leído a la vez.
+                   Un monitor de signos vitales o un termómetro miden temperatura
+                   contra un simulador (programado 37 → medido 37.1); antes esa
+                   medición se tomaba como temperatura ambiente, desaparecía de
+                   la tabla y su gráfica salía incompleta o no salía. */
+                const esComparacion = valorCelda(f.programado) &&
+                                      (valorCelda(f.medido) || valorCelda(f.desplegado));
+                if (esNombreTemperatura(n) && (explicito || (enCabeza && !esComparacion))) {
                     if (!ambientales.temperatura) {
                         ambientales.temperatura = primerValor(f) || valorDesdeNombre(f.nombre);
                         ambientales.origen.push(f.nombre);
@@ -6458,6 +6466,14 @@
 
             const modal = document.getElementById('modalRutina');
             document.body.classList.add('printing-modal');
+            // v5.8: si una impresión anterior no terminó de restaurarse (pasa en
+            // móviles, que no siempre avisan 'afterprint'), quedaban imágenes
+            // viejas de gráficas y la bandera de impresión trabada.
+            restaurarCanvasImpresion();
+            const secuencia = ++secuenciaRutina;
+            folioRutinaActual = (eq.ID && eq.ID !== 'S/N') ? eq.ID : '';
+            rutinaGuardadaInfo = null;
+            pintarEstadoDriveRutina(folioRutinaActual ? 'Revisando si ya hay una rutina guardada en Drive…' : '', 'info');
 
             /* v2.9: dos fechas.
                · Medición: la de la orden de trabajo (cuándo se ejecutó el servicio)
@@ -6562,7 +6578,7 @@
                         document.getElementById('rutinaGraficasContainer').style.display = 'none';
                     } else {
                         renderTablaMediciones();
-                        construirGraficasMediciones();
+                        // v5.8: las gráficas se dibujan cuando la ventana ya es visible (abajo)
                     }
                 } else {
                     // ---- Fallback: texto libre sin el formato "Medicion:" ----
@@ -6590,13 +6606,264 @@
             // ===== Sección VII: Autorización =====
             // Campo editable para escribir el nombre del responsable autorizado
             // antes de imprimir; se limpia al abrir cada rutina nueva.
-            document.getElementById('rutNombreAutorizado').innerText = '';
+            // v5.8: se llena con el usuario que generó la rutina (sigue siendo editable)
+            document.getElementById('rutNombreAutorizado').innerText = nombreUsuario();
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+
+            /* v5.8 — Las gráficas se crean DESPUÉS de mostrar la ventana. Antes se
+               creaban con la ventana oculta: Chart.js medía un lienzo de 0 px y a
+               veces la gráfica quedaba en blanco o con el tamaño de otra. Si el
+               usuario abre otra rutina antes de que esto corra, se descarta. */
+            dibujarGraficasRutinaVisibles(secuencia);
+            if (folioRutinaActual) revisarRutinaGuardada(folioRutinaActual, secuencia);
+        }
+
+
+        /* ============================================================
+           v5.8 — GRÁFICAS DE LA RUTINA Y RUTINAS EN DRIVE
+           ============================================================ */
+        let secuenciaRutina = 0;
+        let folioRutinaActual = '';
+        let rutinaGuardadaInfo = null;
+
+        function dibujarGraficasRutinaVisibles(secuencia, intento) {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                if (secuencia !== secuenciaRutina) return;
+                if (!rutinaFilasActuales || !rutinaFilasActuales.length) return;
+                construirGraficasMediciones();
+                // Si algún lienzo quedó sin medidas (la ventana aún se estaba
+                // acomodando), se vuelve a dibujar una vez
+                const malos = chartsRutina.some(c => !c.canvas || !c.canvas.clientWidth || !c.width);
+                if (malos && !intento) setTimeout(() => dibujarGraficasRutinaVisibles(secuencia, 1), 200);
+            }));
+        }
+
+        // Ajusta cada gráfica a su lienzo actual antes de imprimir o hacer el PDF
+        function asegurarGraficasRutina() {
+            chartsRutina.forEach(c => { try { c.resize(); c.update('none'); } catch (_) {} });
+        }
+
+        function pintarEstadoDriveRutina(texto, tipo, url) {
+            const el = document.getElementById('rutinaEstadoDrive');
+            if (!el) return;
+            if (!texto) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+            el.className = 'text-xs mt-1 ' + (tipo === 'error' ? 'text-red-600' : tipo === 'ok' ? 'text-green-700' : tipo === 'aviso' ? 'text-amber-700 font-semibold' : 'text-slate-500');
+            el.innerHTML = esc(texto) + (url ? ' · <a href="' + esc(url) + '" target="_blank" rel="noopener" class="underline font-semibold">Abrir en Drive</a>' : '');
+        }
+
+        const fechaHoraCorta = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }); } catch (_) { return iso; } };
+
+        async function revisarRutinaGuardada(folio, secuencia) {
+            if (!hayBackend()) { pintarEstadoDriveRutina('', ''); return; }
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'rutinaExistente', token: tokenSesion(), folio: folio })
+                });
+                const j = await r.json().catch(() => null);
+                if (secuencia !== secuenciaRutina) return;
+                if (!j || !j.ok) { pintarEstadoDriveRutina('No se pudo revisar Drive' + (j && j.error ? ': ' + j.error : '.'), 'error'); return; }
+                if (!j.existe) { pintarEstadoDriveRutina('Esta orden aún no tiene rutina guardada en Drive.', 'info'); return; }
+                rutinaGuardadaInfo = j.archivo;
+                const cuando = fechaHoraCorta(j.archivo.fecha);
+                pintarEstadoDriveRutina('Ya existe una rutina guardada para la orden ' + folio + ' (' + cuando + ').', 'aviso', j.archivo.url);
+                const verla = await abrirDialogo(
+                    'La orden ' + folio + ' ya tiene una rutina guardada en Drive:\n\n' + j.archivo.nombre + '\n' +
+                    (j.archivo.detalle || 'Guardada el ' + cuando) +
+                    '\n\n¿Quieres abrir la que ya está guardada, o generarla de nuevo?',
+                    { titulo: 'Rutina ya guardada', textoSi: 'Abrir la guardada', textoNo: 'Generar de nuevo' });
+                if (verla && secuencia === secuenciaRutina) {
+                    window.open(j.archivo.url, '_blank', 'noopener');
+                    cerrarRutina();
+                }
+            } catch (_) {
+                if (secuencia === secuenciaRutina) pintarEstadoDriveRutina('Sin conexión: no se pudo revisar Drive.', 'error');
+            }
+        }
+
+        /* PDF de la rutina, hoja carta, sin pasar por el diálogo de impresión.
+           Se arma una copia fuera de pantalla con ancho fijo, las gráficas se
+           pasan como imagen, y el corte de página se hace entre bloques o
+           renglones de tabla, nunca a la mitad de una gráfica. */
+        async function pdfRutinaBase64() {
+            await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas');
+            await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+            asegurarGraficasRutina();
+
+            const original = document.getElementById('rutinaPrintableArea');
+            const ANCHO_PX = 780;
+            const caja = document.createElement('div');
+            caja.style.cssText = 'position:absolute;left:-14000px;top:0;background:#fff;width:' + ANCHO_PX + 'px';
+            const copia = original.cloneNode(true);
+            copia.removeAttribute('id');
+            copia.style.cssText = 'padding:0;overflow:visible;height:auto;max-height:none;background:#fff';
+
+            // Gráficas → imágenes (cloneNode no copia lo dibujado en un canvas)
+            const lienzos = original.querySelectorAll('canvas');
+            copia.querySelectorAll('canvas').forEach((cv, i) => {
+                const src = lienzos[i];
+                if (!src || !src.width) { cv.remove(); return; }
+                const img = document.createElement('img');
+                img.src = src.toDataURL('image/png');
+                img.style.cssText = 'width:100%;height:100%;object-fit:contain';
+                cv.replaceWith(img);
+            });
+            // Opciones marcadas, valores de campos y nada de identificadores repetidos
+            const entradasO = original.querySelectorAll('input, textarea, select');
+            copia.querySelectorAll('input, textarea, select').forEach((el, i) => {
+                const o = entradasO[i];
+                if (!o) return;
+                if (o.type === 'radio' || o.type === 'checkbox') { if (o.checked) el.setAttribute('checked', ''); else el.removeAttribute('checked'); }
+                else el.setAttribute('value', o.value);
+            });
+            copia.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+            // html2canvas recorta lo que tenga overflow; en el PDF todo va completo
+            copia.querySelectorAll('.overflow-x-auto, .overflow-hidden, .truncate').forEach(el => {
+                el.style.overflow = 'visible'; el.style.whiteSpace = 'normal';
+            });
+            // Lo que no sale en la impresión tampoco sale en el PDF
+            copia.querySelectorAll('.no-print, .no-print-modal').forEach(el => el.remove());
+            copia.querySelectorAll('[data-placeholder]').forEach(el => { if (!el.textContent.trim()) el.removeAttribute('data-placeholder'); });
+            const leyenda = copia.querySelector('.mt-6.pt-3.border-t');   // la leyenda legal va en el pie de cada hoja
+            if (leyenda && /reproducci/i.test(leyenda.textContent)) leyenda.remove();
+
+            caja.appendChild(copia);
+            document.body.appendChild(caja);
+            try {
+                await Promise.all(Array.from(copia.querySelectorAll('img')).map(im => im.complete ? 0 :
+                    new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 1500); })));
+
+                const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait', compress: true });
+                const M = { x: 12, arriba: 12, abajo: 16 };
+                const anchoMM = 215.9 - 2 * M.x;
+                const pxPorMM = ANCHO_PX / anchoMM;
+                const altoHojaPx = Math.floor((279.4 - M.arriba - M.abajo) * pxPorMM);
+
+                // Puntos de corte permitidos: el final de cada bloque o renglón
+                const base = copia.getBoundingClientRect().top;
+                const cortes = new Set([copia.scrollHeight]);
+                // (secciones completas, renglones de tabla y tarjetas de gráfica;
+                //  nunca justo después de un título, que quedaría solo al pie)
+                copia.querySelectorAll(':scope > *, tr, .grafica-medicion').forEach(el => {
+                    const r = el.getBoundingClientRect();
+                    if (r.height) cortes.add(Math.round(r.bottom - base));
+                });
+                const lista = Array.from(cortes).sort((a, b) => a - b);
+
+                const escala = 2;
+                const lienzo = await window.html2canvas(copia, { scale: escala, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: ANCHO_PX });
+                const total = copia.scrollHeight;
+                const hojas = [];
+                let inicio = 0;
+                while (inicio < total - 4) {
+                    const limite = inicio + altoHojaPx;
+                    let fin = limite >= total ? total : 0;
+                    if (!fin) {
+                        const validos = lista.filter(c => c > inicio + altoHojaPx * 0.4 && c <= limite);
+                        fin = validos.length ? validos[validos.length - 1] : limite;
+                    }
+                    hojas.push([inicio, fin]);
+                    inicio = fin;
+                }
+                hojas.forEach(([y0, y1], i) => {
+                    const trozo = document.createElement('canvas');
+                    trozo.width = lienzo.width;
+                    trozo.height = Math.max(1, Math.round((y1 - y0) * escala));
+                    const ctx = trozo.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, trozo.width, trozo.height);
+                    ctx.drawImage(lienzo, 0, Math.round(y0 * escala), lienzo.width, trozo.height, 0, 0, trozo.width, trozo.height);
+                    if (i > 0) pdf.addPage('letter', 'portrait');
+                    pdf.addImage(trozo.toDataURL('image/jpeg', 0.88), 'JPEG', M.x, M.arriba, anchoMM, (y1 - y0) / pxPorMM);
+                    pdf.setFontSize(7); pdf.setTextColor(100);
+                    pdf.text('PROHIBIDA SU REPRODUCCIÓN PARCIAL O TOTAL SIN LA AUTORIZACIÓN DE LA EMPRESA', 215.9 / 2, 279.4 - 8, { align: 'center' });
+                    pdf.text('Orden ' + (folioRutinaActual || 'S/F') + ' · Hoja ' + (i + 1) + ' de ' + hojas.length, 215.9 - M.x, 279.4 - 4.5, { align: 'right' });
+                });
+                pdf.setProperties({ title: 'Rutina ' + (folioRutinaActual || ''), author: nombreUsuario() });
+                return pdf.output('datauristring').split(',')[1];
+            } finally {
+                document.body.removeChild(caja);
+            }
+        }
+
+        async function guardarRutinaEnDrive() {
+            // v5.9: devuelve true si quedó guardada; el botón y el texto los maneja finalizarRutina()
+            if (!hayBackend()) { pintarEstadoDriveRutina('Guardar en Drive requiere el backend de Apps Script.', 'error'); return false; }
+            if (!folioRutinaActual) { pintarEstadoDriveRutina('La orden no tiene número de folio: no se puede ubicar su carpeta en Drive.', 'error'); return false; }
+            const folio = folioRutinaActual, secuencia = secuenciaRutina;
+            const etiqueta = document.getElementById('btnFinalizarRutinaTexto');
+            const enviar = async (reemplazar, pdf) => {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'guardarRutinaDrive', token: tokenSesion(), folio: folio,
+                                           equipo: document.getElementById('rutEq').innerText.trim(),
+                                           pdf: pdf, reemplazar: reemplazar })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j) throw new Error('El servidor respondió de forma inesperada.');
+                return j;
+            };
+            try {
+                etiqueta.innerText = 'Generando PDF…';
+                const pdf = await pdfRutinaBase64();
+                etiqueta.innerText = 'Guardando en Drive…';
+                let j = await enviar(false, pdf);
+                if (!j.ok && j.existe) {
+                    const reemplazar = await confirmar(
+                        'Ya existe una rutina guardada para la orden ' + folio + ':\n\n' + j.archivo.nombre + '\n' +
+                        (j.archivo.detalle || 'Guardada el ' + fechaHoraCorta(j.archivo.fecha)) +
+                        '\n\n¿Reemplazarla con esta? La anterior se manda a la papelera de Drive (se puede recuperar durante 30 días).',
+                        { titulo: 'Rutina ya guardada', textoSi: 'Reemplazar', peligro: true });
+                    if (!reemplazar) { pintarEstadoDriveRutina('No se guardó: se conservó la rutina que ya estaba en Drive.', 'aviso', j.archivo.url); return 'conservada'; }
+                    j = await enviar(true, pdf);
+                }
+                if (!j.ok) throw new Error(j.error || 'No se pudo guardar.');
+                registrarEvento('rutina_drive', 'Orden ' + folio);
+                if (secuencia === secuenciaRutina) {
+                    rutinaGuardadaInfo = j.archivo;
+                    pintarEstadoDriveRutina('Guardada en Drive' + (j.reemplazadas ? ' (reemplazó la anterior)' : '') + ': ' + j.archivo.nombre, 'ok', j.archivo.url);
+                }
+                return true;
+            } catch (err) {
+                pintarEstadoDriveRutina(err.message || 'No se pudo guardar en Drive.', 'error');
+                return false;
+            }
+        }
+
+        /* v5.9 — UN SOLO PASO AL TERMINAR LA RUTINA
+           1. Guarda el PDF en la carpeta de la orden en Drive (si ya había una,
+              pregunta si se reemplaza).
+           2. Abre el cuadro de impresión.
+           Si el guardado falla (sin señal, sin permiso), se avisa y se pregunta
+           si se imprime de todos modos, para no detener al ingeniero en sitio. */
+        async function finalizarRutina() {
+            const btn = document.getElementById('btnFinalizarRutina');
+            const etiqueta = document.getElementById('btnFinalizarRutinaTexto');
+            if (btn.disabled) return;
+            if (!document.getElementById('rutNombreAutorizado').innerText.trim()) {
+                if (!(await confirmar('El nombre del responsable autorizado está vacío. ¿Continuar así?', { textoSi: 'Continuar' }))) return;
+            }
+            btn.disabled = true;
+            try {
+                const resultado = await guardarRutinaEnDrive();
+                if (resultado === false) {
+                    const imprimir = await confirmar(
+                        'La rutina NO se guardó en Drive:\n' + (document.getElementById('rutinaEstadoDrive').innerText || 'error desconocido') +
+                        '\n\n¿Imprimirla de todos modos? Podrás volver a intentar el guardado con el mismo botón.',
+                        { titulo: 'No se guardó en Drive', textoSi: 'Imprimir de todos modos', textoNo: 'Cancelar' });
+                    if (!imprimir) return;
+                }
+                etiqueta.innerText = 'Abriendo impresión…';
+                await imprimirRutina();
+            } finally {
+                btn.disabled = false;
+                etiqueta.innerText = 'Guardar e imprimir';
+            }
         }
 
         function cerrarRutina() {
+            secuenciaRutina++;   // v5.8: descarta revisiones o gráficas pendientes
             document.body.classList.remove('printing-modal');
             document.getElementById('modalRutina').classList.add('hidden');
             document.getElementById('modalRutina').classList.remove('flex');
@@ -7264,6 +7531,7 @@
            tarde para que la imagen alcance a decodificarse). */
         async function imprimirRutina() {
             registrarEvento('imprimir_rutina', 'Folio ' + document.getElementById('rutFolio').innerText); // v2.6 bitácora
+            asegurarGraficasRutina();   // v5.8: la imagen se toma con el tamaño real del lienzo
             prepararCanvasImpresion();
             await esperarImagenesImpresion();
             window.print();

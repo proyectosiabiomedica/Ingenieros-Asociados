@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=5.7">
+    <link rel="stylesheet" href="estilos.css?v=5.9">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -1182,15 +1182,12 @@
                     <!-- v3.0: el encabezado y el pie del NAVEGADOR no se pueden
                          desactivar por código; hay que quitarlos en el diálogo. -->
                     <p class="text-xs text-slate-500 mt-0.5">
-                        Al imprimir, desactive <span class="font-semibold">“Encabezados y pies de página”</span> en el diálogo del navegador:
+                        Al terminar, use <span class="font-semibold">Guardar e imprimir</span> al final del documento. Al imprimir, desactive <span class="font-semibold">“Encabezados y pies de página”</span> en el diálogo del navegador:
                         el documento ya trae su propia leyenda al pie.
                     </p>
+                    <p id="rutinaEstadoDrive" class="hidden text-xs mt-1"></p>
                 </div>
                 <div class="flex gap-3 items-center">
-                    <button onclick="imprimirRutina()" class="bg-brand-600 hover:bg-brand-700 transition-colors text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-sm flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        Imprimir / Guardar PDF
-                    </button>
                     <button onclick="cerrarRutina()" class="text-slate-400 hover:text-slate-600 hover:bg-slate-200 bg-white border border-slate-200 rounded-full p-2 transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
@@ -1359,6 +1356,15 @@
                         Prohibida su reproducción parcial o total sin la autorización de la empresa
                     </p>
                 </div>
+            </div>
+
+            <!-- v5.9: un solo paso al terminar: guarda en Drive y luego imprime -->
+            <div class="no-print no-print-modal px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p class="text-xs text-slate-500">Primero se guarda el PDF en la carpeta de la orden en Drive y después se abre el cuadro de impresión.</p>
+                <button id="btnFinalizarRutina" onclick="finalizarRutina()" class="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 transition-colors text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-sm flex items-center justify-center gap-2 shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    <span id="btnFinalizarRutinaTexto">Guardar e imprimir</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1800,6 +1806,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=5.7"></script>
+    <script src="app.js?v=5.9"></script>
 </body>
 </html>
