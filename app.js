@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '5.9';
+        const VERSION_APP = '6.0';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -745,6 +745,9 @@
             generarSidebarClientes(document.getElementById('buscadorClientes').value || '');
 
             actualizarBadgeProximos();   // v5.4
+            cargarEncuestas(!!forzar).then(() => {   // v6.0: no frena la carga principal
+                if (!document.getElementById('satisfaccionContent').classList.contains('hidden')) { poblarFiltrosSatisfaccion(null); renderSatisfaccion(); }
+            });
 
             // Si estábamos viendo un cliente, conservar la vista tras refrescar
             // v5.4: en la primera carga manda la dirección (#unidad/…, #proximos…)
@@ -1508,7 +1511,7 @@
             // v5.4: se limpian TODOS los botones del menú (antes solo el del
             // dashboard, y el último apartado visitado quedaba resaltado) y se
             // oculta la vista de próximos mantenimientos
-            ['btnDashboard', 'btnProximos', 'btnCotizador', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
+            ['btnDashboard', 'btnProximos', 'btnSatisfaccion', 'btnCotizador', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
                 const b = document.getElementById(id);
                 if (!b) return;
                 b.classList.remove('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -1517,6 +1520,8 @@
             document.getElementById('btnDashboard').classList.remove('border-l-4');
             const prox = document.getElementById('proximosContent');
             if (prox) prox.classList.add('hidden');
+            const sat = document.getElementById('satisfaccionContent');   // v6.0
+            if (sat) sat.classList.add('hidden');
 
             const btns = document.getElementById('listaClientesSidebar').querySelectorAll('button');
             btns.forEach(b => {
@@ -2970,6 +2975,437 @@
             });
         })();
 
+
+        /* ============================================================
+           v6.0 — ENCUESTA DE SATISFACCIÓN
+           · Envío: desde el detalle de cada unidad se manda por correo el
+             enlace al formulario de Jotform, con el campo "Empresa" ya
+             llenado con el nombre de la unidad (parámetro de URL con el
+             nombre único del campo, CAMPO_EMPRESA_ENCUESTA).
+           · Respuestas: Jotform las escribe en la pestaña "Encuesta de
+             satisfacción" del mismo libro; el servidor la entrega como hoja
+             'encuesta' y aquí se calculan los indicadores.
+           Las columnas se reconocen por palabras clave del texto de cada
+           pregunta, así que renombrar ligeramente una pregunta no rompe nada.
+           ============================================================ */
+        const URL_ENCUESTA = 'https://form.jotform.com/262825907615868';
+        const CAMPO_EMPRESA_ENCUESTA = 'empresa';   // nombre único del campo "Empresa" en Jotform
+
+        // Aspectos calificados de 1 a 5
+        const ASPECTOS_ENCUESTA = [
+            { clave: 'calidad',      etiqueta: 'Calidad general',     buscar: ['calidad general', 'calidad'] },
+            { clave: 'comunicacion', etiqueta: 'Comunicación',        buscar: ['comunicacion'] },
+            { clave: 'ingeniero',    etiqueta: 'Conocimiento y profesionalismo', buscar: ['conocimiento', 'profesionalismo'] },
+            { clave: 'funcionando',  etiqueta: 'Equipo funcionando',  buscar: ['funcionando correctamente', 'quedo funcionando', 'funcionando'] }
+        ];
+
+        let encuestaRespuestas = [];
+        let encuestaCargada = false;
+        let encuestaColumnasFaltantes = [];
+        let chartsSatisfaccion = [];
+
+        function urlEncuestaPara(unidad) {
+            return URL_ENCUESTA + '?' + encodeURIComponent(CAMPO_EMPRESA_ENCUESTA) + '=' + encodeURIComponent(unidad || '');
+        }
+
+        function calificacion1a5(v) {
+            const m = String(v ?? '').match(/[1-5](?:[.,]\d+)?/);
+            if (!m) return null;
+            const n = parseFloat(m[0].replace(',', '.'));
+            return (n >= 1 && n <= 5) ? n : null;
+        }
+        function siNoTalVez(v) {
+            const t = normalizar(String(v ?? '').toLowerCase()).trim();
+            if (!t) return null;
+            if (t.startsWith('si') || t === 'yes') return 'si';
+            if (t.startsWith('tal') || t.includes('quiza')) return 'talvez';
+            if (t.startsWith('no')) return 'no';
+            return null;
+        }
+
+        function procesarEncuestas(filas) {
+            encuestaRespuestas = [];
+            encuestaColumnasFaltantes = [];
+            if (!filas.length) return;
+            const llaves = Object.keys(filas[0]);
+            const col = (cands) => buscarColumna(llaves, cands.map(c => normalizar(c)));
+            const c = {
+                fecha: col(['submission date', 'fecha de envio', 'fecha', 'marca temporal', 'created at']),
+                empresa: col(['empresa', 'unidad', 'hospital', 'cliente']),
+                tipo: col(['tipo de servicio']),
+                tiempo: col(['tiempo estimado', 'a tiempo']),
+                gusto: col(['mas le gusto', 'le gusto']),
+                mejorar: col(['podriamos mejorar', 'mejorar']),
+                recomienda: col(['recomendaria', 'recomendar'])
+            };
+            ASPECTOS_ENCUESTA.forEach(a => { c[a.clave] = col(a.buscar); });
+            [['empresa', 'Empresa'], ['calidad', 'calidad general'], ['recomienda', 'recomendaría']].forEach(([k, txt]) => {
+                if (!c[k]) encuestaColumnasFaltantes.push(txt);
+            });
+
+            filas.forEach(f => {
+                const empresa = c.empresa ? String(f[c.empresa] || '').trim() : '';
+                const r = {
+                    fecha: c.fecha ? parsearFechaMantenimiento(f[c.fecha]) : null,
+                    empresa: empresa,
+                    unidad: unidadDeEmpresa(empresa),
+                    tipo: c.tipo ? String(f[c.tipo] || '').trim() : '',
+                    tiempo: c.tiempo ? siNoTalVez(f[c.tiempo]) : null,
+                    recomienda: c.recomienda ? siNoTalVez(f[c.recomienda]) : null,
+                    gusto: c.gusto ? String(f[c.gusto] || '').trim() : '',
+                    mejorar: c.mejorar ? String(f[c.mejorar] || '').trim() : '',
+                    notas: {}
+                };
+                ASPECTOS_ENCUESTA.forEach(a => { r.notas[a.clave] = c[a.clave] ? calificacion1a5(f[c[a.clave]]) : null; });
+                const vals = Object.values(r.notas).filter(v => v !== null);
+                r.promedio = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null;
+                if (r.promedio === null && !r.empresa && !r.recomienda) return;   // renglón vacío
+                encuestaRespuestas.push(r);
+            });
+            encuestaRespuestas.sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
+        }
+
+        /* La encuesta llega con el nombre de la unidad tal como se prellenó. Si
+           el cliente lo modificó, se busca la unidad equivalente ignorando
+           mayúsculas, acentos y espacios; si no hay, se agrupa con su propio
+           nombre. */
+        function unidadDeEmpresa(empresa) {
+            const n = normalizar(String(empresa || '').toLowerCase()).replace(/\s+/g, ' ').trim();
+            if (!n) return 'Sin unidad';
+            const lista = (typeof clientesUnicos !== 'undefined' && clientesUnicos) || [];
+            const exacta = lista.find(u => normalizar(u.toLowerCase()).replace(/\s+/g, ' ').trim() === n);
+            if (exacta) return exacta;
+            const parecida = lista.find(u => { const un = normalizar(u.toLowerCase()).trim(); return un.length > 5 && (n.includes(un) || un.includes(n)); });
+            return parecida || empresa.trim();
+        }
+
+        async function cargarEncuestas(forzar) {
+            try {
+                const texto = await descargarHoja('encuesta', !!forzar);
+                await new Promise(resolve => Papa.parse(texto, {
+                    header: true, skipEmptyLines: true,
+                    transformHeader: h => normalizar(h.trim().toLowerCase()),
+                    complete: r => { procesarEncuestas(r.data); resolve(); }
+                }));
+                encuestaCargada = true;
+            } catch (err) {
+                encuestaRespuestas = [];
+                encuestaCargada = false;
+                console.warn('Encuesta de satisfacción:', err.message);
+            }
+            actualizarPillSatisfaccion();
+        }
+
+        // ---- Indicadores ----
+        const promedioDe = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+        const pct = (n, d) => d ? Math.round(n * 100 / d) + '%' : '—';
+        const fmt1 = (v) => v === null ? '—' : v.toFixed(1);
+
+        function indicadoresEncuesta(lista) {
+            const notas = [];
+            lista.forEach(r => ASPECTOS_ENCUESTA.forEach(a => { if (r.notas[a.clave] !== null) notas.push(r.notas[a.clave]); }));
+            const conTiempo = lista.filter(r => r.tiempo === 'si' || r.tiempo === 'no');
+            const conRec = lista.filter(r => r.recomienda);
+            return {
+                respuestas: lista.length,
+                promedio: promedioDe(lista.map(r => r.promedio).filter(v => v !== null)),
+                csat: notas.length ? notas.filter(v => v >= 4).length / notas.length : null,
+                tiempoSi: conTiempo.filter(r => r.tiempo === 'si').length, tiempoN: conTiempo.length,
+                recSi: conRec.filter(r => r.recomienda === 'si').length,
+                recTal: conRec.filter(r => r.recomienda === 'talvez').length,
+                recNo: conRec.filter(r => r.recomienda === 'no').length, recN: conRec.length,
+                ultima: lista.reduce((m, r) => (r.fecha && (!m || r.fecha > m)) ? r.fecha : m, null)
+            };
+        }
+
+        function colorPromedio(v) {
+            if (v === null) return 'bg-slate-100 text-slate-600 border-slate-200';
+            if (v >= 4.5) return 'bg-green-50 text-green-800 border-green-200';
+            if (v >= 3.5) return 'bg-brand-50 text-brand-800 border-brand-200';
+            if (v >= 2.5) return 'bg-amber-50 text-amber-800 border-amber-200';
+            return 'bg-red-50 text-red-700 border-red-200';
+        }
+
+        function actualizarPillSatisfaccion() {
+            const pill = document.getElementById('clienteSatisfaccionPill');
+            if (!pill) return;
+            const lista = clienteActual ? encuestaRespuestas.filter(r => r.unidad === clienteActual) : [];
+            if (!lista.length) { pill.classList.add('hidden'); return; }
+            const k = indicadoresEncuesta(lista);
+            pill.className = 'no-print text-xs font-semibold rounded-full px-3 py-1 border transition-colors hover:shadow-sm ' + colorPromedio(k.promedio);
+            pill.innerText = '★ Satisfacción ' + fmt1(k.promedio) + ' / 5 · ' + k.respuestas + (k.respuestas === 1 ? ' respuesta' : ' respuestas');
+            pill.title = 'Ver los indicadores de satisfacción de esta unidad';
+        }
+
+        function poblarFiltrosSatisfaccion(unidadInicial) {
+            const selU = document.getElementById('satUnidad'), selP = document.getElementById('satPeriodo'), selT = document.getElementById('satTipo');
+            const prevU = unidadInicial !== undefined && unidadInicial !== null ? unidadInicial : selU.value;
+            const prevP = selP.value, prevT = selT.value;
+            const unidades = Array.from(new Set(encuestaRespuestas.map(r => r.unidad))).sort((a, b) => a.localeCompare(b, 'es'));
+            selU.innerHTML = '<option value="">Todas las unidades</option>' + unidades.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+            selU.value = unidades.includes(prevU) ? prevU : '';
+            const anios = Array.from(new Set(encuestaRespuestas.filter(r => r.fecha).map(r => r.fecha.getFullYear()))).sort((a, b) => b - a);
+            selP.innerHTML = '<option value="">Todo el periodo</option><option value="12m">Últimos 12 meses</option><option value="90d">Últimos 90 días</option>' +
+                anios.map(a => '<option value="' + a + '">' + a + '</option>').join('');
+            if (Array.from(selP.options).some(o => o.value === prevP)) selP.value = prevP;
+            const tipos = Array.from(new Set(encuestaRespuestas.map(r => r.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
+            selT.innerHTML = '<option value="">Todos los tipos de servicio</option>' + tipos.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('');
+            if (tipos.includes(prevT)) selT.value = prevT;
+        }
+
+        function encuestasFiltradas() {
+            const u = document.getElementById('satUnidad').value;
+            const p = document.getElementById('satPeriodo').value;
+            const t = document.getElementById('satTipo').value;
+            const ahora = Date.now();
+            return encuestaRespuestas.filter(r => {
+                if (u && r.unidad !== u) return false;
+                if (t && r.tipo !== t) return false;
+                if (p) {
+                    if (!r.fecha) return false;
+                    if (p === '12m' && ahora - r.fecha > 365 * 86400000) return false;
+                    if (p === '90d' && ahora - r.fecha > 90 * 86400000) return false;
+                    if (/^\d{4}$/.test(p) && r.fecha.getFullYear() !== parseInt(p, 10)) return false;
+                }
+                return true;
+            });
+        }
+
+        function renderSatisfaccion() {
+            chartsSatisfaccion.forEach(c => { try { c.destroy(); } catch (_) {} });
+            chartsSatisfaccion = [];
+            const aviso = document.getElementById('satAviso');
+            if (!encuestaCargada) {
+                aviso.innerText = 'No se pudo leer la pestaña "Encuesta de satisfacción". Revisa que exista en el libro de Sheets, que Jotform esté enviando ahí las respuestas y que el Code.gs esté actualizado.';
+                aviso.classList.remove('hidden');
+            } else if (encuestaColumnasFaltantes.length) {
+                aviso.innerText = 'No se encontraron estas columnas en la hoja: ' + encuestaColumnasFaltantes.join(', ') + '. Los indicadores que dependen de ellas salen vacíos.';
+                aviso.classList.remove('hidden');
+            } else aviso.classList.add('hidden');
+
+            const lista = encuestasFiltradas();
+            const k = indicadoresEncuesta(lista);
+            document.getElementById('satKpiRespuestas').innerText = k.respuestas;
+            document.getElementById('satKpiPromedio').innerText = fmt1(k.promedio);
+            document.getElementById('satKpiCsat').innerText = k.csat === null ? '—' : Math.round(k.csat * 100) + '%';
+            document.getElementById('satKpiTiempo').innerText = pct(k.tiempoSi, k.tiempoN);
+            document.getElementById('satKpiRecomienda').innerText = pct(k.recSi, k.recN);
+            document.getElementById('satKpiRecomiendaDet').innerText = k.recN ? ('Tal vez ' + pct(k.recTal, k.recN) + ' · No ' + pct(k.recNo, k.recN)) : '';
+
+            // Promedio por aspecto
+            const promAsp = ASPECTOS_ENCUESTA.map(a => promedioDe(lista.map(r => r.notas[a.clave]).filter(v => v !== null)));
+            const colorBarra = (v) => v === null ? '#cbd5e1' : v >= 4.5 ? '#15803d' : v >= 3.5 ? '#005DA1' : v >= 2.5 ? '#d97706' : '#dc2626';
+            chartsSatisfaccion.push(new Chart(document.getElementById('satChartAspectos'), {
+                type: 'bar',
+                data: { labels: ASPECTOS_ENCUESTA.map(a => a.etiqueta),
+                        datasets: [{ data: promAsp.map(v => v === null ? 0 : +v.toFixed(2)), backgroundColor: promAsp.map(colorBarra), borderRadius: 4, maxBarThickness: 28 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+                    layout: { padding: { right: 36 } },
+                    scales: { x: { min: 0, max: 5, ticks: { stepSize: 1 } }, y: { grid: { display: false } } },
+                    plugins: { legend: { display: false },
+                               datalabels: { anchor: 'end', align: 'end', formatter: (v) => v ? v.toFixed(1) : '—', font: { weight: 'bold', size: 11 } },
+                               tooltip: { callbacks: { label: (c) => ' ' + (c.raw ? c.raw.toFixed(2) : '—') + ' / 5' } } } }
+            }));
+
+            // Tendencia mensual
+            const porMes = new Map();
+            lista.filter(r => r.fecha && r.promedio !== null).forEach(r => {
+                const clave = r.fecha.getFullYear() + '-' + String(r.fecha.getMonth() + 1).padStart(2, '0');
+                if (!porMes.has(clave)) porMes.set(clave, []);
+                porMes.get(clave).push(r.promedio);
+            });
+            const meses = Array.from(porMes.keys()).sort().slice(-12);
+            const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            chartsSatisfaccion.push(new Chart(document.getElementById('satChartMeses'), {
+                type: 'line',
+                data: { labels: meses.map(m => MES[parseInt(m.slice(5), 10) - 1] + ' ' + m.slice(2, 4)),
+                        datasets: [{ data: meses.map(m => +promedioDe(porMes.get(m)).toFixed(2)), borderColor: '#005DA1', backgroundColor: '#005DA1',
+                                     tension: 0, pointRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false,
+                    layout: { padding: { top: 8, right: 8 } },
+                    scales: { y: { min: 1, max: 5, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+                    plugins: { legend: { display: false }, datalabels: { display: false },
+                               tooltip: { callbacks: { label: (c) => ' ' + c.raw + ' / 5 · ' + porMes.get(meses[c.dataIndex]).length + ' respuesta(s)' } } } }
+            }));
+
+            // Por unidad
+            const grupos = new Map();
+            lista.forEach(r => { if (!grupos.has(r.unidad)) grupos.set(r.unidad, []); grupos.get(r.unidad).push(r); });
+            const filas = Array.from(grupos.entries()).map(([u, rs]) => ({ u, k: indicadoresEncuesta(rs) }))
+                .sort((a, b) => (a.k.promedio ?? 9) - (b.k.promedio ?? 9));   // las más bajas primero: son las que piden atención
+            document.getElementById('satTablaUnidades').innerHTML = filas.length ? filas.map(({ u, k }) =>
+                '<tr class="hover:bg-slate-50">' +
+                    '<td class="px-4 py-3 text-sm font-semibold text-slate-800">' + esc(u) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-right">' + k.respuestas + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-right"><span class="inline-block border rounded-full px-2 py-0.5 text-xs font-bold ' + colorPromedio(k.promedio) + '">' + fmt1(k.promedio) + '</span></td>' +
+                    '<td class="px-4 py-3 text-sm text-right">' + (k.csat === null ? '—' : Math.round(k.csat * 100) + '%') + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-right">' + pct(k.tiempoSi, k.tiempoN) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-right">' + pct(k.recSi, k.recN) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + (k.ultima ? esc(k.ultima.toLocaleDateString('es-MX')) : '—') + '</td>' +
+                '</tr>').join('')
+                : '<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">' +
+                  (encuestaRespuestas.length ? 'Ninguna respuesta cumple con los filtros.' : 'Todavía no hay respuestas de la encuesta.') + '</td></tr>';
+
+            // Comentarios
+            const coms = lista.filter(r => r.gusto || r.mejorar).slice(0, 30);
+            document.getElementById('satComentarios').innerHTML = coms.length ? coms.map(r =>
+                '<div class="py-3">' +
+                    '<p class="text-xs text-slate-500"><span class="font-semibold text-slate-700">' + esc(r.unidad) + '</span>' +
+                        (r.tipo ? ' · ' + esc(r.tipo) : '') + (r.fecha ? ' · ' + esc(r.fecha.toLocaleDateString('es-MX')) : '') +
+                        (r.promedio !== null ? ' · ' + fmt1(r.promedio) + ' / 5' : '') + '</p>' +
+                    (r.gusto ? '<p class="text-sm text-slate-700 mt-1"><span class="font-semibold text-green-700">Le gustó:</span> ' + esc(r.gusto) + '</p>' : '') +
+                    (r.mejorar ? '<p class="text-sm text-slate-700 mt-1"><span class="font-semibold text-amber-700">A mejorar:</span> ' + esc(r.mejorar) + '</p>' : '') +
+                '</div>').join('')
+                : '<p class="text-sm text-slate-500 py-2">Sin comentarios en el periodo.</p>';
+        }
+
+        async function mostrarSatisfaccion(unidad) {
+            resetSidebarStyles();
+            const btn = document.getElementById('btnSatisfaccion');
+            btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
+            btn.classList.remove('text-slate-400');
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('clienteContent').style.display = 'none';
+            ['adminUsuariosContent', 'auditoriaContent', 'cotizadorContent', 'catalogosContent', 'proximosContent']
+                .forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('satisfaccionContent').classList.remove('hidden');
+            cerrarSidebarMovil();
+            if (!encuestaCargada) await cargarEncuestas(false);
+            poblarFiltrosSatisfaccion(typeof unidad === 'string' ? unidad : null);
+            renderSatisfaccion();
+            registrarEvento('ver_satisfaccion');
+        }
+
+        ['satUnidad', 'satPeriodo', 'satTipo'].forEach(id => document.getElementById(id).addEventListener('change', renderSatisfaccion));
+
+        async function exportarSatisfaccionExcel() {
+            const lista = encuestasFiltradas();
+            if (!lista.length) { avisar('No hay respuestas con los filtros actuales.'); return; }
+            try {
+                await cargarSheetJS();
+                const aoa = [['Fecha', 'Unidad', 'Empresa (como respondió)', 'Tipo de servicio']
+                    .concat(ASPECTOS_ENCUESTA.map(a => a.etiqueta), ['Promedio', 'A tiempo', 'Recomendaría', 'Lo que más le gustó', 'A mejorar'])]
+                    .concat(lista.map(r => [r.fecha ? r.fecha.toLocaleDateString('es-MX') : '', r.unidad, r.empresa, r.tipo]
+                        .concat(ASPECTOS_ENCUESTA.map(a => r.notas[a.clave] ?? ''),
+                                [r.promedio === null ? '' : +r.promedio.toFixed(2),
+                                 { si: 'Sí', no: 'No' }[r.tiempo] || '', { si: 'Sí', no: 'No', talvez: 'Tal vez' }[r.recomienda] || '',
+                                 r.gusto, r.mejorar])));
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = [12, 28, 28, 18, 10, 10, 10, 10, 10, 10, 12, 40, 40].map(w => ({ wch: w }));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lista.length, c: 12 } }) };
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Satisfaccion');
+                XLSX.writeFile(libro, 'Satisfaccion_clientes_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+            } catch (err) { avisar(err.message); }
+        }
+
+        // ---- Envío por correo ----
+        function correoDeUnidad(unidad) {
+            const n = normalizar(String(unidad || '').toLowerCase()).trim();
+            const cli = (catalogoClientes || []).find(k => normalizar(String(k.unidad || '').toLowerCase()).trim() === n) ||
+                        (catalogoClientes || []).find(k => normalizar(String(k.razonSocial || '').toLowerCase()).trim() === n);
+            if (cli && cli.correo) return { correo: cli.correo, atencion: cli.atencion || '', origen: 'catálogo de clientes' };
+            const enOrden = (document.getElementById('clienteCorreo').innerText || '').trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(enOrden.split(/[,;\s]+/)[0] || '')) return { correo: enOrden, atencion: '', origen: 'órdenes de servicio' };
+            return { correo: '', atencion: cli ? cli.atencion || '' : '', origen: '' };
+        }
+
+        function mensajeEncuestaUI(texto, tipo) {
+            const el = document.getElementById('encMensaje');
+            el.innerText = texto || '';
+            el.className = 'text-sm ' + (tipo === 'error' ? 'text-red-600' : tipo === 'ok' ? 'text-green-700' : 'text-slate-500');
+            el.classList.toggle('hidden', !texto);
+        }
+
+        async function abrirEncuestaCliente() {
+            if (!clienteActual) return;
+            if (!catalogoClientes.length && typeof cargarCatalogoClientes === 'function') { try { await cargarCatalogoClientes(); } catch (_) {} }
+            const dest = correoDeUnidad(clienteActual);
+            const k = indicadoresEncuesta(encuestaRespuestas.filter(r => r.unidad === clienteActual));
+            document.getElementById('encContexto').innerText = clienteActual +
+                (k.respuestas ? ' · ' + k.respuestas + ' respuesta(s) previas, última el ' + (k.ultima ? k.ultima.toLocaleDateString('es-MX') : '—') : ' · sin respuestas previas');
+            document.getElementById('encPara').value = dest.correo;
+            document.getElementById('encAyudaPara').innerText = dest.correo
+                ? 'Tomado del ' + dest.origen + '.'
+                : 'Esta unidad no tiene correo registrado: escríbelo aquí (y conviene agregarlo en Catálogos → Clientes).';
+            document.getElementById('encCC').value = '';
+            document.getElementById('encAsunto').value = 'Encuesta de satisfacción · ' + clienteActual;
+            document.getElementById('encCuerpo').value =
+                'Estimado(a) ' + (dest.atencion || 'cliente') + ':\n\n' +
+                'En Ingenieros Asociados queremos seguir mejorando el servicio que brindamos a ' + clienteActual + '. ' +
+                'Le agradeceremos mucho que dedique un par de minutos a responder nuestra encuesta de satisfacción.\n\n' +
+                'Sus respuestas son confidenciales y nos ayudan a mejorar.\n\n' +
+                'Atentamente,\n' + nombreUsuario() + '\nIngenieros Asociados';
+            document.getElementById('encVistaPrevia').href = urlEncuestaPara(clienteActual);
+            document.getElementById('encModo').value = 'enviar';
+            mensajeEncuestaUI('');
+            const m = document.getElementById('modalEncuesta');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+
+        function cerrarEncuestaCliente() {
+            const m = document.getElementById('modalEncuesta');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+
+        function htmlCorreoEncuesta(texto, url) {
+            const parrafos = String(texto).split(/\n{2,}/);
+            const boton = '<p style="margin:20px 0"><a href="' + esc(url) + '" style="background:#005DA1;color:#ffffff;text-decoration:none;' +
+                          'padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">Responder encuesta</a></p>' +
+                          '<p style="margin:0 0 16px;font-size:12px;color:#64748b">Si el botón no funciona, copie esta dirección en su navegador:<br>' +
+                          '<a href="' + esc(url) + '" style="color:#005DA1;word-break:break-all">' + esc(url) + '</a></p>';
+            // el botón va después del párrafo que invita a responder (el segundo)
+            return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.55">' +
+                parrafos.map((p, i) => '<p style="margin:0 0 12px">' + esc(p).replace(/\n/g, '<br>') + '</p>' + (i === Math.min(1, parrafos.length - 1) ? boton : '')).join('') +
+                '</div>';
+        }
+
+        async function enviarEncuestaCliente() {
+            const lista = (id) => document.getElementById(id).value.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+            const para = lista('encPara'), cc = lista('encCC');
+            const valido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+            const asunto = document.getElementById('encAsunto').value.trim();
+            const cuerpo = document.getElementById('encCuerpo').value;
+            const modo = document.getElementById('encModo').value;
+            if (!para.length || !para.every(valido) || !cc.every(valido)) { mensajeEncuestaUI('Revisa los correos: cada dirección debe tener el formato nombre@dominio.', 'error'); return; }
+            if (!asunto) { mensajeEncuestaUI('Escribe el asunto del correo.', 'error'); return; }
+            const url = urlEncuestaPara(clienteActual);
+            const parrafos = cuerpo.split(/\n{2,}/);
+            parrafos.splice(Math.min(2, parrafos.length), 0, 'Responder encuesta: ' + url);
+            const textoPlano = parrafos.join('\n\n');
+            const btn = document.getElementById('btnEnviarEncuesta');
+            btn.disabled = true; btn.innerText = modo === 'borrador' ? 'Guardando…' : 'Enviando…';
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'correo', token: tokenSesion(), modo: modo, para: para, cc: cc, asunto: asunto,
+                                           cuerpo: textoPlano, html: htmlCorreoEncuesta(cuerpo, url), adjuntos: [], urlsAdjuntas: [],
+                                           cliente: clienteActual, usuario: nombreUsuario() })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'El servidor respondió de forma inesperada.');
+                const resumen = (modo === 'borrador' ? 'Borrador de encuesta creado para ' : 'Encuesta enviada a ') + para.join(', ');
+                registrarEvento('encuesta_enviada', clienteActual + ' · ' + para.join(', '));
+                cerrarEncuestaCliente();
+                mostrarAviso(resumen + '.');
+            } catch (err) {
+                mensajeEncuestaUI('No se envió: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Enviar encuesta';
+            }
+        }
+
+        // Al abrir una unidad se actualiza su resumen de satisfacción
+        (function () {
+            const original = window.mostrarVistaCliente;
+            if (typeof original !== 'function') return;
+            window.mostrarVistaCliente = function () {
+                const r = original.apply(this, arguments);
+                actualizarPillSatisfaccion();
+                return r;
+            };
+        })();
+
         let navegandoDesdeHash = false;
 
         function hashUnidad(unidad, tab) {
@@ -3002,6 +3438,7 @@
             try {
                 if (vista === 'dashboard') { mostrarDashboard(); return true; }
                 if (vista === 'proximos') { mostrarProximos(); return true; }
+                if (vista === 'satisfaccion') { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
                 if (vista === 'cotizador') { mostrarCotizador(); return true; }
                 if (vista === 'catalogos' && esAdministrador()) {
                     mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
@@ -3038,6 +3475,7 @@
             };
             envolver('mostrarDashboard', '#dashboard');
             envolver('mostrarProximos', '#proximos');
+            envolver('mostrarSatisfaccion', '#satisfaccion');
             envolver('mostrarCotizador', '#cotizador');
             envolver('mostrarCatalogos', '#catalogos');
             envolver('mostrarAuditoria', '#auditoria');

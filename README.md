@@ -1192,6 +1192,39 @@ Se llena con el nombre del usuario con sesión activa. Sigue siendo editable ant
 
 **Puesta en marcha:** pegar el `Code.gs` nuevo, ejecutar `autorizarPermisos()` una vez y aceptar el permiso de Google Drive, y volver a implementar (*Nueva versión*). Después subir `index.html`, `app.js` y `sw.js`. La cuenta dueña del script debe tener acceso de edición a la carpeta de rutinas.
 
+## 4.29 Encuesta de satisfacción (v6.0)
+
+### Envío desde el detalle de cada unidad
+
+Botón **Enviar encuesta de satisfacción** a la derecha del nombre de la unidad.
+
+- **Para:** el correo de la unidad en *Catálogos → Clientes* (se busca por la columna *Unidad*). Si no lo tiene, el de las órdenes de servicio; si tampoco, se escribe a mano.
+- **Asunto y mensaje** vienen prellenados (con el nombre de *Atención* del catálogo) y se pueden editar.
+- El correo lleva un botón **Responder encuesta** que abre el formulario de Jotform con el campo **Empresa ya llenado** con el nombre de la unidad: `https://form.jotform.com/262825907615868?empresa=<unidad>`.
+- Sale por la cuenta institucional (acción `correo`), o se guarda como borrador en Gmail. Queda en la bitácora.
+- Junto al nombre de la unidad aparece su resumen, por ejemplo *★ Satisfacción 4.6 / 5 · 3 respuestas*. Al tocarlo se abre el panel filtrado.
+
+**Prellenado:** usa el *nombre único* del campo Empresa en Jotform, que por omisión es `empresa`. Si en el formulario es otro (Jotform lo muestra en las propiedades del campo, *Avanzado → Nombre único del campo*), cambiar `CAMPO_EMPRESA_ENCUESTA` en `app.js`.
+
+### Panel «Satisfacción de clientes»
+
+Nuevo apartado del menú lateral (`#satisfaccion`). Lee la pestaña **Encuesta de satisfacción** del mismo libro, donde Jotform escribe las respuestas (se acepta el nombre con o sin acento).
+
+| Indicador | Cálculo |
+|---|---|
+| Respuestas | Encuestas recibidas con los filtros aplicados |
+| Calificación promedio | Promedio de las cuatro preguntas de 1 a 5 (calidad general, comunicación, conocimiento y profesionalismo, equipo funcionando) |
+| Satisfechos (4–5) | Porcentaje de calificaciones de 4 o 5 |
+| A tiempo | Porcentaje de «Sí» en *¿El servicio se completó dentro del tiempo estimado?* |
+| Nos recomendaría | Porcentaje de «Sí»; debajo, «Tal vez» y «No» |
+
+Además: gráfica del promedio por aspecto, tendencia mensual (últimos 12 meses), tabla por unidad ordenada de la peor a la mejor calificación, y comentarios recientes (*le gustó* / *a mejorar*). Filtros por unidad, periodo (todo, 12 meses, 90 días, por año) y tipo de servicio. **Exportar a Excel** con los filtros aplicados.
+
+- Las columnas se reconocen por palabras del texto de cada pregunta; si falta alguna esencial, el panel lo avisa.
+- La unidad se obtiene del campo *Empresa*. Se compara sin mayúsculas, acentos ni espacios dobles; si el cliente lo modificó y no coincide con ninguna unidad, se agrupa con el nombre que escribió.
+
+**Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`. Confirmar que Jotform envía las respuestas a la pestaña *Encuesta de satisfacción* del libro de la plataforma.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1274,6 +1307,7 @@ Se llena con el nombre del usuario con sesión activa. Sigue siendo editable ant
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 6.0 | **Encuesta de satisfacción.** Botón en el detalle de cada unidad que envía por correo el formulario de Jotform con la Empresa prellenada; resumen de satisfacción junto al nombre de la unidad. Nuevo panel **Satisfacción de clientes** con promedio, % satisfechos, % a tiempo, % recomendaría, gráficas por aspecto y por mes, tabla por unidad, comentarios y exportación a Excel |
 | 5.9 | **Un solo botón al final de la rutina, *Guardar e imprimir***: primero guarda el PDF en la carpeta de la orden en Drive y después abre la impresión. Si el guardado falla, pregunta si se imprime de todos modos |
 | 5.8 | **Rutinas en Drive**: botón *Guardar en Drive* (PDF carta en la subcarpeta de la orden), aviso al abrir una orden que ya tiene rutina y confirmación para reemplazar (la anterior va a la papelera). Responsable autorizado = usuario con sesión. Gráficas de la rutina dibujadas con la ventana visible; limpieza de restos de impresión; la temperatura medida contra simulador ya no se toma como ambiente |
 | 5.7 | **Tarifa por palabras.** Una orden que solo dice *Monitor de signos vitales* toma el concepto **básico**, no el avanzado: para asignar un concepto, todas sus palabras deben estar en la orden; *básico/estándar/sencillo* son opcionales; en empate gana la variante base o el menor precio. Aplica al tarifario, la auditoría y el calendario |
