@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.0';
+        const VERSION_APP = '6.1';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -404,7 +404,7 @@
                     const j = await r.json().catch(() => null);
                     if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo cambiar el PIN.');
                     // v5.3: la sesión va ligada al PIN; el servidor entrega una nueva
-                    if (j.token) guardarSesion(j.nombre, j.rol, j.token, j.expira);
+                    if (j.token) guardarSesion(j.nombre, j.rol, j.token, j.expira, permisosSesion());
                 }
 
                 cerrarCambiarPin();
@@ -745,6 +745,7 @@
             generarSidebarClientes(document.getElementById('buscadorClientes').value || '');
 
             actualizarBadgeProximos();   // v5.4
+            refrescarPermisosSesion();   // v6.1
             cargarEncuestas(!!forzar).then(() => {   // v6.0: no frena la carga principal
                 if (!document.getElementById('satisfaccionContent').classList.contains('hidden')) { poblarFiltrosSatisfaccion(null); renderSatisfaccion(); }
             });
@@ -1845,11 +1846,7 @@
 
         async function mostrarAuditoria() {
             // v4.1: la información financiera es exclusiva del administrador
-            if (!esAdministrador()) {
-                avisar('La auditoría financiera es exclusiva del administrador.');
-                return;
-            }
-            if (!(await asegurarCredencialAdmin())) return;
+            if (!tienePermiso('auditoria')) { sinPermiso('auditoria'); return; }   // v6.1
             resetSidebarStyles();
             const btn = document.getElementById('btnAuditoria');
             btn.classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -2798,6 +2795,7 @@
         }
 
         function mostrarProximos() {
+            if (!tienePermiso('proximos')) { sinPermiso('proximos'); return; }   // v6.1
             resetSidebarStyles();
             const btn = document.getElementById('btnProximos');
             btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -3130,7 +3128,7 @@
             const pill = document.getElementById('clienteSatisfaccionPill');
             if (!pill) return;
             const lista = clienteActual ? encuestaRespuestas.filter(r => r.unidad === clienteActual) : [];
-            if (!lista.length) { pill.classList.add('hidden'); return; }
+            if (!lista.length || !tienePermiso('satisfaccion')) { pill.classList.add('hidden'); return; }
             const k = indicadoresEncuesta(lista);
             pill.className = 'no-print text-xs font-semibold rounded-full px-3 py-1 border transition-colors hover:shadow-sm ' + colorPromedio(k.promedio);
             pill.innerText = '★ Satisfacción ' + fmt1(k.promedio) + ' / 5 · ' + k.respuestas + (k.respuestas === 1 ? ' respuesta' : ' respuestas');
@@ -3260,6 +3258,7 @@
         }
 
         async function mostrarSatisfaccion(unidad) {
+            if (!tienePermiso('satisfaccion')) { sinPermiso('satisfaccion'); return; }   // v6.1
             resetSidebarStyles();
             const btn = document.getElementById('btnSatisfaccion');
             btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -3437,15 +3436,15 @@
             navegandoDesdeHash = true;
             try {
                 if (vista === 'dashboard') { mostrarDashboard(); return true; }
-                if (vista === 'proximos') { mostrarProximos(); return true; }
-                if (vista === 'satisfaccion') { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
-                if (vista === 'cotizador') { mostrarCotizador(); return true; }
-                if (vista === 'catalogos' && esAdministrador()) {
+                if (vista === 'proximos' && tienePermiso('proximos')) { mostrarProximos(); return true; }
+                if (vista === 'satisfaccion' && tienePermiso('satisfaccion')) { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
+                if (vista === 'cotizador' && tienePermiso('cotizador')) { mostrarCotizador(); return true; }
+                if (vista === 'catalogos' && tienePermiso('catalogos')) {
                     mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
                     return true;
                 }
-                if (vista === 'auditoria' && esAdministrador()) { mostrarAuditoria(); return true; }
-                if (vista === 'usuarios' && esAdministrador()) { mostrarAdminUsuarios(); return true; }
+                if (vista === 'auditoria' && tienePermiso('auditoria')) { mostrarAuditoria(); return true; }
+                if (vista === 'usuarios' && tienePermiso('usuarios')) { mostrarAdminUsuarios(); return true; }
                 if (vista === 'unidad' && partes[1]) {
                     const unidad = decodeURIComponent(partes[1]);
                     if (!clientesUnicos.includes(unidad)) return false;
@@ -4110,8 +4109,7 @@
         }
 
         async function mostrarCatalogos() {
-            if (!esAdministrador()) { avisar('Los catálogos se administran con rol de administrador.'); return; }
-            if (!(await asegurarCredencialAdmin())) return;
+            if (!tienePermiso('catalogos')) { sinPermiso('catalogos'); return; }   // v6.1
             resetSidebarStyles();
             const btn = document.getElementById('btnCatalogos');
             btn.classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -4664,6 +4662,7 @@
         }
 
         async function mostrarCotizador() {
+            if (!tienePermiso('cotizador')) { sinPermiso('cotizador'); return; }   // v6.1
             resetSidebarStyles();
             const btn = document.getElementById('btnCotizador');
             btn.classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -8268,11 +8267,69 @@
         function rolUsuario() { const s = sesionActual(); return (s && s.rol) ? s.rol : 'usuario'; }
         function esAdministrador() { return rolUsuario() === 'admin'; }
 
-        function guardarSesion(nombre, rol, token, expira) {
+        function guardarSesion(nombre, rol, token, expira, permisos) {
             localStorage.setItem('ia_sesion', JSON.stringify({
                 nombre: nombre, rol: rol || 'usuario', ts: Date.now(),
-                token: token || '', expira: expira || 0
+                token: token || '', expira: expira || 0,
+                permisos: Array.isArray(permisos) ? permisos : null   // v6.1
             }));
+        }
+
+        /* ============================================================
+           v6.1 — PERMISOS POR APARTADO
+           Cada usuario entra solo a los apartados de la barra lateral que
+           el administrador le marcó. El dashboard y las unidades los ven
+           todos. El rol administrador entra a todo. Sin permisos guardados
+           se aplican los de su rol (lo que tenía antes de la v6.1).
+           Esto solo decide qué se muestra: el servidor vuelve a revisar el
+           permiso en cada operación.
+           ============================================================ */
+        const APARTADOS_MENU = [
+            { clave: 'proximos',     etiqueta: 'Próximos mantenimientos', btn: 'btnProximos',      vista: 'proximosContent' },
+            { clave: 'satisfaccion', etiqueta: 'Satisfacción de clientes', btn: 'btnSatisfaccion', vista: 'satisfaccionContent' },
+            { clave: 'cotizador',    etiqueta: 'Cotizador',               btn: 'btnCotizador',     vista: 'cotizadorContent' },
+            { clave: 'catalogos',    etiqueta: 'Catálogos',               btn: 'btnCatalogos',     vista: 'catalogosContent' },
+            { clave: 'auditoria',    etiqueta: 'Auditoría financiera',    btn: 'btnAuditoria',     vista: 'auditoriaContent' },
+            { clave: 'usuarios',     etiqueta: 'Usuarios',                btn: 'btnAdminUsuarios', vista: 'adminUsuariosContent' }
+        ];
+        const PERMISOS_BASE_USUARIO = ['proximos', 'satisfaccion', 'cotizador'];
+
+        function permisosSesion() {
+            const s = sesionActual();
+            if (!s) return [];
+            if (s.rol === 'admin') return APARTADOS_MENU.map(a => a.clave);
+            return Array.isArray(s.permisos) ? s.permisos : PERMISOS_BASE_USUARIO.slice();
+        }
+        function tienePermiso(clave) {
+            if (!hayBackend() && !gateActivo()) return true;
+            return permisosSesion().includes(clave);
+        }
+        function sinPermiso(clave) {
+            const a = APARTADOS_MENU.find(x => x.clave === clave);
+            avisar('No tienes acceso a ' + (a ? '«' + a.etiqueta + '»' : 'este apartado') + '. Pídeselo al administrador.');
+        }
+
+        /* Los permisos pueden cambiar mientras alguien tiene la sesión abierta:
+           al cargar los datos se piden los vigentes al servidor. */
+        async function refrescarPermisosSesion() {
+            if (!hayBackend() || !tokenSesion()) return;
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'miSesion', token: tokenSesion() })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) return;
+                const s = sesionActual();
+                if (!s) return;
+                s.rol = j.rol; s.permisos = j.permisos;
+                localStorage.setItem('ia_sesion', JSON.stringify(s));
+                mostrarUsuarioSidebar();
+                aplicarPermisosInterfaz();
+                // Si la vista abierta dejó de estar permitida, se regresa al dashboard
+                const abierta = APARTADOS_MENU.find(a => { const v = document.getElementById(a.vista); return v && !v.classList.contains('hidden'); });
+                if (abierta && !tienePermiso(abierta.clave)) mostrarDashboard();
+            } catch (_) { /* sin red: se quedan los del ingreso */ }
         }
 
         /* v5.3 — El servidor contesta { codigo: 'SESION' } cuando la sesión venció,
@@ -8450,7 +8507,7 @@
                     return;
                 }
 
-                guardarSesion(res.nombre, res.rol || 'usuario', res.token, res.expira);
+                guardarSesion(res.nombre, res.rol || 'usuario', res.token, res.expira, res.permisos);
                 olvidarCredencialAdmin();
                 avisoSesionMostrado = false;
 
@@ -8503,22 +8560,14 @@
 
         // Muestra u oculta lo que corresponde al rol de la sesión
         function aplicarPermisosInterfaz() {
-            const btn = document.getElementById('btnAdminUsuarios');
-            if (!btn) return;
-            const admin = esAdministrador();
-            btn.classList.toggle('hidden', !admin);
-
-            // v4.1: la auditoría financiera también es solo del administrador
-            const btnAud = document.getElementById('btnAuditoria');
-            if (btnAud) btnAud.classList.toggle('hidden', !admin);
-            const btnCat = document.getElementById('btnCatalogos');     // v4.9
-            if (btnCat) btnCat.classList.toggle('hidden', !admin);
-
-            if (!admin) {
-                document.getElementById('adminUsuariosContent').classList.add('hidden');
-                document.getElementById('auditoriaContent').classList.add('hidden');
-                document.getElementById('catalogosContent').classList.add('hidden');
-            }
+            // v6.1: cada botón del menú según los permisos del usuario
+            APARTADOS_MENU.forEach(ap => {
+                const btn = document.getElementById(ap.btn);
+                const ok = tienePermiso(ap.clave);
+                if (btn) btn.classList.toggle('hidden', !ok);
+                const vista = document.getElementById(ap.vista);
+                if (!ok && vista) vista.classList.add('hidden');
+            });
         }
 
         function mensajeUsuariosUI(texto, tipo) {
@@ -8534,12 +8583,7 @@
         }
 
         async function mostrarAdminUsuarios() {
-            if (!esAdministrador()) {
-                avisar('Este apartado es exclusivo del administrador.');
-                return;
-            }
-            // v4.2: si la credencial no está o no sirve, el apartado no se abre
-            if (!(await asegurarCredencialAdmin())) return;
+            if (!tienePermiso('usuarios')) { sinPermiso('usuarios'); return; }   // v6.1
             resetSidebarStyles();
             document.getElementById('btnAdminUsuarios').classList.add('border-l-4', 'border-brand-500', 'bg-slate-800/50', 'text-white');
             document.getElementById('btnAdminUsuarios').classList.remove('text-slate-400');
@@ -8551,6 +8595,7 @@
             document.getElementById('adminUsuariosContent').classList.remove('hidden');
             cerrarSidebarMovil();
             registrarEvento('ver_usuarios');
+            pintarCasillasPermisos(usuarioEnEdicion ? permisosDelFormulario() : null);   // v6.1
             cargarListaUsuarios();
             renderTarifario();
         }
@@ -8585,6 +8630,15 @@
             return j;
         }
 
+        function resumenPermisos(u) {
+            if (u.rol === 'admin') return '<span class="text-slate-500">Todos los apartados</span>';
+            const lista = Array.isArray(u.permisos) ? u.permisos : null;
+            if (!lista) return '<span class="text-slate-400">—</span>';
+            if (!lista.length) return '<span class="text-amber-700 font-semibold">Solo dashboard y unidades</span>';
+            return lista.map(k => { const a = APARTADOS_MENU.find(x => x.clave === k); return a ? esc(a.etiqueta) : ''; }).filter(Boolean).join(' · ') +
+                   (u.permisosPorRol ? ' <span class="text-slate-400">(por rol)</span>' : '');
+        }
+
         function renderListaUsuarios(usuarios) {
             const cont = document.getElementById('listaUsuarios');
             if (!usuarios || usuarios.length === 0) {
@@ -8599,6 +8653,7 @@
                     '<th class="' + th + '">Nombre</th>' +
                     '<th class="' + th + '">Rol</th>' +
                     '<th class="' + th + '">Estado</th>' +
+                    '<th class="' + th + '">Acceso</th>' +
                     '<th class="' + th + '">Alta</th>' +
                     '<th class="' + th + '">Último acceso</th>' +
                     '<th class="' + th + ' text-right">Acciones</th>' +
@@ -8612,6 +8667,7 @@
                         '<td class="' + td + '">' + (u.activo
                             ? '<span class="text-green-700 font-semibold">Activo</span>'
                             : '<span class="text-slate-400">Inactivo</span>') + '</td>' +
+                        '<td class="' + td + ' text-xs text-slate-600 max-w-xs">' + resumenPermisos(u) + '</td>' +
                         '<td class="' + td + ' text-xs text-slate-500">' + esc(fechaCorta(u.creado)) + '</td>' +
                         '<td class="' + td + ' text-xs text-slate-500">' + esc(fechaCorta(u.ultimoAcceso) || 'Nunca') + '</td>' +
                         '<td class="' + td + ' text-right whitespace-nowrap">' +
@@ -8727,7 +8783,8 @@
             cont.innerHTML = '<p class="text-sm text-slate-500 italic p-6">Consultando usuarios…</p>';
             try {
                 const j = await peticionAdmin('listarUsuarios', {});
-                renderListaUsuarios(j.usuarios || []);
+                usuariosListados = j.usuarios || [];
+                renderListaUsuarios(usuariosListados);
             } catch (err) {
                 cont.innerHTML = '<p class="text-sm text-red-600 p-6">' + esc(err.message) + '</p>';
             }
@@ -8737,17 +8794,47 @@
            nuevo. Se guarda el nombre ORIGINAL porque el administrador puede
            cambiárselo, y el servidor necesita saber qué renglón tocar. */
         let usuarioEnEdicion = '';
+        let usuariosListados = [];   // v6.1: última lista, para editar permisos
+
+        // v6.1 — casillas de permisos del formulario
+        function pintarCasillasPermisos(marcados) {
+            const cont = document.getElementById('usuPermisos');
+            // Solo un administrador puede dar el rol de administrador
+            const optAdmin = document.querySelector('#usuRol option[value="admin"]');
+            if (optAdmin) optAdmin.disabled = !esAdministrador();
+            const admin = document.getElementById('usuRol').value === 'admin';
+            const sel = admin ? APARTADOS_MENU.map(a => a.clave) : (marcados || PERMISOS_BASE_USUARIO);
+            // Sin ser administrador no se puede dar un permiso que uno mismo no tiene
+            const propios = permisosSesion();
+            cont.innerHTML = APARTADOS_MENU.map(a => {
+                const bloqueada = admin || !propios.includes(a.clave);
+                return '<label class="flex items-center gap-2 text-sm rounded-lg border px-3 py-2 ' +
+                       (bloqueada ? 'border-slate-100 bg-slate-50 text-slate-500' : 'border-slate-200 hover:border-brand-300 cursor-pointer text-slate-700') + '">' +
+                       '<input type="checkbox" value="' + a.clave + '" class="w-4 h-4 rounded border-slate-300"' +
+                       (sel.includes(a.clave) ? ' checked' : '') + (bloqueada ? ' disabled' : '') + '>' +
+                       '<span>' + esc(a.etiqueta) + '</span></label>';
+            }).join('');
+            document.getElementById('usuPermisosNota').innerText = admin
+                ? 'El rol Administrador entra a todos los apartados.'
+                : 'El dashboard y las unidades los ven todos. Marca los demás apartados a los que entra esta persona.';
+        }
+        function permisosDelFormulario() {
+            return Array.from(document.querySelectorAll('#usuPermisos input:checked')).map(x => x.value);
+        }
+        document.getElementById('usuRol').addEventListener('change', () => pintarCasillasPermisos(permisosDelFormulario()));
 
         function entrarModoEdicion(nombre, rol) {
             usuarioEnEdicion = nombre;
+            const u = usuariosListados.find(x => x.nombre === nombre);
             document.getElementById('usuNombre').value = nombre;
             document.getElementById('usuPin').value = '';
             document.getElementById('usuRol').value = (rol === 'admin') ? 'admin' : 'usuario';
+            pintarCasillasPermisos(u && Array.isArray(u.permisos) ? u.permisos : null);   // v6.1
             document.getElementById('tituloFormUsuario').innerText = 'Editar usuario';
             document.getElementById('btnGuardarUsuario').innerText = 'Guardar cambios';
             document.getElementById('btnCancelarEdicion').classList.remove('hidden');
             const aviso = document.getElementById('avisoEdicionUsuario');
-            aviso.innerText = 'Editando a "' + nombre + '". Puedes cambiarle el nombre o el rol. ' +
+            aviso.innerText = 'Editando a "' + nombre + '". Puedes cambiarle el nombre, el rol o los apartados a los que entra. ' +
                               'Si dejas el PIN vacío conserva el que ya tenía; si escribes uno nuevo, el anterior deja de servir de inmediato.';
             aviso.classList.remove('hidden');
             mensajeUsuariosUI('', 'info');
@@ -8760,6 +8847,7 @@
             document.getElementById('usuNombre').value = '';
             document.getElementById('usuPin').value = '';
             document.getElementById('usuRol').value = 'usuario';
+            pintarCasillasPermisos(null);   // v6.1
             document.getElementById('tituloFormUsuario').innerText = 'Dar de alta un usuario';
             document.getElementById('btnGuardarUsuario').innerText = 'Guardar usuario';
             document.getElementById('btnCancelarEdicion').classList.add('hidden');
@@ -8785,7 +8873,8 @@
                     const j = await peticionAdmin('guardarUsuario', {
                         usuario: {
                             nombre: nombre, nombreOriginal: usuarioEnEdicion,
-                            pin: pin, rol: rol, activo: true
+                            pin: pin, rol: rol, activo: true,
+                            permisos: rol === 'admin' ? [] : permisosDelFormulario()   // v6.1
                         }
                     });
                     mensajeUsuariosUI(j.creado ? ('Usuario "' + nombre + '" dado de alta.')
@@ -8823,7 +8912,7 @@
                     if (!hayBackend()) { activarUsuarioLocal(nombre, activo); }
                     else {
                         await peticionAdmin('guardarUsuario', {
-                            usuario: { nombre: nombre, pin: '', rol: '', activo: activo }
+                            usuario: { nombre: nombre, pin: '', rol: '', activo: activo }   // v6.1: rol y permisos se conservan
                         });
                     }
                     mensajeUsuariosUI('Usuario "' + nombre + '" ' + (activo ? 'activado' : 'desactivado') + '.', 'ok');

@@ -1225,6 +1225,27 @@ Además: gráfica del promedio por aspecto, tendencia mensual (últimos 12 meses
 
 **Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`. Confirmar que Jotform envía las respuestas a la pestaña *Encuesta de satisfacción* del libro de la plataforma.
 
+## 4.30 Permisos por apartado (v6.1)
+
+En **Usuarios**, al dar de alta o editar a alguien, el recuadro **Acceso a apartados** define a cuáles de estos entra:
+
+Próximos mantenimientos · Satisfacción de clientes · Cotizador · Catálogos · Auditoría financiera · Usuarios
+
+- El **dashboard** y las **unidades** los ven todos.
+- El rol **Administrador** entra a todo; sus casillas aparecen marcadas y bloqueadas.
+- La lista de usuarios tiene la columna **Acceso** con el resumen de cada persona.
+- **Usuarios existentes:** mientras no se les editen, conservan lo de su rol (usuario: Próximos, Satisfacción y Cotizador), marcado *(por rol)*. Si se les desmarca todo, quedan solo con dashboard y unidades.
+- Los botones del menú se ocultan según los permisos, y un enlace directo a un apartado sin permiso lleva al dashboard.
+- **Cambios en caliente:** al recargar los datos, la plataforma pide al servidor los permisos vigentes. No hace falta volver a entrar con el PIN, y si la vista abierta deja de estar permitida, regresa al dashboard.
+
+**Lo revisa el servidor, no solo la pantalla.** Dar de alta, editar o eliminar clientes y conceptos del catálogo exige *Catálogos*; listar, crear o eliminar usuarios exige *Usuarios*. Quien entra a Usuarios sin ser administrador no puede crear, editar ni eliminar administradores, ni darle a nadie un permiso que él no tiene.
+
+Los permisos se guardan en la columna 8, **Permisos**, de la hoja `Usuarios` (claves separadas por coma; `ninguno` = sin apartados). La columna se crea sola.
+
+**De paso:** activar o desactivar a un administrador desde la lista lo convertía en usuario normal. Ahora se conservan su rol y sus permisos.
+
+**Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1307,6 +1328,7 @@ Además: gráfica del promedio por aspecto, tendencia mensual (últimos 12 meses
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 6.1 | **Permisos por apartado.** En Usuarios se marca a qué apartados del menú entra cada persona (Próximos, Satisfacción, Cotizador, Catálogos, Auditoría, Usuarios); el administrador entra a todo. El servidor revisa el permiso en cada operación y los cambios se aplican sin volver a entrar. Activar/desactivar ya no le quita el rol a un administrador |
 | 6.0 | **Encuesta de satisfacción.** Botón en el detalle de cada unidad que envía por correo el formulario de Jotform con la Empresa prellenada; resumen de satisfacción junto al nombre de la unidad. Nuevo panel **Satisfacción de clientes** con promedio, % satisfechos, % a tiempo, % recomendaría, gráficas por aspecto y por mes, tabla por unidad, comentarios y exportación a Excel |
 | 5.9 | **Un solo botón al final de la rutina, *Guardar e imprimir***: primero guarda el PDF en la carpeta de la orden en Drive y después abre la impresión. Si el guardado falla, pregunta si se imprime de todos modos |
 | 5.8 | **Rutinas en Drive**: botón *Guardar en Drive* (PDF carta en la subcarpeta de la orden), aviso al abrir una orden que ya tiene rutina y confirmación para reemplazar (la anterior va a la papelera). Responsable autorizado = usuario con sesión. Gráficas de la rutina dibujadas con la ventana visible; limpieza de restos de impresión; la temperatura medida contra simulador ya no se toma como ambiente |
