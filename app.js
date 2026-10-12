@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.1';
+        const VERSION_APP = '6.2';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2689,6 +2689,8 @@
                 if (!(frec > 0)) return;
                 const fecha = sumarMesesUTC(d.FechaObj, frec);
                 lista.push({
+                    llave: tipo + '#' + (d.Cliente || '') + '#' + llaveEquipoCal(d),   // v6.2: identifica al equipo en las asignaciones
+                    orden: d,
                     unidad: d.Cliente || '', tipo: tipo,
                     equipo: d.Equipo || '', marca: d.Marca || '', modelo: d.Modelo || '',
                     serie: d.Serie || '', inventario: d.Inventario || '', area: d.Area || '',
@@ -2738,6 +2740,10 @@
                 if (tipo === 'prev' && x.tipo !== 'Preventivo') return false;
                 if (tipo === 'cal' && x.tipo !== 'Calibración') return false;
                 if (ing && x.ingeniero !== ing) return false;
+                const asg = asignacionDe(x);   // v6.2
+                const filtroAsg = document.getElementById('proxAsignacion').value;
+                if (filtroAsg === 'sin' && asg) return false;
+                if (filtroAsg === 'asignados' && !asg) return false;
                 if (q) {
                     const blob = normalizar([x.equipo, x.marca, x.modelo, x.serie, x.inventario, x.area, x.unidad].join(' ').toLowerCase());
                     if (!blob.includes(q)) return false;
@@ -2761,12 +2767,15 @@
 
             const lista = proximosFiltrados();
             const vencidos = lista.filter(x => x.dias < 0).length;
+            const asignados = lista.filter(x => asignacionDe(x)).length;
             document.getElementById('proxResumen').innerText = lista.length + ' equipo(s)' +
-                (vencidos ? ' · ' + vencidos + ' vencido(s)' : '') + ' · ordenados por fecha programada';
+                (vencidos ? ' · ' + vencidos + ' vencido(s)' : '') + (asignados ? ' · ' + asignados + ' asignado(s)' : '') +
+                ' · ordenados por fecha programada';
+            actualizarBarraSeleccionProximos(lista);
 
             const tbody = document.getElementById('proxTabla');
             if (!lista.length) {
-                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">' +
+                tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">' +
                     (todos.length ? 'Ningún equipo cumple con los filtros.' : 'No hay preventivos ni calibraciones registrados.') + '</td></tr>';
                 return;
             }
@@ -2778,7 +2787,11 @@
                                  [x.serie ? 'S/N ' + x.serie : '', x.inventario ? 'Inv. ' + x.inventario : ''].filter(Boolean).join(' · ')]
                                  .filter(Boolean).join('<br>');
                 const pest = x.tipo === 'Calibración' ? 'cal' : 'prev';
-                return '<tr class="hover:bg-slate-50 align-top">' +
+                const asg = asignacionDe(x);   // v6.2
+                return '<tr class="hover:bg-slate-50 align-top' + (seleccionProximos.has(x.llave) ? ' bg-brand-50' : '') + '">' +
+                    '<td class="pl-4 pr-1 py-3">' + (asg ? '' :
+                        '<input type="checkbox" class="prox-sel w-4 h-4 rounded border-slate-300" data-llave="' + esc(x.llave) + '"' +
+                        (seleccionProximos.has(x.llave) ? ' checked' : '') + ' aria-label="Seleccionar ' + esc(x.equipo) + '">') + '</td>' +
                     '<td class="px-4 py-3 whitespace-nowrap"><p class="text-sm font-semibold text-slate-800">' + esc(fechaCortaCal(x.fecha)) + '</p>' +
                         '<span class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ' + etiqueta + '">' + icono + esc(textoSituacion(x.dias)) + '</span></td>' +
                     '<td class="px-4 py-3 text-sm"><a href="' + esc(hashUnidad(x.unidad, pest)) + '" onclick="return irAUnidad(this.dataset.u, this.dataset.t)" ' +
@@ -2790,8 +2803,9 @@
                     '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + esc(fechaCortaCal(x.ultimaFecha)) +
                         (x.ultimaOrden ? '<p class="text-xs text-slate-500">Orden ' + esc(x.ultimaOrden) + '</p>' : '') + '</td>' +
                     '<td class="px-4 py-3 text-sm text-slate-600">' + esc(x.ingeniero) + '</td>' +
+                    '<td class="px-4 py-3 text-sm">' + celdaAsignacion(asg) + '</td>' +
                 '</tr>';
-            }).join('') + (lista.length > 1500 ? '<tr><td colspan="6" class="px-4 py-3 text-xs text-slate-500">Se muestran los primeros 1500. Usa los filtros o exporta a Excel para ver todos.</td></tr>' : '');
+            }).join('') + (lista.length > 1500 ? '<tr><td colspan="8" class="px-4 py-3 text-xs text-slate-500">Se muestran los primeros 1500. Usa los filtros o exporta a Excel para ver todos.</td></tr>' : '');
         }
 
         function mostrarProximos() {
@@ -2809,6 +2823,7 @@
             actualizarBadgeProximos();
             poblarFiltrosProximos();
             renderProximos();
+            cargarAsignaciones().then(renderProximos);   // v6.2
             registrarEvento('ver_proximos');
         }
 
@@ -2817,9 +2832,191 @@
             renderProximos();
         }
 
-        ['proxVentana', 'proxUnidad', 'proxTipo', 'proxIngeniero'].forEach(id =>
+        ['proxVentana', 'proxUnidad', 'proxTipo', 'proxIngeniero', 'proxAsignacion'].forEach(id =>
             document.getElementById(id).addEventListener('change', renderProximos));
         document.getElementById('proxBuscar').addEventListener('input', renderProximos);
+
+
+        /* ============================================================
+           v6.2 — ASIGNACIÓN DE MANTENIMIENTOS A INGENIEROS
+           Se seleccionan equipos en «Próximos mantenimientos» y se asignan a
+           un ingeniero con una fecha. Cada asignación queda en la pestaña
+           "Asignaciones" del libro; la app de Órdenes de Trabajo la lee y crea
+           un borrador de orden con los datos prellenados.
+           Una asignación se considera atendida en cuanto llega una orden de
+           ese equipo y ese tipo con fecha igual o posterior a la asignación.
+           ============================================================ */
+        let asignaciones = [];
+        const seleccionProximos = new Set();
+
+        async function cargarAsignaciones() {
+            if (!hayBackend()) return;
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'listarAsignaciones', token: tokenSesion() })
+                });
+                const j = await r.json().catch(() => null);
+                if (j && j.ok) asignaciones = j.asignaciones || [];
+            } catch (_) { /* sin red: se conservan las que había */ }
+        }
+
+        // Asignación vigente del equipo (abierta, o enviada después de su último servicio)
+        function asignacionDe(x) {
+            const delEquipo = asignaciones.filter(a => a.llave === x.llave && a.estado !== 'Cancelada')
+                                          .sort((a, b) => String(b.creada).localeCompare(String(a.creada)));
+            const a = delEquipo[0];
+            if (!a) return null;
+            // Si el último servicio del equipo es posterior a la asignación, ya se atendió
+            const creada = new Date(a.creada);
+            if (x.ultimaFecha && !isNaN(creada) && x.ultimaFecha >= new Date(Date.UTC(creada.getFullYear(), creada.getMonth(), creada.getDate()))) return null;
+            return a;
+        }
+
+        function celdaAsignacion(a) {
+            if (!a) return '<span class="text-slate-400">—</span>';
+            const color = { Asignada: 'bg-blue-100 text-blue-800', Borrador: 'bg-amber-100 text-amber-800', Enviada: 'bg-green-100 text-green-800' }[a.estado] || 'bg-slate-100 text-slate-700';
+            const fecha = a.fechaProgramada ? new Date(a.fechaProgramada + 'T12:00:00').toLocaleDateString('es-MX') : '';
+            return '<span class="inline-block text-xs font-bold px-2 py-0.5 rounded-full ' + color + '">' + esc(a.estado) + '</span>' +
+                   '<p class="text-xs text-slate-700 mt-1 font-semibold">' + esc(a.ingeniero) + '</p>' +
+                   (fecha ? '<p class="text-xs text-slate-500">para el ' + esc(fecha) + '</p>' : '') +
+                   (a.folio ? '<p class="text-xs text-slate-500">Orden ' + esc(a.folio) + '</p>' : '') +
+                   (a.estado !== 'Enviada' ? '<button data-cancelar-asg="' + esc(a.id) + '" class="text-xs font-semibold text-red-500 hover:text-red-700 mt-1">Cancelar</button>' : '');
+        }
+
+        function actualizarBarraSeleccionProximos(listaVisible) {
+            // Se descartan de la selección los que ya no están disponibles
+            const disponibles = new Set(proximosCache.filter(x => !asignacionDe(x)).map(x => x.llave));
+            Array.from(seleccionProximos).forEach(k => { if (!disponibles.has(k)) seleccionProximos.delete(k); });
+            document.getElementById('proxBarraSel').classList.toggle('hidden', seleccionProximos.size === 0);
+            document.getElementById('proxSelConteo').innerText = seleccionProximos.size;
+            const visibles = (listaVisible || []).filter(x => !asignacionDe(x)).slice(0, 1500);
+            const chk = document.getElementById('proxSelTodos');
+            chk.checked = visibles.length > 0 && visibles.every(x => seleccionProximos.has(x.llave));
+            chk.indeterminate = !chk.checked && visibles.some(x => seleccionProximos.has(x.llave));
+        }
+
+        function limpiarSeleccionProximos() { seleccionProximos.clear(); renderProximos(); }
+
+        document.getElementById('proxTabla').addEventListener('change', (e) => {
+            const c = e.target.closest('.prox-sel');
+            if (!c) return;
+            if (c.checked) seleccionProximos.add(c.dataset.llave); else seleccionProximos.delete(c.dataset.llave);
+            c.closest('tr').classList.toggle('bg-brand-50', c.checked);
+            actualizarBarraSeleccionProximos(proximosFiltrados());
+        });
+        document.getElementById('proxSelTodos').addEventListener('change', (e) => {
+            proximosFiltrados().filter(x => !asignacionDe(x)).slice(0, 1500)
+                .forEach(x => { if (e.target.checked) seleccionProximos.add(x.llave); else seleccionProximos.delete(x.llave); });
+            renderProximos();
+        });
+        document.getElementById('proxTabla').addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-cancelar-asg]');
+            if (!b) return;
+            const a = asignaciones.find(x => x.id === b.dataset.cancelarAsg);
+            if (!a) return;
+            if (!(await confirmar('¿Cancelar la asignación de ' + a.equipo + ' (' + a.unidad + ') a ' + a.ingeniero + '?' +
+                                  (a.estado === 'Borrador' ? '\n\nEl ingeniero ya tiene el borrador en su app; al sincronizar se le avisará que fue cancelada.' : ''),
+                                  { titulo: 'Cancelar asignación', textoSi: 'Cancelar asignación', textoNo: 'Volver', peligro: true }))) return;
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'cancelarAsignacion', token: tokenSesion(), id: a.id }) });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo cancelar.');
+                a.estado = 'Cancelada';
+                registrarEvento('asignacion_cancelada', a.equipo + ' · ' + a.unidad);
+                renderProximos();
+            } catch (err) { avisar(err.message); }
+        });
+
+        /* Valores de la orden de trabajo, por la etiqueta del campo en Jotform.
+           La app de Órdenes busca cada campo por su texto, así que no depende
+           del número interno del campo. */
+        function prellenadoDeEquipo(x) {
+            const d = x.orden || {};
+            const limpio = (v, vacios) => { const t = String(v || '').trim(); return (vacios || []).includes(t) || t === 'N/A' ? '' : t; };
+            return {
+                'UNIDAD': x.unidad,
+                'DOMICILIO': limpio(d.Direccion, ['Dirección no registrada']),
+                'TELÉFONO': limpio(d.Telefono, ['Teléfono no registrado']),
+                'EMAIL': limpio(d.Correo, ['Correo no registrado']),
+                'ÁREA O UBICACIÓN': limpio(x.area),
+                'EQUIPO': limpio(x.equipo, ['Sin Equipo']),
+                'MARCA': limpio(x.marca, ['Sin Marca']),
+                'MODELO': limpio(x.modelo),
+                'SERIE': limpio(x.serie),
+                'INVENTARIO': limpio(x.inventario),
+                // el texto exacto de la última orden, que ya es una opción válida del formulario
+                'TIPO DE SERVICIO O MANTENIMIENTO': limpio(d['Tipo de Servicio']) || (x.tipo === 'Calibración' ? 'Calibración' : 'Mantenimiento Preventivo')
+            };
+        }
+
+        function abrirAsignacion() {
+            const lista = proximosCache.filter(x => seleccionProximos.has(x.llave));
+            if (!lista.length) return;
+            const ings = Array.from(new Set(datosDetalleOrdenes.map(d => String(d.Ingeniero || '').trim())
+                              .filter(i => i && i !== 'Sin Asignar'))).sort((a, b) => a.localeCompare(b, 'es'));
+            document.getElementById('asgListaIngenieros').innerHTML = ings.map(i => '<option value="' + esc(i) + '">').join('');
+            // Sugerencia: si todos los equipos los atendió la misma persona, esa
+            const mismos = Array.from(new Set(lista.map(x => x.ingeniero).filter(i => i && i !== 'Sin Asignar')));
+            document.getElementById('asgIngeniero').value = mismos.length === 1 ? mismos[0] : '';
+            const manana = new Date(Date.now() + 86400000);
+            document.getElementById('asgFecha').value = manana.toISOString().slice(0, 10);
+            document.getElementById('asgNotas').value = '';
+            document.getElementById('asgConteo').innerText = lista.length;
+            document.getElementById('asgLista').innerHTML = lista.map(x =>
+                '<div class="px-3 py-2 flex justify-between gap-3"><div><p class="font-semibold text-slate-800">' + esc(x.equipo) + '</p>' +
+                '<p class="text-xs text-slate-500">' + esc([x.unidad, x.area, x.serie ? 'S/N ' + x.serie : ''].filter(Boolean).join(' · ')) + '</p></div>' +
+                '<span class="text-xs text-slate-500 whitespace-nowrap">' + esc(x.tipo) + '</span></div>').join('');
+            document.getElementById('asgMensaje').classList.add('hidden');
+            const m = document.getElementById('modalAsignar');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+
+        function cerrarAsignacion() {
+            const m = document.getElementById('modalAsignar');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+
+        async function confirmarAsignacion() {
+            const ingeniero = document.getElementById('asgIngeniero').value.trim();
+            const fecha = document.getElementById('asgFecha').value;
+            const msg = document.getElementById('asgMensaje');
+            const mostrar = (t, tipo) => { msg.innerText = t; msg.className = 'text-sm ' + (tipo === 'error' ? 'text-red-600' : 'text-slate-600'); msg.classList.remove('hidden'); };
+            if (!ingeniero) { mostrar('Escribe o elige al ingeniero.', 'error'); return; }
+            if (!fecha) { mostrar('Elige la fecha programada.', 'error'); return; }
+            const conocidos = Array.from(document.querySelectorAll('#asgListaIngenieros option')).map(o => o.value);
+            if (conocidos.length && !conocidos.includes(ingeniero)) {
+                if (!(await confirmar('"' + ingeniero + '" no aparece en ninguna orden anterior. Para que le llegue el borrador, el nombre debe ser exactamente el que usa en la app de Órdenes de Trabajo.\n\n¿Asignar de todos modos?',
+                                      { textoSi: 'Asignar así' }))) return;
+            }
+            const lista = proximosCache.filter(x => seleccionProximos.has(x.llave));
+            const btn = document.getElementById('btnConfirmarAsignacion');
+            btn.disabled = true; btn.innerText = 'Asignando…';
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'crearAsignaciones', token: tokenSesion(), ingeniero: ingeniero, fechaProgramada: fecha,
+                        notas: document.getElementById('asgNotas').value,
+                        equipos: lista.map(x => ({ llave: x.llave, unidad: x.unidad, tipo: x.tipo, equipo: x.equipo, marca: x.marca, modelo: x.modelo,
+                                                   serie: x.serie, inventario: x.inventario, area: x.area, ordenAnterior: x.ultimaOrden,
+                                                   prellenado: prellenadoDeEquipo(x) })) })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'El servidor respondió de forma inesperada.');
+                registrarEvento('asignacion_creada', j.creadas.length + ' equipo(s) a ' + ingeniero);
+                seleccionProximos.clear();
+                cerrarAsignacion();
+                await cargarAsignaciones();
+                renderProximos();
+                mostrarAviso(j.creadas.length + ' equipo(s) asignado(s) a ' + ingeniero + ' para el ' + new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX') + '.' +
+                             (j.omitidas && j.omitidas.length ? ' ' + j.omitidas.length + ' ya estaba(n) asignado(s) y se omitieron.' : ''));
+            } catch (err) {
+                mostrar('No se asignó: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Asignar';
+            }
+        }
 
         async function exportarProximosExcel() {
             const lista = proximosFiltrados();
@@ -2830,13 +3027,13 @@
                 const aoa = [['Próximos mantenimientos · Ingenieros Asociados'],
                              ['Generado el ' + hoy + ' · ' + lista.length + ' equipo(s)'], [],
                              ['Fecha programada', 'Situación', 'Unidad', 'Tipo', 'Equipo', 'Marca', 'Modelo', 'No. de serie',
-                              'Inventario', 'Área', 'Frecuencia (meses)', 'Último servicio', 'Orden del último servicio', 'Atendió']]
+                              'Inventario', 'Área', 'Frecuencia (meses)', 'Último servicio', 'Orden del último servicio', 'Atendió', 'Asignado a', 'Estado asignación', 'Fecha programada asignación']]
                     .concat(lista.map(x => [fechaCortaCal(x.fecha), textoSituacion(x.dias), x.unidad, x.tipo, x.equipo, x.marca,
                                             x.modelo, x.serie, x.inventario, x.area, x.frecuencia, fechaCortaCal(x.ultimaFecha),
-                                            x.ultimaOrden, x.ingeniero]));
+                                            x.ultimaOrden, x.ingeniero].concat((a => a ? [a.ingeniero, a.estado, a.fechaProgramada] : ['', '', ''])(asignacionDe(x)))));
                 const hoja = XLSX.utils.aoa_to_sheet(aoa);
-                hoja['!cols'] = [14, 20, 30, 12, 30, 16, 16, 18, 14, 22, 10, 14, 12, 24].map(w => ({ wch: w }));
-                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + lista.length, c: 13 } }) };
+                hoja['!cols'] = [14, 20, 30, 12, 30, 16, 16, 18, 14, 22, 10, 14, 12, 24, 24, 14, 14].map(w => ({ wch: w }));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + lista.length, c: 16 } }) };
                 const libro = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(libro, hoja, 'Proximos');
                 XLSX.writeFile(libro, 'Proximos_mantenimientos_' + hoy + '.xlsx');

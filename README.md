@@ -1246,6 +1246,39 @@ Los permisos se guardan en la columna 8, **Permisos**, de la hoja `Usuarios` (cl
 
 **Puesta en marcha:** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`.
 
+## 4.31 Asignación de mantenimientos a ingenieros (v6.2)
+
+En **Próximos mantenimientos** cada equipo tiene una casilla. Se seleccionan (la casilla del encabezado marca todos los visibles sin asignar), se pulsa **Asignar a ingeniero…** y se elige:
+
+- **Ingeniero**, con sugerencias de los nombres que aparecen en las órdenes. El nombre debe ser exactamente el que usa en la app de Órdenes de Trabajo; si no aparece en ninguna orden, la plataforma pide confirmar.
+- **Fecha programada.**
+- **Indicaciones** para el ingeniero (opcional).
+
+Cada equipo queda como un renglón en la pestaña **Asignaciones** del libro, con su estado:
+
+| Estado | Significa |
+|---|---|
+| Asignada | Creada en la plataforma; el ingeniero aún no la abre |
+| Borrador | La app de Órdenes ya creó el borrador en el equipo del ingeniero |
+| Enviada | La orden se envió (la app escribe su folio) |
+| Cancelada | Se canceló desde la plataforma |
+
+- La tabla tiene la columna **Asignación** (estado, ingeniero, fecha y botón *Cancelar*) y el filtro *Sin asignar / Ya asignados*. Los equipos asignados no se pueden volver a seleccionar.
+- Un equipo no puede tener dos asignaciones abiertas del mismo tipo: el servidor omite las repetidas y lo informa.
+- **Cierre automático:** en cuanto llega a la hoja una orden de ese equipo y tipo con fecha igual o posterior a la asignación, el equipo pasa a su siguiente fecha y la asignación deja de mostrarse.
+- La exportación a Excel incluye *Asignado a*, *Estado asignación* y *Fecha programada asignación*.
+- Requiere el permiso *Próximos mantenimientos*.
+
+### Datos prellenados
+
+La columna **Prellenado** guarda, en JSON, los valores por **etiqueta del campo de Jotform**: UNIDAD, DOMICILIO, TELÉFONO, EMAIL, ÁREA O UBICACIÓN, EQUIPO, MARCA, MODELO, SERIE, INVENTARIO, TIPO DE SERVICIO O MANTENIMIENTO (el mismo texto de la última orden del equipo) e INGENIERO DE SERVICIO. La app de Órdenes busca cada campo por su texto, así que no depende del número interno del campo.
+
+### Lado de la app de Órdenes de Trabajo
+
+`Asignaciones_PWA.gs` contiene las funciones para el proxy de esa app: `misAsignacionesPWA(ingeniero)` y `marcarAsignacionPWA(id, estado, folio, quien)`, con el contrato completo de la pestaña. Falta integrarlo en esa app (proxy, creación del borrador en IndexedDB y marca de *Enviada* al enviar).
+
+**Puesta en marcha (plataforma):** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`. La pestaña *Asignaciones* se crea sola con la primera asignación.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1328,6 +1361,7 @@ Los permisos se guardan en la columna 8, **Permisos**, de la hoja `Usuarios` (cl
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 6.2 | **Asignación de mantenimientos.** En Próximos mantenimientos se seleccionan equipos y se asignan a un ingeniero con fecha e indicaciones; quedan en la pestaña *Asignaciones* con los datos de la orden prellenados por etiqueta de campo, para que la app de Órdenes de Trabajo cree el borrador. Columna y filtro de asignación, cancelación, cierre automático al llegar la orden. `Asignaciones_PWA.gs` para el proxy de la app de Órdenes |
 | 6.1 | **Permisos por apartado.** En Usuarios se marca a qué apartados del menú entra cada persona (Próximos, Satisfacción, Cotizador, Catálogos, Auditoría, Usuarios); el administrador entra a todo. El servidor revisa el permiso en cada operación y los cambios se aplican sin volver a entrar. Activar/desactivar ya no le quita el rol a un administrador |
 | 6.0 | **Encuesta de satisfacción.** Botón en el detalle de cada unidad que envía por correo el formulario de Jotform con la Empresa prellenada; resumen de satisfacción junto al nombre de la unidad. Nuevo panel **Satisfacción de clientes** con promedio, % satisfechos, % a tiempo, % recomendaría, gráficas por aspecto y por mes, tabla por unidad, comentarios y exportación a Excel |
 | 5.9 | **Un solo botón al final de la rutina, *Guardar e imprimir***: primero guarda el PDF en la carpeta de la orden en Drive y después abre la impresión. Si el guardado falla, pregunta si se imprime de todos modos |
