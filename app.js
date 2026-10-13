@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.3';
+        const VERSION_APP = '6.4';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -7393,11 +7393,25 @@
                 cv.replaceWith(img);
             });
             // Opciones marcadas, valores de campos y nada de identificadores repetidos
+            // Las casillas de opción se sustituyen por un dibujo fijo ANTES de meter la
+            // copia a la página: un radio de la copia con el mismo "name" que el
+            // original forma un solo grupo con él, y al insertarlo el navegador
+            // desmarcaba las opciones del original (el check-list quedaba vacío en
+            // pantalla y en la impresión que sigue al guardado).
             const entradasO = original.querySelectorAll('input, textarea, select');
             copia.querySelectorAll('input, textarea, select').forEach((el, i) => {
                 const o = entradasO[i];
                 if (!o) return;
-                if (o.type === 'radio' || o.type === 'checkbox') { if (o.checked) el.setAttribute('checked', ''); else el.removeAttribute('checked'); }
+                if (o.type === 'radio' || o.type === 'checkbox') {
+                    const marca = document.createElement('span');
+                    const redondo = o.type === 'radio';
+                    marca.style.cssText = 'display:inline-block;width:14px;height:14px;box-sizing:border-box;vertical-align:middle;' +
+                        'border:1.5px solid ' + (o.checked ? '#1e293b' : '#94a3b8') + ';border-radius:' + (redondo ? '50%' : '3px') + ';' +
+                        'background:' + (o.checked && !redondo ? '#1e293b' : '#fff') + ';position:relative';
+                    if (o.checked && redondo) marca.innerHTML = '<span style="position:absolute;left:2.5px;top:2.5px;width:6px;height:6px;border-radius:50%;background:#1e293b"></span>';
+                    if (o.checked && !redondo) marca.innerHTML = '<span style="position:absolute;left:3px;top:0;width:5px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)"></span>';
+                    el.replaceWith(marca);
+                }
                 else el.setAttribute('value', o.value);
             });
             copia.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
