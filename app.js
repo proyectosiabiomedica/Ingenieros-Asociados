@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.2';
+        const VERSION_APP = '6.3';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2951,15 +2951,64 @@
             };
         }
 
-        function abrirAsignacion() {
+        /* Ingenieros a los que se puede asignar. El borrador le llega a cada
+           ingeniero por el nombre con el que entra a la app de Órdenes, así que
+           la lista sale de los usuarios de esa app (v6.3). Si el servidor no la
+           puede leer, se usan los ingenieros que aparecen en las órdenes. */
+        let ingenierosAsignablesCache = null;   // { lista: [{nombre, coordinacion}], origen, error }
+        async function obtenerIngenierosAsignables(forzar) {
+            if (ingenierosAsignablesCache && !forzar) return ingenierosAsignablesCache;
+            let res = { lista: [], origen: 'ninguno', error: '' };
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'ingenierosAsignables', token: tokenSesion() }) });
+                const j = await r.json().catch(() => null);
+                if (j && j.ok) res = { lista: j.ingenieros || [], origen: j.origen || 'app', error: j.error || '' };
+                else res.error = (j && j.error) || 'El servidor no devolvió la lista.';
+            } catch (err) { res.error = 'Sin conexión con el servidor.'; }
+            if (!res.lista.length) {
+                // Respaldo: quienes han firmado órdenes
+                res.lista = Array.from(new Set(datosDetalleOrdenes.map(d => String(d.Ingeniero || '').trim())
+                                .filter(i => i && i !== 'Sin Asignar')))
+                                .sort((a, b) => a.localeCompare(b, 'es')).map(n => ({ nombre: n, coordinacion: false }));
+                res.origen = 'ordenes';
+            }
+            if (res.origen === 'app') ingenierosAsignablesCache = res;   // el respaldo no se guarda: se reintenta la próxima vez
+            return res;
+        }
+
+        function llenarSelectIngenieros(res, sugeridos) {
+            const sel = document.getElementById('asgIngeniero');
+            const norm = t => normalizar(String(t || '')).toLowerCase().replace(/\s+/g, ' ').trim();
+            const ings = res.lista.filter(i => !i.coordinacion), coord = res.lista.filter(i => i.coordinacion);
+            const opt = i => '<option value="' + esc(i.nombre) + '">' + esc(i.nombre) + '</option>';
+            sel.innerHTML = res.lista.length
+                ? '<option value="">Elige al ingeniero…</option>' +
+                  (coord.length ? '<optgroup label="Ingenieros">' + ings.map(opt).join('') + '</optgroup><optgroup label="Coordinación">' + coord.map(opt).join('') + '</optgroup>'
+                                : ings.map(opt).join(''))
+                : '<option value="">No hay ingenieros disponibles</option>';
+            // Sugerencia: si todos los equipos los atendió la misma persona, esa
+            // (se compara sin acentos: la orden y la app pueden escribirlo distinto)
+            if (sugeridos.length === 1) {
+                const igual = res.lista.find(i => norm(i.nombre) === norm(sugeridos[0]));
+                sel.value = igual ? igual.nombre : '';
+            } else sel.value = '';
+            const nota = document.getElementById('asgOrigenIngenieros');
+            const texto = res.origen === 'app' ? ''
+                        : res.origen === 'ordenes' && res.lista.length
+                            ? 'No se pudo leer la lista de usuarios de la app de Órdenes; se muestran los ingenieros de las órdenes anteriores. Verifica que el nombre sea el mismo con el que entra a la app.' + (res.error ? ' (' + res.error + ')' : '')
+                            : (res.error || 'No hay ingenieros dados de alta en la app de Órdenes.');
+            nota.innerText = texto;
+            nota.className = 'text-xs mt-1 ' + (res.origen === 'app' ? 'hidden' : 'text-amber-700');
+        }
+
+        async function abrirAsignacion() {
             const lista = proximosCache.filter(x => seleccionProximos.has(x.llave));
             if (!lista.length) return;
-            const ings = Array.from(new Set(datosDetalleOrdenes.map(d => String(d.Ingeniero || '').trim())
-                              .filter(i => i && i !== 'Sin Asignar'))).sort((a, b) => a.localeCompare(b, 'es'));
-            document.getElementById('asgListaIngenieros').innerHTML = ings.map(i => '<option value="' + esc(i) + '">').join('');
-            // Sugerencia: si todos los equipos los atendió la misma persona, esa
-            const mismos = Array.from(new Set(lista.map(x => x.ingeniero).filter(i => i && i !== 'Sin Asignar')));
-            document.getElementById('asgIngeniero').value = mismos.length === 1 ? mismos[0] : '';
+            const sel = document.getElementById('asgIngeniero');
+            sel.innerHTML = '<option value="">Cargando ingenieros…</option>';
+            sel.disabled = true;
+            document.getElementById('asgOrigenIngenieros').classList.add('hidden');
             const manana = new Date(Date.now() + 86400000);
             document.getElementById('asgFecha').value = manana.toISOString().slice(0, 10);
             document.getElementById('asgNotas').value = '';
@@ -2971,6 +3020,10 @@
             document.getElementById('asgMensaje').classList.add('hidden');
             const m = document.getElementById('modalAsignar');
             m.classList.remove('hidden'); m.classList.add('flex');
+            const sugeridos = Array.from(new Set(lista.map(x => x.ingeniero).filter(i => i && i !== 'Sin Asignar')));
+            const res = await obtenerIngenierosAsignables();
+            llenarSelectIngenieros(res, sugeridos);
+            sel.disabled = false;
         }
 
         function cerrarAsignacion() {
@@ -2983,13 +3036,8 @@
             const fecha = document.getElementById('asgFecha').value;
             const msg = document.getElementById('asgMensaje');
             const mostrar = (t, tipo) => { msg.innerText = t; msg.className = 'text-sm ' + (tipo === 'error' ? 'text-red-600' : 'text-slate-600'); msg.classList.remove('hidden'); };
-            if (!ingeniero) { mostrar('Escribe o elige al ingeniero.', 'error'); return; }
+            if (!ingeniero) { mostrar('Elige al ingeniero.', 'error'); return; }
             if (!fecha) { mostrar('Elige la fecha programada.', 'error'); return; }
-            const conocidos = Array.from(document.querySelectorAll('#asgListaIngenieros option')).map(o => o.value);
-            if (conocidos.length && !conocidos.includes(ingeniero)) {
-                if (!(await confirmar('"' + ingeniero + '" no aparece en ninguna orden anterior. Para que le llegue el borrador, el nombre debe ser exactamente el que usa en la app de Órdenes de Trabajo.\n\n¿Asignar de todos modos?',
-                                      { textoSi: 'Asignar así' }))) return;
-            }
             const lista = proximosCache.filter(x => seleccionProximos.has(x.llave));
             const btn = document.getElementById('btnConfirmarAsignacion');
             btn.disabled = true; btn.innerText = 'Asignando…';

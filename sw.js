@@ -26,7 +26,7 @@
  *     el mismo día. La copia local es el respaldo, no la fuente.
  * ==========================================================================*/
 
-const VERSION = 'v6.2';
+const VERSION = 'v6.3';
 const CACHE_APP    = 'ia-app-' + VERSION;     // la página y sus iconos
 const CACHE_LIBS   = 'ia-libs-' + VERSION;    // librerías externas
 const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
@@ -34,7 +34,7 @@ const CACHE_DATOS  = 'ia-datos-' + VERSION;   // últimas hojas descargadas
 /* v5.6: la página se separó en tres archivos. estilos.css y app.js llevan
    la versión en la dirección (?v=…), así que cada versión nueva es un archivo
    distinto: se sirven desde la copia local sin riesgo de quedar viejos. */
-const VERSION_ARCHIVOS = '6.2';   // debe coincidir con ?v= en index.html
+const VERSION_ARCHIVOS = '6.3';   // debe coincidir con ?v= en index.html
 const ARCHIVOS_APP = [
   './',
   './index.html',

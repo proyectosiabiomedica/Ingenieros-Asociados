@@ -1250,7 +1250,7 @@ Los permisos se guardan en la columna 8, **Permisos**, de la hoja `Usuarios` (cl
 
 En **Próximos mantenimientos** cada equipo tiene una casilla. Se seleccionan (la casilla del encabezado marca todos los visibles sin asignar), se pulsa **Asignar a ingeniero…** y se elige:
 
-- **Ingeniero**, con sugerencias de los nombres que aparecen en las órdenes. El nombre debe ser exactamente el que usa en la app de Órdenes de Trabajo; si no aparece en ninguna orden, la plataforma pide confirmar.
+- **Ingeniero**, de una lista desplegable con los **usuarios activos de la app de Órdenes de Trabajo** (pestaña *Usuarios* de su libro, sin los perfiles de consulta; coordinación aparece en un grupo aparte). Así el nombre es exactamente con el que el ingeniero entra a la app y el borrador le llega. Si el servidor no puede leer ese libro, la lista se arma con los ingenieros de las órdenes anteriores y el formulario lo advierte (v6.3). Si todos los equipos los atendió la misma persona, viene preseleccionada.
 - **Fecha programada.**
 - **Indicaciones** para el ingeniero (opcional).
 
@@ -1275,9 +1275,16 @@ La columna **Prellenado** guarda, en JSON, los valores por **etiqueta del campo 
 
 ### Lado de la app de Órdenes de Trabajo
 
-`Asignaciones_PWA.gs` contiene las funciones para el proxy de esa app: `misAsignacionesPWA(ingeniero)` y `marcarAsignacionPWA(id, estado, folio, quien)`, con el contrato completo de la pestaña. Falta integrarlo en esa app (proxy, creación del borrador en IndexedDB y marca de *Enviada* al enviar).
+Integrado en la app (ot-ia-v42): su `Codigo.gs` tiene las acciones `misAsignaciones` y `marcarAsignacion` (siempre con el nombre de la sesión del ingeniero). Al entrar, al volver a la app y cada 10 minutos la app pide las asignaciones del ingeniero y:
 
-**Puesta en marcha (plataforma):** pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`. La pestaña *Asignaciones* se crea sola con la primera asignación.
+- crea un **borrador** por asignación con unidad, domicilio, teléfono, correo, equipo, marca, modelo, serie, inventario, área, tipo de servicio (Preventivo / Calibración / …), ingeniero y la fecha programada; lo marca *Borrador* en la plataforma;
+- muestra la etiqueta *Asignada · fecha* y las indicaciones en la lista, y un aviso al abrir el borrador;
+- al enviarse la orden, la marca *Enviada* con su folio (si no se pudo en ese momento, se reintenta en la siguiente sincronización);
+- si se cancela desde la plataforma, quita el borrador cuando no se ha tocado; si ya tiene captura, lo deja marcado como cancelado.
+
+`Asignaciones_PWA.gs` ya no es necesario.
+
+**Puesta en marcha (plataforma):** la cuenta que ejecuta el Apps Script de la plataforma debe poder abrir el libro de la app de Órdenes (para la lista de ingenieros). Pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`. La pestaña *Asignaciones* se crea sola con la primera asignación.
 
 ## 5. Comportamientos automáticos relevantes
 
@@ -1361,6 +1368,7 @@ La columna **Prellenado** guarda, en JSON, los valores por **etiqueta del campo 
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 6.3 | **Lista de ingenieros al asignar.** El campo Ingeniero es una lista desplegable con los usuarios activos de la app de Órdenes de Trabajo (acción `ingenierosAsignables`), con respaldo en los ingenieros de las órdenes. Integración completa del lado de la app de Órdenes (borradores prellenados, marca de Borrador/Enviada, cancelaciones) |
 | 6.2 | **Asignación de mantenimientos.** En Próximos mantenimientos se seleccionan equipos y se asignan a un ingeniero con fecha e indicaciones; quedan en la pestaña *Asignaciones* con los datos de la orden prellenados por etiqueta de campo, para que la app de Órdenes de Trabajo cree el borrador. Columna y filtro de asignación, cancelación, cierre automático al llegar la orden. `Asignaciones_PWA.gs` para el proxy de la app de Órdenes |
 | 6.1 | **Permisos por apartado.** En Usuarios se marca a qué apartados del menú entra cada persona (Próximos, Satisfacción, Cotizador, Catálogos, Auditoría, Usuarios); el administrador entra a todo. El servidor revisa el permiso en cada operación y los cambios se aplican sin volver a entrar. Activar/desactivar ya no le quita el rol a un administrador |
 | 6.0 | **Encuesta de satisfacción.** Botón en el detalle de cada unidad que envía por correo el formulario de Jotform con la Empresa prellenada; resumen de satisfacción junto al nombre de la unidad. Nuevo panel **Satisfacción de clientes** con promedio, % satisfechos, % a tiempo, % recomendaría, gráficas por aspecto y por mes, tabla por unidad, comentarios y exportación a Excel |
