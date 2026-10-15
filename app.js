@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.4';
+        const VERSION_APP = '6.5';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -924,6 +924,12 @@
             // FIX: solo la columna correcta de mediciones (búsqueda exacta primero)
             const cValores = buscarColumna(llaves, ['valores de medicion', 'resultados de medicion', 'mediciones']);
             const cCalibracion = buscarColumna(llaves, ['datos del equipo de calibracion', 'equipo de calibracion', 'patron']);
+            /* v6.5: lo que el ingeniero escribe en OTRO: del equipo de calibración
+               (p. ej. un set de pesas que no está entre las casillas). El servidor
+               lo manda como "OTRO CALIBRACION"; si llegara la hoja completa, es la
+               4.ª columna "OTRO:" (PapaParse renombra las repetidas otro:_1, …). */
+            const cOtroCal = llaves.find(l => l === 'otro calibracion') ||
+                             llaves.filter(l => /^otro\s*:?(_\d+)?$/.test(l))[3];
 
             /* v2.8: columna "Indicador de Prueba" ("X" = el registro no se
                considera en ninguna parte del sistema). Si el nombre declarado
@@ -981,6 +987,7 @@
 
                 obj['ValoresMedicion'] = cValores ? (row[cValores] || '') : '';
                 obj['EquipoCalibracion'] = cCalibracion ? (row[cCalibracion] || 'No se especificó equipo patrón') : 'No se especificó equipo patrón';
+                obj['EquipoCalibracionOtro'] = cOtroCal ? String(row[cOtroCal] || '').trim() : '';
 
                 // FIX: fotos etiquetadas desde sus 4 columnas reales
                 obj['Fotos'] = [];
@@ -1433,25 +1440,50 @@
            Si no hay catálogo o no se reconoce ningún equipo, se imprime el
            texto que venía en la orden más un aviso, en lugar de arriesgar los
            datos de otro equipo. */
-        function renderDatosPatron(textoOrden) {
+        function renderDatosPatron(textoOrden, textoOtro) {
             const detalle = document.getElementById('rutPatronDetalle');
             const aviso = document.getElementById('rutPatronAviso');
             detalle.classList.add('hidden');
             detalle.innerHTML = '';
             aviso.classList.add('hidden');
+            aviso.classList.remove('no-print', 'mt-2');
             aviso.innerText = '';
 
+            // v6.5: lo capturado en OTRO: también es un equipo utilizado. Puede
+            // traer varios separados por coma, punto y coma o renglón.
+            const otros = String(textoOtro || '').split(/[\n;,]+/).map(t => t.trim())
+                            .filter(t => t && !/^(n\/?a|na|ninguno|no aplica|-+)$/i.test(t));
+            const sinOrden = /^no se especific/i.test(String(textoOrden || ''));
+
             if (!catalogoPatrones.length) {
-                aviso.innerText = 'Catálogo de equipos de calibración no disponible: no se pudo consultar el certificado ni la vigencia.';
+                aviso.innerText = 'Catálogo de equipos de calibración no disponible: no se pudo consultar el certificado ni la vigencia.' +
+                                  (otros.length ? ' Capturado en la orden como OTRO: ' + otros.join(', ') + '.' : '');
                 aviso.classList.remove('hidden');
                 return;
             }
 
-            const patrones = buscarPatronesCalibracion(textoOrden);
+            const patrones = sinOrden ? [] : buscarPatronesCalibracion(textoOrden).slice();
+            const noEnCatalogo = [];
+            otros.forEach(t => {
+                const hallados = buscarPatronesCalibracion(t);
+                if (hallados.length) hallados.forEach(p => { if (!patrones.includes(p)) patrones.push(p); });
+                else noEnCatalogo.push(t);
+            });
+            // Lo escrito en OTRO: que no está en el catálogo se imprime tal cual:
+            // se usó en el servicio y debe quedar documentado
+            noEnCatalogo.forEach(t => patrones.push({ nombre: t, marca: '', modelo: '', serie: '', certificado: '',
+                                                       vigenciaStr: '', laboratorio: '', sinCatalogo: true }));
+
             if (!patrones.length) {
                 aviso.innerText = 'El equipo patrón registrado en la orden no coincide con ningún registro del catálogo "datos equipo de calibracion". Verifique el nombre en la hoja antes de firmar el documento.';
                 aviso.classList.remove('hidden');
                 return;
+            }
+            if (noEnCatalogo.length) {
+                aviso.innerText = (noEnCatalogo.length === 1 ? '"' + noEnCatalogo[0] + '" se capturó' : noEnCatalogo.map(t => '"' + t + '"').join(', ') + ' se capturaron') +
+                    ' como OTRO en la orden y no está en el catálogo de equipos de calibración; agréguelo a la hoja para que se impriman su certificado y su vigencia.';
+                aviso.classList.remove('hidden');
+                aviso.classList.add('no-print', 'mt-2');   // es una nota para quien genera la rutina, no para el cliente
             }
 
             // La columna Laboratorio solo aparece si algún registro la tiene
@@ -1477,7 +1509,7 @@
                             '<td class="' + td + '">' + esc(p.marca  || '—') + '</td>' +
                             '<td class="' + td + '">' + esc(p.modelo || '—') + '</td>' +
                             '<td class="' + td + ' font-medium">' + esc(p.serie || '—') + '</td>' +
-                            '<td class="' + td + ' font-bold text-slate-900">' + esc(p.certificado || 'No registrado') + '</td>' +
+                            '<td class="' + td + ' font-bold text-slate-900">' + esc(p.certificado || (p.sinCatalogo ? 'No está en el catálogo' : 'No registrado')) + '</td>' +
                             '<td class="' + td + ' font-bold text-slate-900">' + esc(p.vigenciaStr || 'No registrada') + '</td>' +
                             (hayLab ? '<td class="' + td + '">' + esc(p.laboratorio || '—') + '</td>' : '') +
                         '</tr>').join('') +
@@ -7181,7 +7213,7 @@
             document.getElementById('rutIng').innerText = eq.Ingeniero;
             document.getElementById('rutProx').innerText = eq.ProximoMantStr;
             // v2.9: certificado y vigencia del patrón, tomados del catálogo
-            renderDatosPatron(eq.EquipoCalibracion);
+            renderDatosPatron(eq.EquipoCalibracion, eq.EquipoCalibracionOtro);
 
             // v3.0: las condiciones ambientales llegan desde la tabla de
             // mediciones de la orden (primeras capturas). Se limpian aquí y se
