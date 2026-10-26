@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.5';
+        const VERSION_APP = '6.6';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -7262,7 +7262,8 @@
             rutinaLecturasOriginales = null;
             reiniciarNotaModificacion();
 
-            destruirGraficasRutina();
+            limpiarGraficasRutina();
+            restaurarCanvasImpresion();   // imágenes de una impresión anterior que no se hubieran quitado
 
             const textMedicion = String(eq.ValoresMedicion || '').trim();
 
@@ -7289,7 +7290,7 @@
                         document.getElementById('rutinaTablaContainer').innerHTML =
                             '<p class="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg border border-slate-200">' +
                             'La orden no registró valores de medición comparables además de las condiciones ambientales y los rangos de trabajo.</p>';
-                        document.getElementById('rutinaGraficasContainer').style.display = 'none';
+                        limpiarGraficasRutina();
                     } else {
                         renderTablaMediciones();
                         // v5.8: las gráficas se dibujan cuando la ventana ya es visible (abajo)
@@ -7302,10 +7303,10 @@
                         rutinaLecturasActuales = nums.map(n => String(parseFloat(n)));
                         rutinaLecturasOriginales = rutinaLecturasActuales.slice();
                         renderTablaLecturas();
-                        document.getElementById('rutinaGraficasContainer').style.display = 'none';
+                        limpiarGraficasRutina();
                     } else {
                         document.getElementById('rutinaTablaContainer').innerHTML = '<p class="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg border border-slate-200">El registro no contiene valores numéricos estructurados para generar tabla dinámica.</p>';
-                        document.getElementById('rutinaGraficasContainer').style.display = 'none';
+                        limpiarGraficasRutina();
                     }
                 }
             } else {
@@ -7397,39 +7398,98 @@
             }
         }
 
-        /* PDF de la rutina, hoja carta, sin pasar por el diálogo de impresión.
-           Se arma una copia fuera de pantalla con ancho fijo, las gráficas se
-           pasan como imagen, y el corte de página se hace entre bloques o
-           renglones de tabla, nunca a la mitad de una gráfica. */
+        /* v6.6 — EL PDF DE DRIVE ES LA MISMA HOJA QUE SE IMPRIME
+           Antes el PDF se armaba con el diseño de pantalla (780 px, márgenes de
+           12 mm, columnas de escritorio) y salía muy distinto de la impresión.
+           Ahora reproduce la impresión:
+             · mismo margen que @page (25 mm a los lados y arriba, 34 mm abajo)
+               y, por lo tanto, el mismo ancho útil: 165.9 mm = 627 px;
+             · la copia se dibuja con ese ancho de ventana, así que las reglas
+               responsivas (md:, sm:) quedan igual que al imprimir;
+             · se le aplican las reglas @media print de la hoja de estilos
+               (convertidas para la copia), incluidas las gráficas a 48 % y
+               42 mm de alto;
+             · mismo pie en cada hoja.
+           El corte de página se busca entre renglones y bloques, nunca a la
+           mitad de un renglón, una gráfica o un párrafo, ni justo después de
+           un título de sección. */
+        const PAGINA_RUTINA = { ancho: 215.9, alto: 279.4, izq: 25, der: 25, arriba: 25, abajo: 34, pie: 7 };
+        const PX_POR_MM = 96 / 25.4;
+
+        // Las reglas @media print, re-escritas para aplicarse a la copia (.pdf-print)
+        let cssImpresionCache = null;
+        function cssImpresionParaPdf() {
+            if (cssImpresionCache !== null) return cssImpresionCache;
+            const ajenos = /printing-(calendario|cotizacion)|#modalRutina|#modalExportar|#dashboardContent|#clienteContent|#sidebar|#piePaginaImpresion|#calendarioImprimible|#cotizacionImprimible|#auditoriaContent|#btnSidebarToggle|#sidebarOverlay|\.cot-hoja|(^|[\s,>+~])(main|aside|html)\b/;
+            const convertir = sel => {
+                sel = sel.trim();
+                if (!sel || ajenos.test(sel)) return null;
+                sel = sel.replace(/^body\.printing-modal\s+/, '');
+                if (/^body\b/.test(sel)) return null;
+                if (/^#rutinaPrintableArea\b/.test(sel)) return sel.replace(/^#rutinaPrintableArea/, '.pdf-print');
+                return '.pdf-print ' + sel;
+            };
+            const reglas = [];
+            const recorrer = (lista, enImpresion) => {
+                Array.from(lista || []).forEach(r => {
+                    if (r.type === CSSRule.MEDIA_RULE) {
+                        recorrer(r.cssRules, enImpresion || /\bprint\b/.test(r.media.mediaText));
+                    } else if (enImpresion && r.type === CSSRule.STYLE_RULE) {
+                        const sels = r.selectorText.split(',').map(convertir).filter(Boolean);
+                        if (sels.length) reglas.push(sels.join(', ') + ' { ' + r.style.cssText + ' }');
+                    }
+                });
+            };
+            Array.from(document.styleSheets).forEach(h => { try { recorrer(h.cssRules, false); } catch (_) { /* hoja de otro dominio */ } });
+            // html2canvas pierde el texto suelto de los párrafos cuando un ancestro
+            // tiene font-size: 0 (truco de impresión para los huecos entre tarjetas,
+            // que aquí no hacen falta: las tarjetas se insertan sin espacios entre sí)
+            // Mismo acomodo que al imprimir (dos tarjetas por renglón, 48 % y 3 % de
+            // separación) pero con rejilla: html2canvas no dibuja el texto suelto
+            // dentro de tarjetas inline-block con font-size: 0 en el contenedor.
+            reglas.push('.pdf-print #rutinaGraficasContainer { display: grid !important; grid-template-columns: 48% 48%; column-gap: 4%; font-size: 10px !important; }',
+                        '.pdf-print .grafica-medicion { display: block !important; width: auto !important; margin: 0 0 6mm 0 !important; }');
+            cssImpresionCache = reglas.join('\n');
+            return cssImpresionCache;
+        }
+
         async function pdfRutinaBase64() {
             await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas');
             await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
             asegurarGraficasRutina();
 
+            const P = PAGINA_RUTINA;
+            const anchoMM = P.ancho - P.izq - P.der;
+            const ANCHO_PX = Math.round(anchoMM * PX_POR_MM);                              // 627
+            const altoHojaPx = Math.floor((P.alto - P.arriba - P.abajo - P.pie) * PX_POR_MM);
+
             const original = document.getElementById('rutinaPrintableArea');
-            const ANCHO_PX = 780;
             const caja = document.createElement('div');
             caja.style.cssText = 'position:absolute;left:-14000px;top:0;background:#fff;width:' + ANCHO_PX + 'px';
+            const estilo = document.createElement('style');
+            estilo.textContent = cssImpresionParaPdf();
             const copia = original.cloneNode(true);
             copia.removeAttribute('id');
-            copia.style.cssText = 'padding:0;overflow:visible;height:auto;max-height:none;background:#fff';
+            copia.classList.add('pdf-print');
+            copia.style.cssText = 'overflow:visible;height:auto;max-height:none;background:#fff';
 
-            // Gráficas → imágenes (cloneNode no copia lo dibujado en un canvas)
+            // Imágenes de impresión que hubieran quedado de antes: fuera (si no, se duplican)
+            copia.querySelectorAll('img.print-canvas-img').forEach(im => im.remove());
+            // Gráficas → imágenes, igual que al imprimir (cloneNode no copia lo dibujado)
             const lienzos = original.querySelectorAll('canvas');
             copia.querySelectorAll('canvas').forEach((cv, i) => {
                 const src = lienzos[i];
-                if (!src || !src.width) { cv.remove(); return; }
+                if (!src || !src.width || !src.height) { cv.remove(); return; }
                 const img = document.createElement('img');
                 img.src = src.toDataURL('image/png');
-                img.style.cssText = 'width:100%;height:100%;object-fit:contain';
+                img.className = 'print-canvas-img';
+                img.alt = '';
                 cv.replaceWith(img);
             });
-            // Opciones marcadas, valores de campos y nada de identificadores repetidos
-            // Las casillas de opción se sustituyen por un dibujo fijo ANTES de meter la
-            // copia a la página: un radio de la copia con el mismo "name" que el
-            // original forma un solo grupo con él, y al insertarlo el navegador
-            // desmarcaba las opciones del original (el check-list quedaba vacío en
-            // pantalla y en la impresión que sigue al guardado).
+            /* Las casillas de opción se sustituyen por un dibujo fijo ANTES de meter
+               la copia a la página: un radio de la copia con el mismo "name" que el
+               original forma un solo grupo con él, y al insertarlo el navegador
+               desmarcaba las opciones del original. */
             const entradasO = original.querySelectorAll('input, textarea, select');
             copia.querySelectorAll('input, textarea, select').forEach((el, i) => {
                 const o = entradasO[i];
@@ -7446,55 +7506,74 @@
                 }
                 else el.setAttribute('value', o.value);
             });
-            copia.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-            // html2canvas recorta lo que tenga overflow; en el PDF todo va completo
-            copia.querySelectorAll('.overflow-x-auto, .overflow-hidden, .truncate').forEach(el => {
-                el.style.overflow = 'visible'; el.style.whiteSpace = 'normal';
-            });
-            // Lo que no sale en la impresión tampoco sale en el PDF
-            copia.querySelectorAll('.no-print, .no-print-modal').forEach(el => el.remove());
-            copia.querySelectorAll('[data-placeholder]').forEach(el => { if (!el.textContent.trim()) el.removeAttribute('data-placeholder'); });
-            const leyenda = copia.querySelector('.mt-6.pt-3.border-t');   // la leyenda legal va en el pie de cada hoja
-            if (leyenda && /reproducci/i.test(leyenda.textContent)) leyenda.remove();
+            // html2canvas recorta lo que tenga overflow; al imprimir sale completo
+            copia.querySelectorAll('.overflow-x-auto, .overflow-hidden, .truncate').forEach(el => { el.style.overflow = 'visible'; });
+            copia.querySelectorAll('.truncate').forEach(el => { el.style.whiteSpace = 'normal'; });   // html2canvas cortaba el título de la gráfica
+            // Lo que no sale en la impresión tampoco sale en el PDF (el pie lo pone jsPDF)
+            copia.querySelectorAll('.no-print, .no-print-modal, #piePaginaImpresion, #rutinaLeyendaLegal').forEach(el => el.remove());
+            // Los identificadores se conservan para que apliquen los mismos estilos;
+            // la copia va al final del documento, así que getElementById sigue
+            // encontrando primero el original.
 
+            caja.appendChild(estilo);
             caja.appendChild(copia);
             document.body.appendChild(caja);
             try {
                 await Promise.all(Array.from(copia.querySelectorAll('img')).map(im => im.complete ? 0 :
                     new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 1500); })));
 
-                const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait', compress: true });
-                const M = { x: 12, arriba: 12, abajo: 16 };
-                const anchoMM = 215.9 - 2 * M.x;
-                const pxPorMM = ANCHO_PX / anchoMM;
-                const altoHojaPx = Math.floor((279.4 - M.arriba - M.abajo) * pxPorMM);
-
-                // Puntos de corte permitidos: el final de cada bloque o renglón
-                const base = copia.getBoundingClientRect().top;
-                const cortes = new Set([copia.scrollHeight]);
-                // (secciones completas, renglones de tabla y tarjetas de gráfica;
-                //  nunca justo después de un título, que quedaría solo al pie)
-                copia.querySelectorAll(':scope > *, tr, .grafica-medicion').forEach(el => {
-                    const r = el.getBoundingClientRect();
-                    if (r.height) cortes.add(Math.round(r.bottom - base));
-                });
-                const lista = Array.from(cortes).sort((a, b) => a - b);
+                /* Las medidas se toman en la copia que arma html2canvas (con el
+                   ancho de ventana de la hoja), que es la que se dibuja. */
+                let medidas = null;
+                const medir = (raiz) => {
+                    const base = raiz.getBoundingClientRect().top;
+                    const total = Math.ceil(raiz.scrollHeight);
+                    const atomicos = [], cortes = new Set([total]), trasTitulo = new Set();
+                    raiz.querySelectorAll('*').forEach(el => {
+                        const r = el.getBoundingClientRect();
+                        if (!r.height) return;
+                        const arriba = r.top - base, abajo = r.bottom - base;
+                        const tag = el.tagName;
+                        // No se parte un renglón, una gráfica, un párrafo ni un bloque marcado
+                        if (tag === 'TR' || tag === 'P' || tag === 'IMG' || tag === 'LI' || /^H\d$/.test(tag) ||
+                            el.classList.contains('grafica-medicion') || el.classList.contains('break-inside-avoid') ||
+                            !el.firstElementChild) atomicos.push([arriba, abajo]);
+                        if (/^H\d$/.test(tag)) trasTitulo.add(Math.round(abajo));
+                        cortes.add(Math.round(abajo));
+                        cortes.add(Math.round(arriba));
+                    });
+                    const valido = y => !atomicos.some(([a, b]) => a < y - 1 && b > y + 1) &&
+                                        !Array.from(trasTitulo).some(t => y >= t - 1 && y <= t + 14);
+                    medidas = { total, cortes: Array.from(cortes).filter(y => y > 0 && (y === total || valido(y))).sort((a, b) => a - b) };
+                };
 
                 const escala = 2;
-                const lienzo = await window.html2canvas(copia, { scale: escala, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: ANCHO_PX });
-                const total = copia.scrollHeight;
+                const lienzo = await window.html2canvas(copia, {
+                    scale: escala, backgroundColor: '#ffffff', useCORS: true, logging: false,
+                    // Al imprimir, las reglas responsivas (sm:, md:) se evalúan contra el
+                    // ancho de la HOJA (816 px), aunque el contenido mida 627 px
+                    windowWidth: Math.round(P.ancho * PX_POR_MM), width: ANCHO_PX,
+                    onclone: (doc) => { const r = doc.querySelector('.pdf-print'); if (r) medir(r); }
+                });
+                if (!medidas) medir(copia);
+                const total = Math.min(medidas.total, Math.floor(lienzo.height / escala));
+
                 const hojas = [];
                 let inicio = 0;
                 while (inicio < total - 4) {
                     const limite = inicio + altoHojaPx;
                     let fin = limite >= total ? total : 0;
                     if (!fin) {
-                        const validos = lista.filter(c => c > inicio + altoHojaPx * 0.4 && c <= limite);
+                        const validos = medidas.cortes.filter(c => c > inicio + altoHojaPx * 0.3 && c <= limite);
                         fin = validos.length ? validos[validos.length - 1] : limite;
                     }
                     hojas.push([inicio, fin]);
                     inicio = fin;
                 }
+
+                const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait', compress: true });
+                const pxPorMM = ANCHO_PX / anchoMM;
+                const yPie = P.alto - P.abajo;   // el pie va al fondo del área útil, como al imprimir
                 hojas.forEach(([y0, y1], i) => {
                     const trozo = document.createElement('canvas');
                     trozo.width = lienzo.width;
@@ -7503,10 +7582,12 @@
                     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, trozo.width, trozo.height);
                     ctx.drawImage(lienzo, 0, Math.round(y0 * escala), lienzo.width, trozo.height, 0, 0, trozo.width, trozo.height);
                     if (i > 0) pdf.addPage('letter', 'portrait');
-                    pdf.addImage(trozo.toDataURL('image/jpeg', 0.88), 'JPEG', M.x, M.arriba, anchoMM, (y1 - y0) / pxPorMM);
-                    pdf.setFontSize(7); pdf.setTextColor(100);
-                    pdf.text('PROHIBIDA SU REPRODUCCIÓN PARCIAL O TOTAL SIN LA AUTORIZACIÓN DE LA EMPRESA', 215.9 / 2, 279.4 - 8, { align: 'center' });
-                    pdf.text('Orden ' + (folioRutinaActual || 'S/F') + ' · Hoja ' + (i + 1) + ' de ' + hojas.length, 215.9 - M.x, 279.4 - 4.5, { align: 'right' });
+                    pdf.addImage(trozo.toDataURL('image/jpeg', 0.9), 'JPEG', P.izq, P.arriba, anchoMM, (y1 - y0) / pxPorMM);
+                    pdf.setDrawColor(203, 213, 225); pdf.setLineWidth(0.3);
+                    pdf.line(P.izq, yPie - 5.2, P.ancho - P.der, yPie - 5.2);
+                    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(71, 85, 105);
+                    pdf.text('PROHIBIDA SU REPRODUCCIÓN PARCIAL O TOTAL SIN LA AUTORIZACIÓN DE LA EMPRESA',
+                             P.ancho / 2, yPie - 1.6, { align: 'center', charSpace: 0.1 });
                 });
                 pdf.setProperties({ title: 'Rutina ' + (folioRutinaActual || ''), author: nombreUsuario() });
                 return pdf.output('datauristring').split(',')[1];
@@ -7521,12 +7602,16 @@
             if (!folioRutinaActual) { pintarEstadoDriveRutina('La orden no tiene número de folio: no se puede ubicar su carpeta en Drive.', 'error'); return false; }
             const folio = folioRutinaActual, secuencia = secuenciaRutina;
             const etiqueta = document.getElementById('btnFinalizarRutinaTexto');
+            // v6.6: identificador de este guardado; si la petición llega dos veces,
+            // el servidor no crea un segundo archivo
+            const idGuardado = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                             : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
             const enviar = async (reemplazar, pdf) => {
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ accion: 'guardarRutinaDrive', token: tokenSesion(), folio: folio,
                                            equipo: document.getElementById('rutEq').innerText.trim(),
-                                           pdf: pdf, reemplazar: reemplazar })
+                                           pdf: pdf, reemplazar: reemplazar, idGuardado: idGuardado + (reemplazar ? '-r' : '') })
                 });
                 const j = await r.json().catch(() => null);
                 if (!j) throw new Error('El servidor respondió de forma inesperada.');
@@ -7895,6 +7980,17 @@
         function destruirGraficasRutina() {
             chartsRutina.forEach(c => { try { c.destroy(); } catch (_) { } });
             chartsRutina = [];
+        }
+
+        /* v6.6: además de destruir las gráficas se VACÍA su contenedor. Antes solo
+           se ocultaba con display:none, y la regla de impresión
+           (#rutinaGraficasContainer { display:block !important }) volvía a mostrar
+           las tarjetas de la rutina anterior cuando la nueva no tenía mediciones
+           comparables: por eso salían, de vez en cuando, gráficas ajenas. */
+        function limpiarGraficasRutina() {
+            destruirGraficasRutina();
+            const cont = document.getElementById('rutinaGraficasContainer');
+            if (cont) { cont.innerHTML = ''; cont.style.display = 'none'; }
         }
 
         /* Agrupa TODAS las mediciones de la tabla por parámetro.
