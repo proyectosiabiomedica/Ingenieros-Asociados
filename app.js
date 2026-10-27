@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.7';
+        const VERSION_APP = '6.8';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -7559,10 +7559,38 @@
                     // tres renglones y los datos del equipo en DOS columnas. Se usa un
                     // ancho de ventana dentro de ese rango; el contenido mide 627 px.
                     windowWidth: 720, width: ANCHO_PX,
-                    onclone: (doc) => { const r = doc.querySelector('.pdf-print'); if (r) medir(r); }
+                    // v6.8: se espera a que la copia termine de cargar fuentes e imágenes
+                    // ANTES de medir. Sin esto las medidas se tomaban con la fuente de
+                    // respaldo y el corte de página caía a la mitad de un renglón.
+                    onclone: async (doc) => {
+                        try { if (doc.fonts && doc.fonts.ready) await Promise.race([doc.fonts.ready, new Promise(r => setTimeout(r, 3000))]); } catch (_) {}
+                        await Promise.all(Array.from(doc.images).map(im => im.complete ? 0 :
+                            new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 1500); })));
+                        const r = doc.querySelector('.pdf-print'); if (r) medir(r);
+                    }
                 });
                 if (!medidas) medir(copia);
-                const total = Math.min(medidas.total, Math.floor(lienzo.height / escala));
+                const total = Math.floor(lienzo.height / escala);   // lo dibujado manda
+
+                /* v6.8: última comprobación sobre la imagen ya dibujada: el corte debe
+                   caer en un renglón de pixeles sin tinta (sin texto, líneas oscuras
+                   ni gráficas). Si no, se sube hasta encontrar uno; así nunca se parte
+                   una línea de texto aunque alguna medida haya quedado desfasada. */
+                const ctxL = lienzo.getContext('2d', { willReadFrequently: true });
+                const tinta = y => {
+                    const fila = Math.min(lienzo.height - 1, Math.max(0, Math.round(y * escala)));
+                    const d = ctxL.getImageData(0, fila, lienzo.width, 1).data;
+                    let n = 0;
+                    for (let k = 0; k < d.length; k += 4) if (0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2] < 200) n++;
+                    return n;
+                };
+                const renglonLimpio = (y, minimo) => {
+                    for (let c = y; c > minimo; c--) {
+                        // limpio el renglón del corte y el de arriba (antialias de la letra)
+                        if (tinta(c) <= 2 && tinta(c - 1) <= 2) return c;
+                    }
+                    return y;
+                };
 
                 const hojas = [];
                 let inicio = 0;
@@ -7572,6 +7600,7 @@
                     if (!fin) {
                         const validos = medidas.cortes.filter(c => c > inicio + altoHojaPx * 0.3 && c <= limite);
                         fin = validos.length ? validos[validos.length - 1] : limite;
+                        fin = renglonLimpio(fin, inicio + altoHojaPx * 0.3);
                     }
                     hojas.push([inicio, fin]);
                     inicio = fin;
