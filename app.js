@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.6';
+        const VERSION_APP = '6.7';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -7413,7 +7413,7 @@
            El corte de página se busca entre renglones y bloques, nunca a la
            mitad de un renglón, una gráfica o un párrafo, ni justo después de
            un título de sección. */
-        const PAGINA_RUTINA = { ancho: 215.9, alto: 279.4, izq: 25, der: 25, arriba: 25, abajo: 34, pie: 7 };
+        const PAGINA_RUTINA = { ancho: 215.9, alto: 279.4, izq: 25, der: 25, arriba: 25, abajo: 34, pie: 0 };   // v6.7: el pie va en el margen
         const PX_POR_MM = 96 / 25.4;
 
         // Las reglas @media print, re-escritas para aplicarse a la copia (.pdf-print)
@@ -7434,7 +7434,9 @@
                 Array.from(lista || []).forEach(r => {
                     if (r.type === CSSRule.MEDIA_RULE) {
                         recorrer(r.cssRules, enImpresion || /\bprint\b/.test(r.media.mediaText));
-                    } else if (enImpresion && r.type === CSSRule.STYLE_RULE) {
+                    } else if (r.type === CSSRule.STYLE_RULE && (enImpresion || /#rutinaPrintableArea\b/.test(r.selectorText))) {
+                        // (también las reglas de pantalla escritas para #rutinaPrintableArea,
+                        //  como el azul institucional de los títulos: la copia no lleva ese id)
                         const sels = r.selectorText.split(',').map(convertir).filter(Boolean);
                         if (sels.length) reglas.push(sels.join(', ') + ' { ' + r.style.cssText + ' }');
                     }
@@ -7497,10 +7499,12 @@
                 if (o.type === 'radio' || o.type === 'checkbox') {
                     const marca = document.createElement('span');
                     const redondo = o.type === 'radio';
-                    marca.style.cssText = 'display:inline-block;width:14px;height:14px;box-sizing:border-box;vertical-align:middle;' +
-                        'border:1.5px solid ' + (o.checked ? '#1e293b' : '#94a3b8') + ';border-radius:' + (redondo ? '50%' : '3px') + ';' +
-                        'background:' + (o.checked && !redondo ? '#1e293b' : '#fff') + ';position:relative';
-                    if (o.checked && redondo) marca.innerHTML = '<span style="position:absolute;left:2.5px;top:2.5px;width:6px;height:6px;border-radius:50%;background:#1e293b"></span>';
+                    // Mismo aspecto que la casilla nativa de Chrome al imprimir
+                    const azul = '#1a73e8';
+                    marca.style.cssText = 'display:inline-block;width:13px;height:13px;box-sizing:border-box;vertical-align:middle;' +
+                        'border:' + (o.checked ? '1.5px solid ' + azul : '1px solid #767676') + ';border-radius:' + (redondo ? '50%' : '3px') + ';' +
+                        'background:' + (o.checked && !redondo ? azul : '#fff') + ';position:relative';
+                    if (o.checked && redondo) marca.innerHTML = '<span style="position:absolute;left:2px;top:2px;width:6px;height:6px;border-radius:50%;background:' + azul + '"></span>';
                     if (o.checked && !redondo) marca.innerHTML = '<span style="position:absolute;left:3px;top:0;width:5px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)"></span>';
                     el.replaceWith(marca);
                 }
@@ -7550,9 +7554,11 @@
                 const escala = 2;
                 const lienzo = await window.html2canvas(copia, {
                     scale: escala, backgroundColor: '#ffffff', useCORS: true, logging: false,
-                    // Al imprimir, las reglas responsivas (sm:, md:) se evalúan contra el
-                    // ancho de la HOJA (816 px), aunque el contenido mida 627 px
-                    windowWidth: Math.round(P.ancho * PX_POR_MM), width: ANCHO_PX,
+                    // v6.7: en la impresión real de Chrome las reglas responsivas quedan
+                    // con sm: activo (≥ 640 px) y md: inactivo (< 768 px): el título en
+                    // tres renglones y los datos del equipo en DOS columnas. Se usa un
+                    // ancho de ventana dentro de ese rango; el contenido mide 627 px.
+                    windowWidth: 720, width: ANCHO_PX,
                     onclone: (doc) => { const r = doc.querySelector('.pdf-print'); if (r) medir(r); }
                 });
                 if (!medidas) medir(copia);
@@ -7583,13 +7589,14 @@
                     ctx.drawImage(lienzo, 0, Math.round(y0 * escala), lienzo.width, trozo.height, 0, 0, trozo.width, trozo.height);
                     if (i > 0) pdf.addPage('letter', 'portrait');
                     pdf.addImage(trozo.toDataURL('image/jpeg', 0.9), 'JPEG', P.izq, P.arriba, anchoMM, (y1 - y0) / pxPorMM);
+                    // Pie en el margen inferior, igual que @page rutina { @bottom-center }
                     pdf.setDrawColor(203, 213, 225); pdf.setLineWidth(0.3);
-                    pdf.line(P.izq, yPie - 5.2, P.ancho - P.der, yPie - 5.2);
+                    pdf.line(P.izq, yPie, P.ancho - P.der, yPie);
                     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(71, 85, 105);
                     pdf.text('PROHIBIDA SU REPRODUCCIÓN PARCIAL O TOTAL SIN LA AUTORIZACIÓN DE LA EMPRESA',
-                             P.ancho / 2, yPie - 1.6, { align: 'center', charSpace: 0.1 });
+                             P.ancho / 2, yPie + 4.3, { align: 'center', charSpace: 0.1 });
                 });
-                pdf.setProperties({ title: 'Rutina ' + (folioRutinaActual || ''), author: nombreUsuario() });
+                pdf.setProperties({ title: nombreArchivoRutina(), author: nombreUsuario() });
                 return pdf.output('datauristring').split(',')[1];
             } finally {
                 document.body.removeChild(caja);
@@ -8353,11 +8360,34 @@
            que carguen, en vez de confiar solo en el evento 'beforeprint'
            (que no dispara en Safari/iOS y en Chrome puede llegar demasiado
            tarde para que la imagen alcance a decodificarse). */
+        // Cuadros de margen de @page (el pie en el margen): Chrome y Edge 131+
+        function soportaCuadrosDeMargen() {
+            const m = navigator.userAgent.match(/(?:Chrome|Chromium|Edg)\/(\d+)/);
+            return !!(m && Number(m[1]) >= 131);
+        }
+
+        /* v6.7: nombre del archivo de la rutina, el mismo que pone el servidor en
+           Drive (Code.gs › guardarRutinaDrive): Rutina_<folio>_<equipo>.pdf */
+        function nombreArchivoRutina() {
+            const folio = folioRutinaActual || 'S-F';
+            const equipo = String(document.getElementById('rutEq').innerText || '')
+                .replace(/[\\\/:*?"<>|]/g, ' ').trim().slice(0, 60);
+            return 'Rutina_' + folio + (equipo ? '_' + equipo : '');
+        }
+
         async function imprimirRutina() {
             registrarEvento('imprimir_rutina', 'Folio ' + document.getElementById('rutFolio').innerText); // v2.6 bitácora
             asegurarGraficasRutina();   // v5.8: la imagen se toma con el tamaño real del lienzo
             prepararCanvasImpresion();
             await esperarImagenesImpresion();
+            // v6.7: pie en el margen (no tapa contenido) donde el navegador lo soporta
+            document.body.classList.toggle('pie-en-margen', soportaCuadrosDeMargen());
+            // v6.7: "Guardar como PDF" propone el mismo nombre que el archivo de Drive
+            const tituloAnterior = document.title;
+            document.title = nombreArchivoRutina();
+            const devolverTitulo = () => { document.title = tituloAnterior; window.removeEventListener('afterprint', devolverTitulo); };
+            window.addEventListener('afterprint', devolverTitulo);
+            setTimeout(devolverTitulo, 60000);
             window.print();
             // Respaldo: algunos navegadores móviles no disparan 'afterprint'
             setTimeout(restaurarCanvasImpresion, 2000);
