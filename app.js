@@ -65,7 +65,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.8';
+        const VERSION_APP = '6.9';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -758,6 +758,7 @@
                 if (!navegarDesdeHash()) { clienteActual = ''; mostrarDashboard(); }
             } else if (visible('proximosContent')) {
                 poblarFiltrosProximos(); renderProximos();
+                if (pestanaGestion === 'correctivos') { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); }   // v6.9
             } else if (clienteActual && clientesUnicos.includes(clienteActual)) {
                 mostrarVistaCliente(clienteActual);
             } else {
@@ -2855,6 +2856,7 @@
             actualizarBadgeProximos();
             poblarFiltrosProximos();
             renderProximos();
+            if (pestanaGestion === 'correctivos') { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); }   // v6.9
             cargarAsignaciones().then(renderProximos);   // v6.2
             registrarEvento('ver_proximos');
         }
@@ -2867,6 +2869,223 @@
         ['proxVentana', 'proxUnidad', 'proxTipo', 'proxIngeniero', 'proxAsignacion'].forEach(id =>
             document.getElementById(id).addEventListener('change', renderProximos));
         document.getElementById('proxBuscar').addEventListener('input', renderProximos);
+
+
+        /* ============================================================
+           v6.9 — GESTIÓN DE MANTENIMIENTO: CORRECTIVOS POR INGENIERO
+           La vista «Próximos mantenimientos» pasa a llamarse «Gestión de
+           mantenimiento» y suma una segunda pestaña con los correctivos
+           atendidos por cada ingeniero, para medir su productividad.
+           Cuenta las órdenes clasificadas como correctivo/asistencia
+           (esCorrectivo) y, si se elige, también entregas (esEntrega).
+           ============================================================ */
+        let pestanaGestion = 'proximos';
+        let corrIngenieroSel = '';
+
+        function cambiarPestanaGestion(cual) {
+            pestanaGestion = cual === 'correctivos' ? 'correctivos' : 'proximos';
+            const corr = pestanaGestion === 'correctivos';
+            [['tabGmProx', !corr], ['tabGmCorr', corr]].forEach(([id, on]) => {
+                document.getElementById(id).classList.toggle('tab-active', on);
+                document.getElementById(id).classList.toggle('tab-inactive', !on);
+            });
+            document.getElementById('gmPanelProximos').classList.toggle('hidden', corr);
+            document.getElementById('gmPanelCorrectivos').classList.toggle('hidden', !corr);
+            document.getElementById('gmDescripcion').innerText = corr
+                ? 'Correctivos y asistencias atendidos por cada ingeniero, para ver su productividad por periodo y por unidad.'
+                : 'Todas las unidades en una sola lista, para planear rutas y no dejar vencer equipos. Cada equipo se programa a partir de su último preventivo o calibración y de su frecuencia.';
+            if (corr) { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); }
+        }
+
+        function correctivosBase() {
+            const conEntregas = document.getElementById('corrTipo').value === 'todo';
+            return datosDetalleOrdenes.filter(d => d.esCorrectivo || (conEntregas && d.esEntrega));
+        }
+
+        function poblarFiltrosCorrectivos() {
+            const base = correctivosBase();
+            const selA = document.getElementById('corrAnio'), selM = document.getElementById('corrMes'), selU = document.getElementById('corrUnidad');
+            const pa = selA.value, pm = selM.value, pu = selU.value;
+            const anios = Array.from(new Set(base.filter(d => d.FechaObj).map(d => d.FechaObj.getUTCFullYear()))).sort((a, b) => b - a);
+            selA.innerHTML = '<option value="">Todos los años</option>' + anios.map(a => '<option value="' + a + '">' + a + '</option>').join('');
+            selM.innerHTML = '<option value="">Todos los meses</option>' +
+                MESES_ES.map((m, i) => '<option value="' + i + '">' + m.charAt(0).toUpperCase() + m.slice(1) + '</option>').join('');
+            const unidades = Array.from(new Set(base.map(d => d.Cliente).filter(u => u && u !== 'Sin Cliente'))).sort((a, b) => a.localeCompare(b, 'es'));
+            selU.innerHTML = '<option value="">Todas las unidades</option>' + unidades.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+            if (pa === '' && !selA.dataset.iniciado) {
+                // la primera vez se abre en el año en curso, si hay datos de ese año
+                const actual = new Date().getFullYear();
+                if (anios.includes(actual)) selA.value = String(actual);
+                selA.dataset.iniciado = '1';
+            } else if (anios.map(String).includes(pa)) selA.value = pa;
+            selM.value = pm;
+            if (unidades.includes(pu)) selU.value = pu;
+        }
+
+        function correctivosFiltrados() {
+            const anio = document.getElementById('corrAnio').value;
+            const mes = document.getElementById('corrMes').value;
+            const unidad = document.getElementById('corrUnidad').value;
+            return correctivosBase().filter(d => {
+                if (anio && !(d.FechaObj && String(d.FechaObj.getUTCFullYear()) === anio)) return false;
+                if (mes !== '' && !(d.FechaObj && String(d.FechaObj.getUTCMonth()) === mes)) return false;
+                if (unidad && d.Cliente !== unidad) return false;
+                return true;
+            });
+        }
+
+        function nombreIngeniero(d) {
+            const n = String(d.Ingeniero || '').trim();
+            return n && n !== 'N/A' ? n : 'Sin Asignar';
+        }
+
+        function diasAtencion(d) {
+            if (!d.FechaObj || !d.FechaFin) return null;
+            const fin = parsearFechaMantenimiento(d.FechaFin);
+            if (!fin) return null;
+            const dias = Math.round((Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth(), fin.getUTCDate()) -
+                                     Date.UTC(d.FechaObj.getUTCFullYear(), d.FechaObj.getUTCMonth(), d.FechaObj.getUTCDate())) / DIA_MS);
+            return dias >= 0 && dias < 366 ? dias : null;
+        }
+
+        function resumenCorrectivosPorIngeniero(lista) {
+            const porIng = new Map();
+            lista.forEach(d => {
+                const n = nombreIngeniero(d);
+                let r = porIng.get(n);
+                if (!r) { r = { ingeniero: n, ordenes: [], unidades: new Set(), equipos: new Set(), meses: new Set(), sumaDias: 0, conDias: 0, cotizacion: 0, ultimo: null }; porIng.set(n, r); }
+                r.ordenes.push(d);
+                if (d.Cliente) r.unidades.add(d.Cliente);
+                r.equipos.add((d.Cliente || '') + '#' + llaveEquipoCal(d));
+                if (d.FechaObj) {
+                    r.meses.add(d.FechaObj.getUTCFullYear() + '-' + d.FechaObj.getUTCMonth());
+                    if (!r.ultimo || d.FechaObj > r.ultimo) r.ultimo = d.FechaObj;
+                }
+                const dias = diasAtencion(d);
+                if (dias !== null) { r.sumaDias += dias; r.conDias++; }
+                if (d.oportunidad) r.cotizacion++;
+            });
+            // meses del periodo con actividad (de todo el equipo), para comparar parejo
+            const mesesPeriodo = new Set(lista.filter(d => d.FechaObj).map(d => d.FechaObj.getUTCFullYear() + '-' + d.FechaObj.getUTCMonth())).size || 1;
+            return Array.from(porIng.values()).map(r => ({
+                ingeniero: r.ingeniero, total: r.ordenes.length, ordenes: r.ordenes,
+                unidades: r.unidades.size, equipos: r.equipos.size,
+                porMes: r.ordenes.length / mesesPeriodo,
+                diasProm: r.conDias ? r.sumaDias / r.conDias : null,
+                cotizacion: r.cotizacion, ultimo: r.ultimo
+            })).sort((a, b) => (b.total - a.total) || a.ingeniero.localeCompare(b.ingeniero, 'es'));
+        }
+
+        function renderCorrectivosIngeniero() {
+            const lista = correctivosFiltrados();
+            const q = normalizar(document.getElementById('corrBuscar').value.trim().toLowerCase());
+            const resumen = resumenCorrectivosPorIngeniero(lista);
+            const conNombre = resumen.filter(r => r.ingeniero !== 'Sin Asignar');
+            document.getElementById('corrKpiTotal').innerText = lista.length;
+            document.getElementById('corrKpiIngenieros').innerText = conNombre.length;
+            document.getElementById('corrKpiPromedio').innerText = conNombre.length
+                ? (conNombre.reduce((s, r) => s + r.total, 0) / conNombre.length).toFixed(1) : '0';
+            document.getElementById('corrKpiUnidades').innerText = new Set(lista.map(d => d.Cliente).filter(Boolean)).size;
+
+            const visibles = q ? resumen.filter(r => normalizar(r.ingeniero.toLowerCase()).includes(q)) : resumen;
+            document.getElementById('corrResumen').innerText = lista.length + ' orden(es) · ' + resumen.length + ' ingeniero(s)' +
+                ' · ordenados de más a menos correctivos';
+            const max = Math.max(1, ...resumen.map(r => r.total));
+            const tbody = document.getElementById('corrTabla');
+            if (!visibles.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">' +
+                    (lista.length ? 'Ningún ingeniero cumple con la búsqueda.' : 'No hay correctivos en el periodo elegido.') + '</td></tr>';
+            } else {
+                tbody.innerHTML = visibles.map(r => {
+                    const pct = Math.round(r.total / max * 100);
+                    const sel = r.ingeniero === corrIngenieroSel;
+                    return '<tr data-ing="' + esc(r.ingeniero) + '" class="cursor-pointer hover:bg-slate-50' + (sel ? ' bg-brand-50' : '') + '">' +
+                        '<td class="px-4 py-3 text-sm font-semibold text-brand-600">' + esc(r.ingeniero) + '</td>' +
+                        '<td class="px-4 py-3 text-sm"><div class="flex items-center gap-2"><span class="font-bold text-slate-800 w-8">' + r.total + '</span>' +
+                            '<div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden" style="min-width:80px"><div class="h-2 bg-red-500 rounded-full" style="width:' + pct + '%"></div></div></div></td>' +
+                        '<td class="px-4 py-3 text-sm text-slate-600">' + r.porMes.toFixed(1) + '</td>' +
+                        '<td class="px-4 py-3 text-sm text-slate-600">' + r.unidades + '</td>' +
+                        '<td class="px-4 py-3 text-sm text-slate-600">' + r.equipos + '</td>' +
+                        '<td class="px-4 py-3 text-sm text-slate-600">' + (r.diasProm === null ? '—' : r.diasProm.toFixed(1)) + '</td>' +
+                        '<td class="px-4 py-3 text-sm text-slate-600">' + r.cotizacion + '</td>' +
+                        '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + esc(fechaCortaCal(r.ultimo)) + '</td>' +
+                    '</tr>';
+                }).join('');
+            }
+            renderDetalleCorrectivos(resumen);
+        }
+
+        function renderDetalleCorrectivos(resumen) {
+            const caja = document.getElementById('corrDetalle');
+            const r = corrIngenieroSel && (resumen || resumenCorrectivosPorIngeniero(correctivosFiltrados())).find(x => x.ingeniero === corrIngenieroSel);
+            if (!r) { caja.classList.add('hidden'); return; }
+            caja.classList.remove('hidden');
+            document.getElementById('corrDetalleNombre').innerText = r.ingeniero + ' (' + r.total + ')';
+            const ordenes = r.ordenes.slice().sort((a, b) => (b.FechaObj || 0) - (a.FechaObj || 0));
+            document.getElementById('corrDetalleTabla').innerHTML = ordenes.slice(0, 1000).map(d => {
+                const pest = d.esEntrega ? 'ent' : 'corr';
+                return '<tr class="hover:bg-slate-50 align-top">' +
+                    '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + esc(d.FechaObj ? fechaCortaCal(d.FechaObj) : d.FechaEjecucionStr) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600">' + esc(d.ID) + '</td>' +
+                    '<td class="px-4 py-3 text-sm"><a href="' + esc(hashUnidad(d.Cliente, pest)) + '" onclick="return irAUnidad(this.dataset.u, this.dataset.t)" ' +
+                        'data-u="' + esc(d.Cliente) + '" data-t="' + pest + '" class="text-brand-600 hover:text-brand-800 font-semibold hover:underline">' + esc(d.Cliente) + '</a></td>' +
+                    '<td class="px-4 py-3 text-sm"><p class="font-semibold text-slate-800">' + esc(d.Equipo) + '</p>' +
+                        '<p class="text-xs text-slate-500 mt-0.5">' + esc([d.Marca, d.Modelo].filter(v => v && v !== 'N/A' && v !== 'Sin Marca').join(' · ')) + '</p></td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600">' + esc(d['Tipo de Servicio']) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600">' + esc(d.estatus_seguimiento_limpio || '') + '</td>' +
+                '</tr>';
+            }).join('') + (ordenes.length > 1000 ? '<tr><td colspan="6" class="px-4 py-3 text-xs text-slate-500">Se muestran las 1000 más recientes. Exporta a Excel para ver todas.</td></tr>' : '');
+        }
+
+        function cerrarDetalleCorrectivos() { corrIngenieroSel = ''; renderCorrectivosIngeniero(); }
+
+        document.getElementById('corrTabla').addEventListener('click', (e) => {
+            const tr = e.target.closest('tr[data-ing]');
+            if (!tr) return;
+            corrIngenieroSel = corrIngenieroSel === tr.dataset.ing ? '' : tr.dataset.ing;
+            renderCorrectivosIngeniero();
+            if (corrIngenieroSel) document.getElementById('corrDetalle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        ['corrAnio', 'corrMes', 'corrUnidad'].forEach(id =>
+            document.getElementById(id).addEventListener('change', renderCorrectivosIngeniero));
+        document.getElementById('corrTipo').addEventListener('change', () => { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); });
+        document.getElementById('corrBuscar').addEventListener('input', renderCorrectivosIngeniero);
+
+        function exportarGestionExcel() {
+            return pestanaGestion === 'correctivos' ? exportarCorrectivosExcel() : exportarProximosExcel();
+        }
+
+        async function exportarCorrectivosExcel() {
+            const lista = correctivosFiltrados();
+            if (!lista.length) { avisar('No hay correctivos con los filtros actuales.'); return; }
+            try {
+                await cargarSheetJS();
+                const hoy = new Date().toISOString().slice(0, 10);
+                const selTexto = (id) => { const s = document.getElementById(id); return s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : ''; };
+                const periodo = [selTexto('corrAnio'), selTexto('corrMes'), selTexto('corrUnidad'), selTexto('corrTipo')].join(' · ');
+                const resumen = resumenCorrectivosPorIngeniero(lista);
+                const aoa1 = [['Correctivos por ingeniero · Ingenieros Asociados'],
+                              ['Generado el ' + hoy + ' · ' + periodo], [],
+                              ['Ingeniero', 'Correctivos', 'Promedio por mes', 'Unidades', 'Equipos', 'Días de atención (prom.)', 'Requieren cotización', 'Último correctivo']]
+                    .concat(resumen.map(r => [r.ingeniero, r.total, Number(r.porMes.toFixed(2)), r.unidades, r.equipos,
+                                              r.diasProm === null ? '' : Number(r.diasProm.toFixed(1)), r.cotizacion, fechaCortaCal(r.ultimo)]));
+                const h1 = XLSX.utils.aoa_to_sheet(aoa1);
+                h1['!cols'] = [30, 12, 14, 10, 10, 18, 18, 16].map(w => ({ wch: w }));
+                const det = lista.slice().sort((a, b) => nombreIngeniero(a).localeCompare(nombreIngeniero(b), 'es') || ((b.FechaObj || 0) - (a.FechaObj || 0)));
+                const aoa2 = [['Ingeniero', 'Fecha', 'Orden', 'Unidad', 'Equipo', 'Marca', 'Modelo', 'No. de serie', 'Área', 'Tipo de servicio', 'Estatus', 'Días de atención']]
+                    .concat(det.map(d => [nombreIngeniero(d), d.FechaObj ? fechaCortaCal(d.FechaObj) : d.FechaEjecucionStr, d.ID, d.Cliente, d.Equipo,
+                                          d.Marca, d.Modelo, d.Serie, d.Area, d['Tipo de Servicio'], d.estatus_seguimiento_limpio || '',
+                                          (v => v === null ? '' : v)(diasAtencion(d))]));
+                const h2 = XLSX.utils.aoa_to_sheet(aoa2);
+                h2['!cols'] = [26, 12, 12, 30, 28, 16, 16, 18, 20, 24, 22, 10].map(w => ({ wch: w }));
+                h2['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: det.length, c: 11 } }) };
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, h1, 'Por ingeniero');
+                XLSX.utils.book_append_sheet(libro, h2, 'Detalle');
+                XLSX.writeFile(libro, 'Correctivos_por_ingeniero_' + hoy + '.xlsx');
+                registrarEvento('exportar_correctivos_ingeniero', lista.length + ' orden(es)');
+            } catch (err) { avisar(err.message); }
+        }
 
 
         /* ============================================================
@@ -3713,7 +3932,11 @@
             navegandoDesdeHash = true;
             try {
                 if (vista === 'dashboard') { mostrarDashboard(); return true; }
-                if (vista === 'proximos' && tienePermiso('proximos')) { mostrarProximos(); return true; }
+                if (vista === 'proximos' && tienePermiso('proximos')) {
+                    mostrarProximos();
+                    cambiarPestanaGestion(partes[1] === 'correctivos' ? 'correctivos' : 'proximos');   // v6.9
+                    return true;
+                }
                 if (vista === 'satisfaccion' && tienePermiso('satisfaccion')) { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
                 if (vista === 'cotizador' && tienePermiso('cotizador')) { mostrarCotizador(); return true; }
                 if (vista === 'catalogos' && tienePermiso('catalogos')) {
@@ -3750,7 +3973,8 @@
                 };
             };
             envolver('mostrarDashboard', '#dashboard');
-            envolver('mostrarProximos', '#proximos');
+            envolver('mostrarProximos', () => pestanaGestion === 'correctivos' ? '#proximos/correctivos' : '#proximos');
+            envolver('cambiarPestanaGestion', (t) => t === 'correctivos' ? '#proximos/correctivos' : '#proximos');   // v6.9
             envolver('mostrarSatisfaccion', '#satisfaccion');
             envolver('mostrarCotizador', '#cotizador');
             envolver('mostrarCatalogos', '#catalogos');
@@ -8731,7 +8955,7 @@
            permiso en cada operación.
            ============================================================ */
         const APARTADOS_MENU = [
-            { clave: 'proximos',     etiqueta: 'Próximos mantenimientos', btn: 'btnProximos',      vista: 'proximosContent' },
+            { clave: 'proximos',     etiqueta: 'Gestión de mantenimiento', btn: 'btnProximos',      vista: 'proximosContent' },
             { clave: 'satisfaccion', etiqueta: 'Satisfacción de clientes', btn: 'btnSatisfaccion', vista: 'satisfaccionContent' },
             { clave: 'cotizador',    etiqueta: 'Cotizador',               btn: 'btnCotizador',     vista: 'cotizadorContent' },
             { clave: 'catalogos',    etiqueta: 'Catálogos',               btn: 'btnCatalogos',     vista: 'catalogosContent' },

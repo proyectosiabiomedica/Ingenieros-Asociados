@@ -1286,6 +1286,22 @@ Integrado en la app (ot-ia-v42): su `Codigo.gs` tiene las acciones `misAsignacio
 
 **Puesta en marcha (plataforma):** la cuenta que ejecuta el Apps Script de la plataforma debe poder abrir el libro de la app de Órdenes (para la lista de ingenieros). Pegar el `Code.gs` nuevo y volver a implementar (*Nueva versión*). Subir `index.html`, `app.js`, `estilos.css` y `sw.js`. La pestaña *Asignaciones* se crea sola con la primera asignación.
 
+## 4.32 Gestión de mantenimiento: correctivos por ingeniero (v6.9)
+
+El apartado **Próximos mantenimientos** del menú se llama ahora **Gestión de mantenimiento** y tiene dos pestañas:
+
+- **Próximos mantenimientos** — la lista de siempre (vencidos, próximos, asignación a ingenieros, exportación).
+- **Correctivos por ingeniero** — productividad de cada ingeniero en correctivos y asistencias.
+
+En la pestaña de correctivos:
+
+- **Indicadores:** total de correctivos, ingenieros, promedio por ingeniero y unidades atendidas.
+- **Filtros:** año (abre en el año en curso), mes, unidad, tipo (*Correctivos* o *Correctivos y entregas*) y búsqueda por nombre.
+- **Tabla por ingeniero**, de más a menos correctivos: total con barra comparativa, promedio por mes (entre los meses del periodo con correctivos), unidades y equipos distintos, días promedio de atención (de la fecha de inicio a la de fin de la orden, si trae ambas), órdenes que requieren cotización y fecha del último correctivo.
+- Al pulsar un ingeniero se abre el **detalle de sus órdenes**; la unidad lleva a su pestaña de correctivos.
+- **Exportar a Excel** genera un libro con dos hojas: *Por ingeniero* y *Detalle*.
+- Dirección directa: `#proximos/correctivos`. Usa el mismo permiso que antes (ahora llamado *Gestión de mantenimiento*).
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1368,6 +1384,7 @@ Integrado en la app (ot-ia-v42): su `Codigo.gs` tiene las acciones `misAsignacio
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 6.9 | **Gestión de mantenimiento.** «Próximos mantenimientos» se renombra a *Gestión de mantenimiento* y suma la pestaña **Correctivos por ingeniero**: correctivos por ingeniero con promedio mensual, unidades, equipos, días de atención, órdenes que requieren cotización, detalle de órdenes y exportación a Excel (ver 4.32) |
 | 6.8 | **Cortes de página del PDF de Drive.** Las medidas para decidir dónde termina cada hoja se toman después de que la copia carga sus fuentes e imágenes (antes podían tomarse con la fuente de respaldo y el corte caía a la mitad de un renglón, como la nota de condiciones ambientales que salía partida entre la hoja 1 y la 2). Además, cada corte se comprueba sobre la imagen ya dibujada: si el renglón de pixeles tiene tinta, se sube hasta uno limpio |
 | 6.7 | **Rutina impresa = rutina en Drive (ajuste con la impresión real de Chrome).** El PDF de Drive acomoda los datos del equipo en dos columnas y el título en tres renglones como la impresión real; casillas con el aspecto nativo; títulos y líneas en el azul institucional. Al imprimir, el pie va en el margen inferior de la hoja (`@page rutina` con `@bottom-center`, Chrome/Edge 131+): antes el pie fijo tapaba lo último de cada hoja. «Guardar como PDF» propone el mismo nombre que el archivo de Drive: `Rutina_<folio>_<equipo>` |
 | 6.6 | **Rutinas: el PDF de Drive es igual al impreso, sin duplicados y sin gráficas ajenas.** El PDF se arma con los mismos márgenes que la impresión (25 mm y 34 mm abajo), el mismo ancho útil (627 px), las reglas responsivas evaluadas como en la hoja y las reglas `@media print` aplicadas a la copia; mismo pie en cada hoja. Al guardar en Drive cada clic manda un identificador (una petición repetida no crea otro archivo), la carpeta de cada orden se recuerda en las propiedades del script y se buscan rutinas en todas sus carpetas. Al abrir una rutina se vacía el contenedor de gráficas: antes solo se ocultaba y la regla de impresión volvía a mostrar las de la rutina anterior. Los títulos de sección ya no quedan solos al pie de la hoja |
