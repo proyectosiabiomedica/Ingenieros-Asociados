@@ -57,6 +57,13 @@
             // { clave: 'anestesia',  meses: 6 },
         ];
 
+        /* v7.0 — Fecha local en formato AAAA-MM-DD. toISOString() da la fecha
+           en UTC: en México (UTC-6) después de las 6 de la tarde ya es el día
+           siguiente, y las cotizaciones salían fechadas un día después. */
+        function isoLocal(d) {
+            d = d || new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
         const MESES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
         /* ============================================================
@@ -3060,7 +3067,7 @@
             if (!lista.length) { avisar('No hay correctivos con los filtros actuales.'); return; }
             try {
                 await cargarSheetJS();
-                const hoy = new Date().toISOString().slice(0, 10);
+                const hoy = isoLocal();
                 const selTexto = (id) => { const s = document.getElementById(id); return s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : ''; };
                 const periodo = [selTexto('corrAnio'), selTexto('corrMes'), selTexto('corrUnidad'), selTexto('corrTipo')].join(' · ');
                 const resumen = resumenCorrectivosPorIngeniero(lista);
@@ -3261,7 +3268,7 @@
             sel.disabled = true;
             document.getElementById('asgOrigenIngenieros').classList.add('hidden');
             const manana = new Date(Date.now() + 86400000);
-            document.getElementById('asgFecha').value = manana.toISOString().slice(0, 10);
+            document.getElementById('asgFecha').value = isoLocal(manana);
             document.getElementById('asgNotas').value = '';
             document.getElementById('asgConteo').innerText = lista.length;
             document.getElementById('asgLista').innerHTML = lista.map(x =>
@@ -3322,7 +3329,7 @@
             if (!lista.length) { avisar('No hay equipos con los filtros actuales.'); return; }
             try {
                 await cargarSheetJS();
-                const hoy = new Date().toISOString().slice(0, 10);
+                const hoy = isoLocal();
                 const aoa = [['Próximos mantenimientos · Ingenieros Asociados'],
                              ['Generado el ' + hoy + ' · ' + lista.length + ' equipo(s)'], [],
                              ['Fecha programada', 'Situación', 'Unidad', 'Tipo', 'Equipo', 'Marca', 'Modelo', 'No. de serie',
@@ -3790,7 +3797,7 @@
                 hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lista.length, c: 12 } }) };
                 const libro = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(libro, hoja, 'Satisfaccion');
-                XLSX.writeFile(libro, 'Satisfaccion_clientes_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+                XLSX.writeFile(libro, 'Satisfaccion_clientes_' + isoLocal() + '.xlsx');
             } catch (err) { avisar(err.message); }
         }
 
@@ -4871,7 +4878,7 @@
         /* v5.2 — Exporta a Excel el catálogo de la pestaña, tal como se ve:
            con la búsqueda y el filtro aplicados (sin ellos, sale completo). */
         async function exportarCatalogoExcel(cual) {
-            const hoy = new Date().toISOString().slice(0, 10);
+            const hoy = isoLocal();
             let titulo, encabezados, filas, anchos;
             if (cual === 'clientes') {
                 const lista = listaClientesFiltrada();
@@ -5213,7 +5220,7 @@
                 const blob = normalizar((c.folio + ' ' + c.razonSocial + ' ' + c.cliente + ' ' +
                               (c.partidas || []).map(p => (p.clave || '') + ' ' + p.descripcion).join(' ')).toLowerCase());
                 return blob.includes(texto);
-            }).sort((a, b) => (parseInt(b.folio, 10) || 0) - (parseInt(a.folio, 10) || 0));
+            }).sort((a, b) => (parseInt(nucleoFolio(b.folio), 10) || 0) - (parseInt(nucleoFolio(a.folio), 10) || 0));  // v7.0: admite prefijo (IAC-3000)
 
             if (lista.length === 0) {
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic p-6">' +
@@ -5251,8 +5258,21 @@
         }
 
         // "2026-07-02" → "2 de julio de 2026", como en el formato
+        /* v7.0: si el servidor devuelve la fecha como instante completo
+           ("2026-11-06T06:00:00.000Z"), se toma el día local y no el UTC. */
+        function fechaCotISO(v) {
+            const t = String(v || '');
+            if (/T\d{2}:\d{2}/.test(t)) {
+                const d = new Date(t);
+                if (!isNaN(d)) return isoLocal(d);
+            }
+            const m = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+            return m ? m[0] : t;
+        }
+
         function fechaLargaCot(iso) {
             if (!iso) return '';
+            iso = fechaCotISO(iso);
             const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})/);
             if (!m) return String(iso);
             return parseInt(m[3], 10) + ' de ' + MESES_ES[parseInt(m[2], 10) - 1] + ' de ' + m[1];
@@ -5261,7 +5281,7 @@
         function sumarDias(iso, dias) {
             const d = new Date(iso + 'T12:00:00');
             d.setDate(d.getDate() + dias);
-            return d.toISOString().slice(0, 10);
+            return isoLocal(d);
         }
 
         function poblarSelectsCotizador() {
@@ -5316,7 +5336,7 @@
             document.getElementById('cotRFC').value = (c && c.rfc) || '';
             document.getElementById('cotAtencion').value = (c && c.atencion) || '';
             document.getElementById('cotCondiciones').value = (c && c.condiciones) || 'CRÉDITO';
-            document.getElementById('cotFecha').value = (cotizacionEnEdicion && c.fecha) || new Date().toISOString().slice(0, 10);
+            document.getElementById('cotFecha').value = (cotizacionEnEdicion && c.fecha) ? fechaCotISO(c.fecha) : isoLocal();
             document.getElementById('cotObservaciones').value = (c && c.observaciones) || valorConfig('Observaciones');
             // v4.8: cada cotización conserva sus propios textos
             document.getElementById('cotCondImportantes').value = (c && c.condicionesImportantes) || valorConfig('Condiciones importantes');
@@ -5529,7 +5549,7 @@
 
             partidasCot = partidas;
             const t = totalesCotizacion();
-            const fecha = document.getElementById('cotFecha').value || new Date().toISOString().slice(0, 10);
+            const fecha = document.getElementById('cotFecha').value || isoLocal();
             const vigenciaDias = parseInt(valorConfig('Vigencia en días', '20'), 10) || 20;
 
             const cot = {
@@ -6450,7 +6470,7 @@
             document.getElementById('subtituloModalFactura').innerText =
                 clienteActual + ' · una factura puede cubrir varios servicios';
             document.getElementById('facNumero').value = '';
-            document.getElementById('facFecha').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('facFecha').value = isoLocal();
             document.getElementById('facNotas').value = '';
             document.getElementById('facNivel').value = 'I';
             document.getElementById('btnEliminarFactura').classList.add('hidden');
