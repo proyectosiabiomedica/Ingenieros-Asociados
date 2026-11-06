@@ -5991,11 +5991,9 @@
                 ', de fecha ' + fechaLargaCot(c.fecha) + ', por un importe total de ' + fmtMoneda(c.total, 'MXN') +
                 ' (I.V.A. incluido).\n\n' +
                 (c.vigencia ? 'La propuesta tiene vigencia al ' + fechaLargaCot(c.vigencia) + '.\n\n' : '') +
-                'Quedamos atentos a cualquier duda o comentario.\n\n' +
-                'Saludos cordiales,\n' +
-                (valorConfig('Firma (nombre)') ? valorConfig('Firma (nombre)') + '\n' : '') +
-                (valorConfig('Razón social del emisor') || 'Ingenieros Asociados') +
-                (valorConfig('Teléfono') ? '\nTel. ' + valorConfig('Teléfono') : '');
+                'Quedamos atentos a cualquier duda o comentario.';
+                // v7.3: la despedida, el nombre y los datos de contacto los pone el
+                // servidor con la firma institucional (firmaCotizacionHTML en Code.gs).
         }
 
         function mensajeCorreoCotUI(texto, tipo) {
@@ -6007,6 +6005,9 @@
             el.innerText = texto;
             el.classList.toggle('hidden', !texto);
         }
+
+        // v7.3: siempre en copia en los correos de cotización (Code.gs también las agrega)
+        const CC_COTIZACIONES = ['cyciabiomedica@gmail.com', 'maldonadoarturbiomedica@gmail.com'];
 
         async function abrirCorreoCotizacion(c) {
             if (!hayBackend()) { avisar('El envío por correo requiere el backend de Apps Script configurado.'); return; }
@@ -6023,7 +6024,7 @@
                 ? 'Correo registrado en el catálogo de clientes.'
                 : '<span class="text-amber-700 font-semibold">' + (cli ? 'Este cliente no tiene correo en el catálogo.' : 'La cotización no está ligada a un cliente del catálogo.') +
                   '</span> Escríbelo aquí; para no volver a capturarlo, agrégalo en Catálogos → Clientes.';
-            document.getElementById('ccotCC').value = '';
+            document.getElementById('ccotCC').value = CC_COTIZACIONES.join(', ');   // v7.3
             document.getElementById('ccotAsunto').value = 'Cotización ' + c.folio + ' · ' +
                 (valorConfig('Razón social del emisor') || 'Ingenieros Asociados');
             document.getElementById('ccotCuerpo').value = textoCorreoCotizacion(c, cli);
@@ -6116,7 +6117,7 @@
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
-                        accion: 'correo', token: tokenSesion(), modo: modo,
+                        accion: 'correo', token: tokenSesion(), modo: modo, tipo: 'cotizacion',   // v7.3: firma y CC fijos
                         para: para, cc: cc, asunto: asunto,
                         cuerpo: cuerpo, html: htmlCorreoCotizacion(cuerpo),
                         adjuntos: adjuntos,
