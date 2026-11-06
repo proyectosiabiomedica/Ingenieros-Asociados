@@ -860,6 +860,7 @@ Lo asigna el servidor al guardar, **dentro de un candado**: dos personas cotizan
 
 - **Unidad**: opcional. Si se elige una unidad que ya se cotizó antes, se llenan solos su razón social, dirección, RFC y "atención a" con los de su cotización más reciente; si es la primera vez, se toma la dirección de sus órdenes.
 - **Partidas**: se eligen del catálogo o se agregan libres, y todo es editable —descripción, unidad, cantidad y precio—. El importe, el subtotal, el IVA, el total y el importe con letra se recalculan al escribir.
+- **Buscador de conceptos (v7.4)**: en lugar de la lista desplegable, se escribe el concepto o el No. de catálogo y aparecen las sugerencias del catálogo con su tipo, unidad y precio del nivel elegido. Se buscan todas las palabras escritas, en cualquier orden y sin importar acentos ni mayúsculas (*mant monitor* encuentra *Mantenimiento preventivo integral para Monitor…*). Las flechas recorren la lista, **Enter** agrega la sugerencia marcada y **Esc** la cierra; después de agregar, el cursor vuelve al buscador para seguir capturando. Si nada coincide, Enter agrega lo escrito como partida libre. El botón **+ Partida libre** agrega un renglón en blanco.
 - **Fecha y vigencia**: la vigencia se calcula sola con los días configurados (20 por omisión).
 - **Observaciones**: vienen precargadas con las de `Config_Cotizacion` y se pueden cambiar en cada cotización.
 
@@ -993,7 +994,7 @@ El apartado **Catálogos** tiene tres pestañas.
 
 **Firma y copias (v7.3).** Los correos de cotización salen con la firma institucional: el cierre (*Agradecemos la confianza…* y *Me despido…*), el logotipo con los datos de contacto, el enlace al sitio, la leyenda ambiental y el aviso de confidencialidad y de privacidad en español e inglés. La firma la agrega el servidor (`firmaCotizacionHTML` en `Code.gs`, con el logotipo incrustado en el correo), por eso el texto editable del mensaje ya no lleva despedida ni datos de contacto. Nombre, puesto, correo y teléfono de la firma se cambian en `FIRMA_COT`.
 
-Siempre van con copia a **cyciabiomedica@gmail.com** y **maldonadoarturbiomedica@gmail.com** (`CC_COTIZACIONES`). La app las precarga en el campo CC y el servidor las agrega aunque se borren. Los correos de seguimientos y de la encuesta no cambian.
+Siempre van con copia a **cyciabiomedica@gmail.com** y **maldonadoarturbiomedica@gmail.com** (`CC_COTIZACIONES`). La app las precarga en el campo CC y el servidor las agrega aunque se borren (desde la v7.4 el cuadro de correo ya no muestra el aviso). Los correos de seguimientos y de la encuesta no cambian.
 
 | Campo | Cómo se llena |
 |---|---|

@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=7.3">
+    <link rel="stylesheet" href="estilos.css?v=7.4">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -1182,12 +1182,21 @@
                     <button id="btnGuardarClienteDesdeCot" onclick="guardarClienteDesdeCotizacion()" class="hidden mt-2 text-xs font-semibold text-brand-600 hover:text-brand-800">+ Guardar estos datos como cliente del catálogo</button>
                 </div>
 
-                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-slate-50">
+                <!-- v7.4: sin overflow-hidden para que la lista de sugerencias no se recorte -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm mb-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
                         <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Partidas</h3>
-                        <div class="flex items-center gap-2">
-                            <select id="cotCatalogo" class="p-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:border-brand-500 max-w-xs"></select>
-                            <button onclick="agregarPartida()" class="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">Agregar</button>
+                        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            <!-- v7.4: buscador de conceptos con sugerencias -->
+                            <div class="relative flex-1 sm:flex-none sm:w-96">
+                                <input type="text" id="cotBuscarConcepto" autocomplete="off" spellcheck="false"
+                                       placeholder="Escribe el concepto o el No. de catálogo…"
+                                       role="combobox" aria-autocomplete="list" aria-controls="cotSugerencias" aria-expanded="false"
+                                       class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                                <div id="cotSugerencias" role="listbox"
+                                     class="hidden absolute right-0 z-30 mt-1 w-full sm:w-[34rem] max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg"></div>
+                            </div>
+                            <button onclick="agregarPartida(null)" class="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap">+ Partida libre</button>
                         </div>
                     </div>
                     <div id="cotPartidas" class="overflow-x-auto"></div>
@@ -1812,7 +1821,6 @@
                     <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Copia (CC)</label>
                     <input type="text" id="ccotCC" placeholder="Opcional; separa varias direcciones con coma"
                            class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
-                    <p class="text-xs text-slate-500 mt-1">v7.3: cyciabiomedica@gmail.com y maldonadoarturbiomedica@gmail.com van siempre en copia; el servidor las agrega aunque se borren aquí.</p>
                 </div>
                 <div>
                     <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Asunto</label>
@@ -2099,6 +2107,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=7.3"></script>
+    <script src="app.js?v=7.4"></script>
 </body>
 </html>
