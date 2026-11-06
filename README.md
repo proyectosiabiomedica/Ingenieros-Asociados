@@ -991,6 +991,10 @@ El apartado **Catálogos** tiene tres pestañas.
 - **Desde la lista:** botón **Correo** en cada cotización.
 - **Desde el formulario:** **Finalizar**, que guarda primero para tener folio y luego abre el correo.
 
+**Firma y copias (v7.3).** Los correos de cotización salen con la firma institucional: el cierre (*Agradecemos la confianza…* y *Me despido…*), el logotipo con los datos de contacto, el enlace al sitio, la leyenda ambiental y el aviso de confidencialidad y de privacidad en español e inglés. La firma la agrega el servidor (`firmaCotizacionHTML` en `Code.gs`, con el logotipo incrustado en el correo), por eso el texto editable del mensaje ya no lleva despedida ni datos de contacto. Nombre, puesto, correo y teléfono de la firma se cambian en `FIRMA_COT`.
+
+Siempre van con copia a **cyciabiomedica@gmail.com** y **maldonadoarturbiomedica@gmail.com** (`CC_COTIZACIONES`). La app las precarga en el campo CC y el servidor las agrega aunque se borren. Los correos de seguimientos y de la encuesta no cambian.
+
 | Campo | Cómo se llena |
 |---|---|
 | **Para** | El correo del cliente en el catálogo, buscado por su id y, si no, por razón social. Si no hay, la ventana lo avisa y se escribe a mano |
