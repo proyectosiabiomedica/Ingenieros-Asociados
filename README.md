@@ -863,7 +863,7 @@ Lo asigna el servidor al guardar, **dentro de un candado**: dos personas cotizan
 - **Fecha y vigencia**: la vigencia se calcula sola con los días configurados (20 por omisión).
 - **Observaciones**: vienen precargadas con las de `Config_Cotizacion` y se pueden cambiar en cada cotización.
 
-*Guardar* la registra; *Guardar e imprimir* además la manda al diálogo de impresión, donde se elige *Guardar como PDF*.
+**Finalizar** (v7.2) es el único botón del formulario: guarda la cotización —y con eso obtiene su folio— y enseguida abre el cuadro para enviarla por correo con el PDF adjunto. Si no se quiere enviar en ese momento, se cierra el cuadro y la cotización ya queda guardada; para imprimirla está el botón *Imprimir* de la lista.
 
 ### El importe con letra
 
@@ -871,7 +871,7 @@ Sigue las reglas del español que suelen fallar en las conversiones automáticas
 
 ### Seguimiento
 
-La lista muestra folio, fecha, cliente, partidas, total y estado, con búsqueda y filtro. El estado se cambia directamente en la lista: **Emitida, Enviada, Aceptada, Rechazada, Vencida**. Desde cada renglón se puede reimprimir, editar —conserva el folio— o **duplicar**, que crea una cotización nueva con otro folio a partir de una anterior. Todo movimiento queda en la bitácora.
+La lista muestra folio, fecha, cliente, partidas, total y estado, con búsqueda y filtro. Desde la v7.2 se puede **ordenar por folio, fecha, cliente o estado**, con un botón al lado para invertir el sentido. Folio y fecha empiezan por lo más reciente; cliente va de la A a la Z, y estado sigue el recorrido de la cotización (Emitida → Enviada → Aceptada → Rechazada → Vencida). Los empates se ordenan por folio y la elección se recuerda en cada equipo. El estado se cambia directamente en la lista: **Emitida, Enviada, Aceptada, Rechazada, Vencida**. Desde cada renglón se puede reimprimir, editar —conserva el folio— o **duplicar**, que crea una cotización nueva con otro folio a partir de una anterior. Todo movimiento queda en la bitácora.
 
 ### Catálogo único de precios (v4.8)
 
@@ -989,7 +989,7 @@ El apartado **Catálogos** tiene tres pestañas.
 ## 4.22 Envío de la cotización por correo (v5.2)
 
 - **Desde la lista:** botón **Correo** en cada cotización.
-- **Desde el formulario:** **Guardar y enviar por correo**, que guarda primero para tener folio.
+- **Desde el formulario:** **Finalizar**, que guarda primero para tener folio y luego abre el correo.
 
 | Campo | Cómo se llena |
 |---|---|
