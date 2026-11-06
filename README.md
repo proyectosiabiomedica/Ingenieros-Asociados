@@ -852,6 +852,10 @@ Apartado *Cotizador* en el menú lateral. Reproduce el formato con el que ya se 
 
 Lo asigna el servidor al guardar, **dentro de un candado**: dos personas cotizando al mismo tiempo no pueden recibir el mismo número. Se toma el mayor entre las cotizaciones registradas y el valor de *Último folio emitido fuera del sistema* en `Config_Cotizacion`, que viene en **2667** para continuar la numeración que se traía en Excel. La primera cotización del sistema sale con el **2668**.
 
+**v7.0 — Reinicio de folios con el esquema `IAC-3000`.** A partir de esta versión los folios llevan el prefijo `IAC-` y la numeración se reinicia en **3000**. La lista de cotizaciones ordena por el número del folio, sin importar el prefijo, así que los folios anteriores (2668, 2669…) y los nuevos (`IAC-3000`, `IAC-3001`…) conviven en la lista. El cambio de prefijo y del consecutivo se hace en `Code.gs`, que es quien asigna el folio.
+
+**v7.0 — Fecha de la cotización.** La fecha por omisión se toma con el día local del equipo. Antes se tomaba en UTC y, después de las 6 de la tarde (hora del centro de México), las cotizaciones salían fechadas con el día siguiente.
+
 ### Armar una cotización
 
 - **Unidad**: opcional. Si se elige una unidad que ya se cotizó antes, se llenan solos su razón social, dirección, RFC y "atención a" con los de su cotización más reciente; si es la primera vez, se toma la dirección de sus órdenes.
