@@ -5209,6 +5209,61 @@
             'Vencida':   'bg-amber-100 text-amber-800'
         };
 
+        /* v7.2 — ORDEN DE LA LISTA DE COTIZACIONES
+           Por folio, fecha, cliente o estado, en cualquiera de los dos
+           sentidos. El folio compara solo su número, así que los anteriores
+           (2668) y los nuevos (IAC-3000) quedan en su lugar. El estado sigue
+           el recorrido de la cotización, no el abecedario. Los empates se
+           resuelven por folio, del más reciente al más antiguo. La elección
+           se recuerda en este equipo. */
+        const ORDEN_ESTADOS_COT = ['Emitida', 'Enviada', 'Aceptada', 'Rechazada', 'Vencida'];
+        const ordenCot = (() => {
+            try {
+                const g = JSON.parse(localStorage.getItem('ia_orden_cotizaciones') || 'null');
+                if (g && ['folio', 'fecha', 'cliente', 'estado'].includes(g.campo)) return { campo: g.campo, desc: !!g.desc };
+            } catch (_) {}
+            return { campo: 'folio', desc: true };
+        })();
+
+        function guardarOrdenCot() {
+            try { localStorage.setItem('ia_orden_cotizaciones', JSON.stringify(ordenCot)); } catch (_) {}
+        }
+
+        function etiquetaDireccionOrdenCot() {
+            const b = document.getElementById('cotOrdenDir');
+            if (!b) return;
+            const textos = {
+                folio:   ['↑ Menor a mayor', '↓ Mayor a menor'],
+                fecha:   ['↑ Más antigua primero', '↓ Más reciente primero'],
+                cliente: ['↑ A → Z', '↓ Z → A'],
+                estado:  ['↑ Emitida → Vencida', '↓ Vencida → Emitida']
+            };
+            b.innerText = textos[ordenCot.campo][ordenCot.desc ? 1 : 0];
+        }
+
+        function cambiarDireccionOrdenCot() {
+            ordenCot.desc = !ordenCot.desc;
+            guardarOrdenCot();
+            etiquetaDireccionOrdenCot();
+            renderListaCotizaciones();
+        }
+
+        function comparadorCotizaciones() {
+            const numFolio = c => parseInt(nucleoFolio(c.folio), 10) || 0;
+            const porFolioDesc = (a, b) => numFolio(b) - numFolio(a);
+            const signo = ordenCot.desc ? -1 : 1;
+            const clave = {
+                folio:   (a, b) => numFolio(a) - numFolio(b),
+                fecha:   (a, b) => fechaCotISO(a.fecha).localeCompare(fechaCotISO(b.fecha)),
+                cliente: (a, b) => String(a.razonSocial || a.cliente || '').localeCompare(String(b.razonSocial || b.cliente || ''), 'es', { sensitivity: 'base' }),
+                estado:  (a, b) => {
+                    const ia = ORDEN_ESTADOS_COT.indexOf(a.estado || 'Emitida'), ib = ORDEN_ESTADOS_COT.indexOf(b.estado || 'Emitida');
+                    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+                }
+            }[ordenCot.campo];
+            return (a, b) => (signo * clave(a, b)) || porFolioDesc(a, b);
+        }
+
         function renderListaCotizaciones() {
             const cont = document.getElementById('cotTabla');
             const texto = normalizar(document.getElementById('cotBuscar').value.toLowerCase()).trim();
@@ -5220,7 +5275,7 @@
                 const blob = normalizar((c.folio + ' ' + c.razonSocial + ' ' + c.cliente + ' ' +
                               (c.partidas || []).map(p => (p.clave || '') + ' ' + p.descripcion).join(' ')).toLowerCase());
                 return blob.includes(texto);
-            }).sort((a, b) => (parseInt(nucleoFolio(b.folio), 10) || 0) - (parseInt(nucleoFolio(a.folio), 10) || 0));  // v7.0: admite prefijo (IAC-3000)
+            }).sort(comparadorCotizaciones());   // v7.2: según "Ordenar por"
 
             if (lista.length === 0) {
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic p-6">' +
@@ -5577,8 +5632,7 @@
                 nivel: document.getElementById('cotNivel').value
             };
 
-            const botones = [document.getElementById('btnGuardarCot'), document.getElementById('btnGuardarImprimirCot'),
-                             document.getElementById('btnGuardarCorreoCot')];
+            const botones = [document.getElementById('btnFinalizarCot')];   // v7.2: un solo botón
             botones.forEach(b => b.disabled = true);
             try {
                 const r = await fetch(URL_APPS_SCRIPT, {
@@ -5644,6 +5698,17 @@
 
         document.getElementById('cotBuscar').addEventListener('input', () => renderListaCotizaciones());
         document.getElementById('cotFiltroEstado').addEventListener('change', renderListaCotizaciones);
+        // v7.2: ordenar la lista. Al cambiar el campo se toma su sentido más útil
+        // (folio y fecha: lo más reciente arriba; cliente y estado: de inicio a fin).
+        document.getElementById('cotOrden').value = ordenCot.campo;
+        etiquetaDireccionOrdenCot();
+        document.getElementById('cotOrden').addEventListener('change', (e) => {
+            ordenCot.campo = e.target.value;
+            ordenCot.desc = (ordenCot.campo === 'folio' || ordenCot.campo === 'fecha');
+            guardarOrdenCot();
+            etiquetaDireccionOrdenCot();
+            renderListaCotizaciones();
+        });
 
         /* ---------- Formato impreso ----------
            v4.8 — PAGINACIÓN MEDIDA
@@ -5887,7 +5952,7 @@
            v5.2 — ENVÍO DE LA COTIZACIÓN POR CORREO
 
            Se sale desde la lista (botón Correo) o desde el formulario
-           (Guardar y enviar por correo, que primero guarda para tener folio).
+           (Finalizar, que primero guarda para tener folio y luego abre el correo).
 
            · Para: el correo del cliente en el catálogo, buscado por su id y,
              si la cotización no lo tiene, por su razón social. Se puede
