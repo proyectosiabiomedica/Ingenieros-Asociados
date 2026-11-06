@@ -5354,20 +5354,154 @@
 
             // v4.8: el catálogo sale de la hoja única, agrupado por tipo
             catalogoCotizacion = conceptosDelCotizador();
-            const nivel = document.getElementById('cotNivel').value || 'I';
-            const grupos = {};
-            catalogoCotizacion.forEach((c, i) => { (grupos[c.grupo] = grupos[c.grupo] || []).push(i); });
-            const selCat = document.getElementById('cotCatalogo');
-            selCat.innerHTML = '<option value="">Partida libre</option>' +
-                Object.keys(grupos).map(g =>
-                    '<optgroup label="' + esc(g) + '">' +
-                    grupos[g].map(i => {
-                        const c = catalogoCotizacion[i];
-                        const pr = precioConcepto(c, nivel);
-                        return '<option value="' + i + '">' + (c.clave ? esc(c.clave) + ' · ' : '') + esc(c.descripcion) +
-                               (pr ? ' — ' + fmtMoneda(pr, 'MXN') : '') + '</option>';
-                    }).join('') + '</optgroup>').join('');
+            // v7.4: el buscador de conceptos reemplaza a la lista desplegable
+            document.getElementById('cotBuscarConcepto').value = '';
+            cerrarSugerenciasCot();
         }
+
+        /* v7.4 — BUSCADOR DE CONCEPTOS
+           Al escribir se sugieren los conceptos del catálogo que contienen
+           todas las palabras escritas, sin importar acentos ni mayúsculas, en
+           la descripción, el No. de catálogo o el tipo. Primero van los que
+           coinciden con el No. de catálogo, luego los que empiezan con lo
+           escrito. Flechas para moverse, Enter para agregar, Esc para cerrar.
+           Si nada coincide, Enter agrega lo escrito como partida libre. */
+        const MAX_SUGERENCIAS_COT = 15;
+        let sugerenciasCot = [];
+        let sugerenciaActivaCot = -1;
+
+        function buscarConceptosCot(texto) {
+            const q = normalizar(String(texto).toLowerCase()).trim();
+            if (!q) return [];
+            const palabras = q.split(/\s+/);
+            const out = [];
+            catalogoCotizacion.forEach((c, i) => {
+                const desc = normalizar(String(c.descripcion || '').toLowerCase());
+                const clave = normalizar(String(c.clave || '').toLowerCase());
+                const blob = desc + ' ' + clave + ' ' + normalizar(String(c.grupo || '').toLowerCase());
+                if (!palabras.every(p => blob.includes(p))) return;
+                let puntos = 0;
+                if (clave && clave === q) puntos += 100;
+                else if (clave && clave.startsWith(q)) puntos += 60;
+                if (desc.startsWith(q)) puntos += 40;
+                else if (desc.includes(q)) puntos += 20;
+                if (palabras.every(p => new RegExp('(^|[^a-z0-9])' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(desc))) puntos += 10;
+                out.push({ i: i, puntos: puntos });
+            });
+            return out.sort((a, b) => b.puntos - a.puntos ||
+                    String(catalogoCotizacion[a.i].descripcion).localeCompare(String(catalogoCotizacion[b.i].descripcion), 'es'))
+                .slice(0, MAX_SUGERENCIAS_COT).map(x => x.i);
+        }
+
+        // Resalta en negritas las palabras buscadas (sin acentos para comparar)
+        function resaltarCot(texto, q) {
+            const t = String(texto || '');
+            const n = normalizar(t.toLowerCase());
+            const marcas = new Array(t.length).fill(false);
+            normalizar(q.toLowerCase()).trim().split(/\s+/).filter(Boolean).forEach(p => {
+                let k = n.indexOf(p);
+                while (k > -1) { for (let j = k; j < k + p.length; j++) marcas[j] = true; k = n.indexOf(p, k + p.length); }
+            });
+            let html = '', abierto = false;
+            for (let j = 0; j < t.length; j++) {
+                if (marcas[j] && !abierto) { html += '<b class="text-slate-900">'; abierto = true; }
+                if (!marcas[j] && abierto) { html += '</b>'; abierto = false; }
+                html += esc(t[j]);
+            }
+            return html + (abierto ? '</b>' : '');
+        }
+
+        function cerrarSugerenciasCot() {
+            const caja = document.getElementById('cotSugerencias');
+            caja.classList.add('hidden');
+            caja.innerHTML = '';
+            document.getElementById('cotBuscarConcepto').setAttribute('aria-expanded', 'false');
+            sugerenciasCot = [];
+            sugerenciaActivaCot = -1;
+        }
+
+        function mostrarSugerenciasCot() {
+            const input = document.getElementById('cotBuscarConcepto');
+            const caja = document.getElementById('cotSugerencias');
+            const q = input.value;
+            if (!q.trim()) { cerrarSugerenciasCot(); return; }
+            sugerenciasCot = buscarConceptosCot(q);
+            sugerenciaActivaCot = sugerenciasCot.length ? 0 : -1;
+            const nivel = document.getElementById('cotNivel').value || 'I';
+            caja.innerHTML = sugerenciasCot.length
+                ? sugerenciasCot.map((idx, k) => {
+                      const c = catalogoCotizacion[idx];
+                      const pr = precioConcepto(c, nivel);
+                      return '<div role="option" data-sug="' + k + '" class="sug-cot flex items-start justify-between gap-3 px-3 py-2 cursor-pointer border-b border-slate-100 last:border-0">' +
+                          '<div class="min-w-0">' +
+                              '<div class="text-sm text-slate-700">' + resaltarCot(c.descripcion, q) + '</div>' +
+                              '<div class="text-xs text-slate-400">' + (c.clave ? resaltarCot(c.clave, q) + ' · ' : '') + esc(c.grupo || '') +
+                                  (c.unidad ? ' · ' + esc(c.unidad) : '') + '</div>' +
+                          '</div>' +
+                          '<div class="text-sm font-semibold text-slate-700 whitespace-nowrap">' + (pr ? fmtMoneda(pr, 'MXN') : '—') + '</div>' +
+                      '</div>';
+                  }).join('')
+                : '<div class="px-3 py-3 text-sm text-slate-500">Sin coincidencias en el catálogo. ' +
+                  '<span class="text-brand-600 font-semibold">Enter</span> agrega «' + esc(q.trim()) + '» como partida libre.</div>';
+            caja.classList.remove('hidden');
+            input.setAttribute('aria-expanded', 'true');
+            marcarSugerenciaCot();
+        }
+
+        function marcarSugerenciaCot() {
+            document.querySelectorAll('#cotSugerencias .sug-cot').forEach(el => {
+                const activa = Number(el.dataset.sug) === sugerenciaActivaCot;
+                el.classList.toggle('bg-brand-50', activa);
+                el.setAttribute('aria-selected', activa ? 'true' : 'false');
+                if (activa) el.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        function elegirSugerenciaCot(k) {
+            const input = document.getElementById('cotBuscarConcepto');
+            if (k >= 0 && k < sugerenciasCot.length) {
+                agregarPartida(sugerenciasCot[k]);
+            } else if (input.value.trim()) {
+                agregarPartida(null, input.value.trim());
+            } else return;
+            input.value = '';
+            cerrarSugerenciasCot();
+        }
+
+        (function () {
+            const input = document.getElementById('cotBuscarConcepto');
+            const caja = document.getElementById('cotSugerencias');
+            input.addEventListener('input', mostrarSugerenciasCot);
+            input.addEventListener('focus', () => { if (input.value.trim()) mostrarSugerenciasCot(); });
+            input.addEventListener('keydown', (e) => {
+                const abierta = !caja.classList.contains('hidden');
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    if (!abierta) { mostrarSugerenciasCot(); e.preventDefault(); return; }
+                    if (!sugerenciasCot.length) return;
+                    e.preventDefault();
+                    const n = sugerenciasCot.length;
+                    sugerenciaActivaCot = (sugerenciaActivaCot + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+                    marcarSugerenciaCot();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    elegirSugerenciaCot(sugerenciaActivaCot);
+                } else if (e.key === 'Escape') {
+                    cerrarSugerenciasCot();
+                }
+            });
+            // mousedown y no click: así se elige antes de que el campo pierda el foco
+            caja.addEventListener('mousedown', (e) => {
+                const el = e.target.closest('[data-sug]');
+                if (!el) return;
+                e.preventDefault();
+                elegirSugerenciaCot(Number(el.dataset.sug));
+            });
+            caja.addEventListener('mousemove', (e) => {
+                const el = e.target.closest('[data-sug]');
+                if (el && Number(el.dataset.sug) !== sugerenciaActivaCot) { sugerenciaActivaCot = Number(el.dataset.sug); marcarSugerenciaCot(); }
+            });
+            input.addEventListener('blur', () => setTimeout(cerrarSugerenciasCot, 120));
+        })();
 
         function abrirFormulario(c, esDuplicado) {
             document.getElementById('cotNivel').value = (c && c.nivel) || 'I';
@@ -5497,12 +5631,14 @@
             }
         }
 
-        function agregarPartida() {
-            const idx = document.getElementById('cotCatalogo').value;
-            const base = idx === '' ? null : catalogoCotizacion[parseInt(idx, 10)];
+        // v7.4: idx = posición en catalogoCotizacion (null = partida libre);
+        // textoLibre = descripción para una partida libre escrita en el buscador.
+        function agregarPartida(idx, textoLibre) {
+            const base = (idx === null || idx === undefined || idx === '') ? null : catalogoCotizacion[parseInt(idx, 10)];
+            if (base) idx = String(parseInt(idx, 10));
             const nivel = document.getElementById('cotNivel').value || 'I';
             partidasCot.push({
-                descripcion: base ? base.descripcion : '',
+                descripcion: base ? base.descripcion : (textoLibre || ''),
                 unidad: base ? base.unidad : 'Pieza',
                 cantidad: 1,
                 precio: base ? precioConcepto(base, nivel) : 0,
@@ -5512,7 +5648,10 @@
                 tocado: false
             });
             renderPartidas();
+            // v7.4: tras elegir del catálogo se vuelve al buscador para seguir
+            // agregando; una partida libre sin texto lleva a escribir su descripción.
             setTimeout(() => {
+                if (base || textoLibre) { document.getElementById('cotBuscarConcepto').focus(); return; }
                 const campos = document.querySelectorAll('#cotPartidas [data-p-campo="descripcion"]');
                 if (campos.length) campos[campos.length - 1].focus();
             }, 30);
