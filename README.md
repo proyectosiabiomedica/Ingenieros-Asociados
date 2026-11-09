@@ -1311,6 +1311,46 @@ En la pestaña de correctivos:
 - **Exportar a Excel** genera un libro con dos hojas: *Por ingeniero* y *Detalle*.
 - Dirección directa: `#proximos/correctivos`. Usa el mismo permiso que antes (ahora llamado *Gestión de mantenimiento*).
 
+## 4.33 Órdenes de renta (v7.5)
+
+Las órdenes de renta llegan de su propio formulario de Jotform a la pestaña **«Ordenes de Renta»** de la misma hoja de cálculo (se acepta con o sin acento y sin importar mayúsculas). El servidor la sirve como `&hoja=rentas`. Se leen aparte de las órdenes de trabajo, así que no mueven los KPIs de mantenimiento, los próximos servicios ni las rutinas.
+
+### Catálogo de rentas
+
+- **Catálogos → Rentas**: cada equipo en renta lleva **Precio día** y **Precio mes**, fijos y sin niveles (al menos uno de los dos es obligatorio). Viven en `Precios_Mantenimiento` con Categoría **Renta**; el servidor agrega las columnas *Precio día* y *Precio mes* la primera vez.
+- El equipo se escribe como aparece en las órdenes de renta (p. ej. «Monitor de signos vitales»); la asignación usa la misma búsqueda por palabras que el tarifario (4.27), pero solo entre equipos en renta. Un servicio nunca toma el precio de una renta ni al revés.
+- En el **cotizador** cada equipo en renta aparece dos veces en el grupo *Rentas de equipo*: «Renta diaria de …» (unidad Día) y «Renta mensual de …» (unidad Mes).
+
+### Cómo se calcula el importe
+
+| Caso | Resultado |
+|---|---|
+| TIEMPO TOTAL dice días o semanas («15 días», «2 semanas») | se cobra por día: días × Precio día |
+| TIEMPO TOTAL dice meses («3 meses») | se cobra por mes: meses × Precio mes |
+| TIEMPO TOTAL es solo un número | las fechas de inicio y término dicen si son días o meses |
+| Sin TIEMPO TOTAL, con inicio y término | días entre las fechas × Precio día |
+| Sin TIEMPO TOTAL ni término | **En curso**, sin importe hasta que se cierre |
+| Equipo sin precio en el catálogo | se usa el MONTO UNITARIO de la orden; si tampoco hay, «sin precio» |
+
+- Estado: **Cancelada** si tiene fecha de cancelación ya cumplida, **Concluida** si el término (capturado o estimado con el tiempo contratado) ya pasó, **En curso** en otro caso.
+- Las fechas del formulario de renta se leen como **DD-MM-AAAA**.
+- El folio de renta usa el esquema **IAR-0000**. Se normaliza al leerlo («iar 12» → «IAR-12»; un número suelto de órdenes anteriores → «IAR-0012»). Al leer un CFDI el prefijo cuenta: «IAR-0012» se asocia a la renta y no a la orden de trabajo IAB-0012, y basta con que el concepto diga «IAR-0012» aunque no lleve «O.S.».
+- Se respeta la columna *Indicador de prueba* igual que en las órdenes de trabajo.
+
+### Dónde aparecen
+
+- **Unidad → pestaña Rentas** (y recuadro *Rentas* arriba): orden, equipo, serie, área, inicio, término, tiempo, importe, estado y factura. Se facturan igual que los servicios (*Marcar como facturado* o CFDI en XML); el importe sugerido es el calculado. La factura que el ingeniero anotó en la orden se muestra solo como referencia. Una unidad que solo tiene rentas también aparece en la barra lateral.
+- **Auditoría financiera**: las rentas entran en *Facturas emitidas* (con su importe esperado y diferencia) y en *Servicios sin facturar*; el nuevo filtro **Tipo** separa servicios y rentas. El CFDI reconoce rentas por número de orden o de serie.
+- **Rentas** (apartado nuevo del menú, permiso `rentas`): rentas activas, órdenes, días rentados (un mes = 30 días), importe estimado, facturado y por facturar; gráficas de importe por mes y equipos más rentados; tabla por unidad y lista de órdenes; exportación a Excel. Dirección directa: `#rentas`.
+- **Dashboard**: renglón *Rentas de equipo* que responde al filtro de mes.
+
+### Puesta en marcha
+
+1. Pegar el `Code.gs` nuevo y publicar como **Nueva versión** de la misma implementación.
+2. Subir `index.html`, `app.js`, `estilos.css` y `sw.js` al repositorio.
+3. Dar de alta los equipos en **Catálogos → Rentas**.
+4. Los usuarios que ya tienen permisos guardados en la hoja *Usuarios* no reciben `rentas` solos: hay que marcárselo en **Usuarios** (los administradores y los usuarios sin permisos guardados ya lo tienen).
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1393,6 +1433,7 @@ En la pestaña de correctivos:
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 7.5 | **Órdenes de renta.** Se lee la pestaña «Ordenes de Renta» (`&hoja=rentas`). Catálogo **Rentas** con Precio día y Precio mes fijos; cada orden se cobra por día o por mes según su TIEMPO TOTAL. Pestaña **Rentas** en cada unidad con facturación, rentas en la **auditoría financiera** (filtro Tipo y CFDI), apartado **Rentas** con métricas y exportación, renglón de rentas en el dashboard y conceptos de renta en el cotizador. Permiso nuevo `rentas` (ver 4.33) |
 | 6.9 | **Gestión de mantenimiento.** «Próximos mantenimientos» se renombra a *Gestión de mantenimiento* y suma la pestaña **Correctivos por ingeniero**: correctivos por ingeniero con promedio mensual, unidades, equipos, días de atención, órdenes que requieren cotización, detalle de órdenes y exportación a Excel (ver 4.32) |
 | 6.8 | **Cortes de página del PDF de Drive.** Las medidas para decidir dónde termina cada hoja se toman después de que la copia carga sus fuentes e imágenes (antes podían tomarse con la fuente de respaldo y el corte caía a la mitad de un renglón, como la nota de condiciones ambientales que salía partida entre la hoja 1 y la 2). Además, cada corte se comprueba sobre la imagen ya dibujada: si el renglón de pixeles tiene tinta, se sube hasta uno limpio |
 | 6.7 | **Rutina impresa = rutina en Drive (ajuste con la impresión real de Chrome).** El PDF de Drive acomoda los datos del equipo en dos columnas y el título en tres renglones como la impresión real; casillas con el aspecto nativo; títulos y líneas en el azul institucional. Al imprimir, el pie va en el margen inferior de la hoja (`@page rutina` con `@bottom-center`, Chrome/Edge 131+): antes el pie fijo tapaba lo último de cada hoja. «Guardar como PDF» propone el mismo nombre que el archivo de Drive: `Rutina_<folio>_<equipo>` |

@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=7.4">
+    <link rel="stylesheet" href="estilos.css?v=7.5">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -71,6 +71,12 @@
                 <div class="flex items-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                     Cotizador
+                </div>
+            </button>
+            <button onclick="mostrarRentas()" id="btnRentas" class="w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                    Rentas
                 </div>
             </button>
             <button onclick="mostrarCatalogos()" id="btnCatalogos" class="hidden w-full text-left px-6 py-3 hover:bg-slate-800 hover:text-white transition-colors border-l-4 border-transparent text-slate-400 font-medium">
@@ -268,6 +274,33 @@
                 </div>
             </div>
 
+            <!-- v7.5: rentas de equipo -->
+            <div id="dashRentas" class="hidden">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 px-2">Rentas de equipo</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">Rentas activas</div>
+                        <div class="text-3xl font-bold text-kpi-blue" id="dashRenActivas">0</div>
+                        <div class="text-xs text-slate-400 mt-1">equipos en renta hoy</div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">Órdenes de renta</div>
+                        <div class="text-3xl font-bold text-slate-800" id="dashRenOrdenes">0</div>
+                        <div class="text-xs text-slate-400 mt-1" id="dashRenOrdenesDet">en el periodo</div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">Días rentados</div>
+                        <div class="text-3xl font-bold text-kpi-purple" id="dashRenDias">0</div>
+                        <div class="text-xs text-slate-400 mt-1">un mes cuenta como 30 días</div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">Importe estimado</div>
+                        <div class="text-2xl font-bold text-kpi-green" id="dashRenImporte">$0.00</div>
+                        <div class="text-xs text-slate-400 mt-1">según el catálogo de rentas</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Estatus -->
             <h2 class="text-lg font-bold text-slate-800 mb-4 px-2">Estatus de Equipos Atendidos</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
@@ -334,7 +367,7 @@
             </div>
 
             <!-- KPIs del Cliente (MEJORA: se agregan conteos Preventivo / Correctivo) -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 break-inside-avoid">
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8 break-inside-avoid">
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Total Servicios</div>
                     <div class="text-3xl font-bold text-slate-800" id="clienteTotalServicios">0</div>
@@ -346,6 +379,11 @@
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Correctivos</div>
                     <div class="text-3xl font-bold text-kpi-orange" id="clienteCorrCount">0</div>
+                </div>
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
+                    <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Rentas</div>
+                    <div class="text-3xl font-bold text-kpi-purple" id="clienteRentasCount">0</div>
+                    <div class="text-xs text-slate-400" id="clienteRentasActivas"></div>
                 </div>
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Ingeniero Principal</div>
@@ -371,6 +409,9 @@
                     </button>
                     <button id="tabEnt" onclick="cambiarPestana('ent')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
                         Entregas / Materiales
+                    </button>
+                    <button id="tabRen" onclick="cambiarPestana('ren')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
+                        Rentas
                     </button>
                     <button id="tabCom" onclick="cambiarPestana('com')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
                         Comunicación y Seguimiento
@@ -641,6 +682,66 @@
                         </div>
                     </div>
 
+                    <!-- ============ v7.5: Pestaña Rentas ============ -->
+                    <div id="contentRen" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoRen" placeholder="Buscar equipo, serie, orden..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorRen" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioRen" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes de inicio:</label>
+                                    <select id="filtroMesEjecRen" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos los meses</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('ren')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="exportarCSVServicio('ren')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar CSV
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaRen" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('ren')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('ren')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="min-w-full divide-y divide-slate-200">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Área</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Inicio</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Término</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tiempo</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Importe</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Estado</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaRen" class="divide-y divide-slate-100 text-sm bg-white">
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-3">El importe es el tiempo rentado por el precio fijo del catálogo de rentas (por día o por mes, según la orden). Una renta sin término ni tiempo total aparece <b>en curso</b> y sin importe hasta que se cierre.</p>
+                    </div>
+
                     <!-- ============ v2.6: Pestaña Comunicación y Seguimiento ============ -->
                     <div id="contentCom" style="display:none;">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
@@ -738,6 +839,59 @@
              que es un flex de altura fija. Al no estar en el contenedor que
              tiene overflow-y-auto, no había forma de deslizar y la parte de
              abajo quedaba inalcanzable. Aquí adentro heredan su scroll. -->
+        <!-- ============ v7.5: métricas de rentas de equipo ============ -->
+        <div id="rentasContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
+            <div class="mb-6 pl-12 lg:pl-0 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Rentas de equipo</h1>
+                    <p class="text-sm text-slate-500 mt-1">Órdenes de renta por unidad, tiempo rentado e importe según el catálogo de rentas (precio fijo por día o por mes).</p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="exportarRentasExcel()" class="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Exportar a Excel</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-4 mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <select id="renAnio" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                <select id="renMes" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                <select id="renUnidad" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                <select id="renEstado" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                    <option value="todos">Todos los estados</option>
+                    <option value="En curso">En curso</option>
+                    <option value="Concluida">Concluidas</option>
+                    <option value="Cancelada">Canceladas</option>
+                </select>
+                <input id="renTexto" type="text" placeholder="Buscar equipo, serie, orden…" class="p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+            </div>
+
+            <p id="renAviso" class="hidden mb-5 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3"></p>
+            <div id="renResumen" class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6"></div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-xl border border-slate-200 p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-3">Importe estimado por mes de inicio</h3>
+                    <div class="relative h-64"><canvas id="chartRentasMes"></canvas></div>
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-3">Equipos más rentados (días)</h3>
+                    <div class="relative h-64"><canvas id="chartRentasEquipos"></canvas></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+                <h3 class="text-sm font-bold text-slate-800 mb-3">Por unidad</h3>
+                <div id="renPorUnidad" class="overflow-x-auto"></div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-slate-800">Órdenes de renta</h3>
+                    <span id="renContador" class="text-xs font-semibold text-slate-400"></span>
+                </div>
+                <div id="renLista" class="overflow-x-auto"></div>
+            </div>
+        </div>
+
         <!-- ============ v6.0: indicadores de satisfacción de clientes ============ -->
         <div id="satisfaccionContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
             <div class="mb-6 pl-12 lg:pl-0 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -984,7 +1138,7 @@
         <div id="catalogosContent" class="hidden p-6 lg:p-10 max-w-7xl mx-auto w-full no-print">
             <div class="mb-6">
                 <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Catálogos</h2>
-                <p class="text-sm text-slate-500 mt-1">Clientes, servicios y productos que alimentan el cotizador, la facturación y la auditoría. Se capturan aquí, sin abrir la hoja de cálculo, y cada catálogo se puede exportar a Excel.</p>
+                <p class="text-sm text-slate-500 mt-1">Clientes, servicios, productos y equipos en renta que alimentan el cotizador, la facturación y la auditoría. Se capturan aquí, sin abrir la hoja de cálculo, y cada catálogo se puede exportar a Excel.</p>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -992,6 +1146,7 @@
                     <button id="tabCatCli" onclick="cambiarPestanaCatalogo('clientes')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">Clientes</button>
                     <button id="tabCatSer" onclick="cambiarPestanaCatalogo('servicios')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Servicios</button>
                     <button id="tabCatPro" onclick="cambiarPestanaCatalogo('productos')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Productos</button>
+                    <button id="tabCatRen" onclick="cambiarPestanaCatalogo('rentas')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">Rentas</button>
                 </div>
 
                 <!-- Clientes -->
@@ -1077,6 +1232,7 @@
                                 <div id="preMarcaWrap" class="hidden"><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Marca</label>
                                     <input id="preMarca" list="listaMarcasPrecio" placeholder="Philips, Mindray, Nellcor…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                                     <datalist id="listaMarcasPrecio"></datalist></div>
+                                <div id="preNivelesWrap" class="flex flex-col gap-2.5">
                                 <div class="grid grid-cols-3 gap-2">
                                     <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Nivel I</label>
                                         <input id="preN1" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
@@ -1086,6 +1242,17 @@
                                         <input id="preN3" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
                                 </div>
                                 <p class="text-xs text-slate-400">Si el precio es igual en los tres niveles, captúralo solo en Nivel I: se copia a los vacíos al guardar.</p>
+                                </div>
+                                <!-- v7.5: precios fijos de renta -->
+                                <div id="preRentaWrap" class="hidden flex flex-col gap-2.5">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Precio por día</label>
+                                        <input id="preDia" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
+                                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Precio por mes</label>
+                                        <input id="preMes" type="number" min="0" step="0.01" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm text-right outline-none focus:border-brand-500"></div>
+                                </div>
+                                <p class="text-xs text-slate-400">Precios fijos, sin niveles. Cada orden de renta dice si se cobra por día o por mes; el importe esperado es el tiempo rentado por este precio.</p>
+                                </div>
                                 <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Notas</label>
                                     <input id="preNotas" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
                                 <p id="preMensaje" class="hidden text-xs rounded-lg p-2.5"></p>
@@ -1261,7 +1428,7 @@
 
             <!-- Filtros -->
             <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6 no-print">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div>
                         <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Unidad</label>
                         <select id="audCliente" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
@@ -1276,6 +1443,14 @@
                             <option value="anual">Todo el año</option>
                             <option value="s1">Enero – Junio</option>
                             <option value="s2">Julio – Diciembre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Tipo</label>
+                        <select id="audTipo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="todos">Servicios y rentas</option>
+                            <option value="servicios">Solo servicios</option>
+                            <option value="rentas">Solo rentas</option>
                         </select>
                     </div>
                     <div>
@@ -2107,6 +2282,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=7.4"></script>
+    <script src="app.js?v=7.5"></script>
 </body>
 </html>

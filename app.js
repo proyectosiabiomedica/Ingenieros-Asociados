@@ -72,7 +72,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '6.9';
+        const VERSION_APP = '7.5';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -167,6 +167,12 @@
         // v3.7: cada pestaña de servicio tiene su propio conjunto
         let dataCalibraciones = [];
         let dataEntregas = [];
+        // v7.5: órdenes de renta (hoja "Ordenes de Renta"); van aparte de las
+        // órdenes de trabajo para no mover KPIs, próximos ni rutinas
+        let rentasDetalle = [];
+        let dataRentas = [];
+        let rentasExcluidasPorMarcador = 0;
+        let chartsRentas = [];
 
         // v2.8: paleta de gráficas derivada del logotipo institucional
         const COLOR_INSTITUCIONAL       = '#005DA1';
@@ -675,11 +681,12 @@
                 promesa.then(v => { progresoCarga.a(pct, etapa); return v; },
                              e => { progresoCarga.a(pct); throw e; });
 
-            const [rDash, rCorpus, rPatrones, rPrecios] = await Promise.allSettled([
+            const [rDash, rCorpus, rPatrones, rPrecios, rRentas] = await Promise.allSettled([
                 conAvance(descargarHoja('dashboard', forzar === true), 30, 'Indicadores recibidos'),
                 conAvance(descargarHoja('corpus', forzar === true), 55, 'Órdenes de trabajo recibidas'),
                 conAvance(descargarHoja('patrones', forzar === true), 60, 'Catálogo de patrones recibido'),
-                conAvance(descargarHoja('precios', forzar === true), 63, 'Tarifario recibido')
+                conAvance(descargarHoja('precios', forzar === true), 63, 'Tarifario recibido'),
+                conAvance(descargarHoja('rentas', forzar === true), 64, 'Órdenes de renta recibidas')   // v7.5
             ]);
             progresoCarga.a(65, 'Leyendo la información');
 
@@ -687,6 +694,7 @@
             const csvTextoCorpus    = rCorpus.status === 'fulfilled' ? rCorpus.value : null;
             const csvTextoPatrones  = rPatrones.status === 'fulfilled' ? rPatrones.value : null;
             const csvTextoPrecios   = rPrecios.status === 'fulfilled' ? rPrecios.value : null;
+            const csvTextoRentas    = rRentas.status === 'fulfilled' ? rRentas.value : null;   // v7.5
 
             // v3.4: si no hay señal, el service worker sirvió la última copia
             if (!navigator.onLine && csvTextoCorpus) {
@@ -739,6 +747,18 @@
                     header: true, skipEmptyLines: true,
                     transformHeader: function(h) { return normalizar(h.trim().toLowerCase()); },
                     complete: function(results) { procesarCatalogoPrecios(results.data); }
+                });
+            }
+
+            /* v7.5: órdenes de renta. Van después del tarifario porque su
+               importe sale del catálogo de rentas. Su ausencia no es error. */
+            rentasDetalle = [];
+            rentasExcluidasPorMarcador = 0;
+            if (csvTextoRentas) {
+                Papa.parse(csvTextoRentas, {
+                    header: true, skipEmptyLines: true,
+                    transformHeader: function(h) { return normalizar(h.trim().toLowerCase()); },
+                    complete: function(results) { procesarRentas(results.data); }
                 });
             }
 
@@ -816,7 +836,7 @@
            FIX FECHAS: soporta seriales de Excel/Sheets, formato ISO,
            y resuelve la ambigüedad D/M vs M/D con heurística + FORMATO_FECHA
            ============================================================ */
-        function parsearFechaMantenimiento(fechaStr) {
+        function parsearFechaMantenimiento(fechaStr, formato) {
             if (fechaStr === null || fechaStr === undefined) return null;
             let s = String(fechaStr).trim();
             if (!s || s === 'N/A' || s === '.') return null;
@@ -846,7 +866,7 @@
                     y = parts[2].length === 4 ? p[2] : 2000 + p[2];
                     if (p[0] > 12)      { d = p[0]; m = p[1]; }   // primer número > 12 => es día
                     else if (p[1] > 12) { m = p[0]; d = p[1]; }   // segundo número > 12 => es día
-                    else if (FORMATO_FECHA === 'MDY') { m = p[0]; d = p[1]; }
+                    else if ((formato || FORMATO_FECHA) === 'MDY') { m = p[0]; d = p[1]; }
                     else                { d = p[0]; m = p[1]; }
                 }
                 if (m < 1 || m > 12 || d < 1 || d > 31) return null;
@@ -1147,6 +1167,9 @@
             const cClave  = buscarColumna(llaves, ['no. catalogo', 'no catalogo', 'numero de catalogo', 'num. catalogo']); // v5.0
             const cMarca  = llaves.find(l => l === 'marca');                   // v5.2
             const cCateg  = llaves.find(l => l === 'categoria');
+            // v7.5: precios fijos de renta
+            const cDia = buscarColumna(llaves, ['precio dia', 'precio por dia', 'renta diaria', 'renta dia']);
+            const cMes = buscarColumna(llaves, ['precio mes', 'precio por mes', 'renta mensual', 'renta mes']);
 
             data.forEach(row => {
                 const equipo = cEquipo ? String(row[cEquipo] || '').trim() : '';
@@ -1157,7 +1180,9 @@
                     precios: {
                         I:   cN1 ? aNumeroPrecio(row[cN1]) : null,
                         II:  cN2 ? aNumeroPrecio(row[cN2]) : null,
-                        III: cN3 ? aNumeroPrecio(row[cN3]) : null
+                        III: cN3 ? aNumeroPrecio(row[cN3]) : null,
+                        dia: cDia ? aNumeroPrecio(row[cDia]) : null,   // v7.5
+                        mes: cMes ? aNumeroPrecio(row[cMes]) : null
                     },
                     moneda: cMoneda ? (String(row[cMoneda] || '').trim() || 'MXN') : 'MXN',
                     unidad: cUnidad ? String(row[cUnidad] || '').trim() : '',
@@ -1166,6 +1191,8 @@
                     categoria: cCateg ? String(row[cCateg] || '').trim() : ''
                 });
             });
+            // v7.5: el renglón de renta se reconoce por su categoría o, sin ella, por su tipo
+            catalogoPrecios.forEach(t => { t.esRenta = esRenglonRenta(t); });
 
             if (!cN1 && !cN2 && !cN3) {
                 console.warn('[Tarifario] No se encontraron columnas de nivel (Nivel I / II / III). ' +
@@ -1221,7 +1248,12 @@
             if (!n || !catalogoPrecios.length) return null;
             const s = normalizar(String(servicio || 'preventivo').toLowerCase());
 
+            /* v7.5: las rentas solo se buscan entre los equipos en renta, y un
+               servicio nunca toma el precio de una renta. */
+            const buscaRenta = s.indexOf('renta') === 0;
             const candidatos = catalogoPrecios.filter(t => {
+                if (!!t.esRenta !== buscaRenta) return false;
+                if (buscaRenta) return true;
                 const ts = normalizar(t.servicio.toLowerCase());
                 return !s || ts === s || ts === 'preventivo';
             });
@@ -1552,7 +1584,7 @@
             // v5.4: se limpian TODOS los botones del menú (antes solo el del
             // dashboard, y el último apartado visitado quedaba resaltado) y se
             // oculta la vista de próximos mantenimientos
-            ['btnDashboard', 'btnProximos', 'btnSatisfaccion', 'btnCotizador', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
+            ['btnDashboard', 'btnProximos', 'btnSatisfaccion', 'btnCotizador', 'btnRentas', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
                 const b = document.getElementById(id);
                 if (!b) return;
                 b.classList.remove('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -1563,6 +1595,8 @@
             if (prox) prox.classList.add('hidden');
             const sat = document.getElementById('satisfaccionContent');   // v6.0
             if (sat) sat.classList.add('hidden');
+            const ren = document.getElementById('rentasContent');         // v7.5
+            if (ren) ren.classList.add('hidden');
 
             const btns = document.getElementById('listaClientesSidebar').querySelectorAll('button');
             btns.forEach(b => {
@@ -1666,6 +1700,12 @@
             dataCalibraciones = dataCliente.filter(d => d.esCalibracion);
             dataCorrectivos   = dataCliente.filter(d => d.esCorrectivo);
             dataEntregas      = dataCliente.filter(d => d.esEntrega);
+            // v7.5: rentas de la unidad, la más reciente primero
+            dataRentas = rentasDetalle.filter(r => r.Cliente === clienteNombre)
+                .sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
+            document.getElementById('clienteRentasCount').innerText = dataRentas.length;
+            const activasU = dataRentas.filter(r => r.estado === 'En curso').length;
+            document.getElementById('clienteRentasActivas').innerText = activasU ? activasU + ' en curso' : '';
 
             /* v3.7: los recuadros de arriba siguen resumiendo por familia
                —programado contra no programado—, aunque las pestañas de abajo
@@ -1738,6 +1778,7 @@
                 cal:  ['tabCal',  'contentCal'],
                 corr: ['tabCorr', 'contentCorr'],
                 ent:  ['tabEnt',  'contentEnt'],
+                ren:  ['tabRen',  'contentRen'],   // v7.5
                 com:  ['tabCom',  'contentCom']
             };
             Object.entries(defs).forEach(([clave, [idBtn, idCont]]) => {
@@ -1864,6 +1905,11 @@
                 suf: 'Ent', conProximo: false,
                 datos: () => dataEntregas,
                 titulo: 'entregas y materiales', archivo: 'Entregas_Materiales'
+            },
+            ren: {   // v7.5
+                suf: 'Ren', conProximo: false, esRenta: true,
+                datos: () => dataRentas,
+                titulo: 'rentas', archivo: 'Rentas'
             }
         };
 
@@ -1912,7 +1958,7 @@
             }
             const selAnio = document.getElementById('audAnio');
             if (selAnio.options.length === 0) {
-                const anios = aniosDisponibles(datosDetalleOrdenes).filter(a => a !== 'sin año');
+                const anios = aniosDisponibles(datosDetalleOrdenes.concat(rentasDetalle)).filter(a => a !== 'sin año');
                 selAnio.innerHTML = '<option value="todos">Todos</option>' +
                     (anios.length ? anios : [String(new Date().getFullYear())])
                         .map(a => '<option value="' + a + '">' + a + '</option>').join('');
@@ -1930,6 +1976,12 @@
            Solo existe para preventivos y calibraciones; en correctivos y
            entregas no hay esperado, hay importe capturado. */
         function precioEsperadoDeOrden(d, nivel) {
+            // v7.5: la renta trae su importe calculado (tiempo × precio fijo)
+            if (d && d.esRenta) {
+                if (d.importeEstimado !== null) return { precio: d.importeEstimado, moneda: 'MXN', sinTarifa: false, variable: false };
+                if (d.sinTiempo) return { precio: null, moneda: 'MXN', sinTarifa: false, variable: false, enCurso: true };
+                return { precio: null, moneda: 'MXN', sinTarifa: true, variable: false };
+            }
             if (!tipoConTarifario(d['Tipo de Servicio'])) {
                 return { precio: null, moneda: 'MXN', sinTarifa: false, variable: true };
             }
@@ -1950,6 +2002,7 @@
             const nivel = document.getElementById('audNivel').value;
             const texto = normalizar(document.getElementById('audTexto').value.toLowerCase()).trim();
             const meses = mesesPeriodoAuditoria();
+            const tipoAud = (document.getElementById('audTipo') || {}).value || 'todos';   // v7.5
 
             const enPeriodo = (d) => {
                 if (!d.FechaObj) return false;
@@ -1971,21 +2024,26 @@
                 const servicios = det.map(o => {
                     const id = String(o.id);
                     const facturado = (o.importe === undefined || o.importe === '') ? null : o.importe;
-                    const d = datosDetalleOrdenes.find(x => String(x.ID) === id);
+                    const d = datosDetalleOrdenes.find(x => String(x.ID) === id) ||
+                              rentasDetalle.find(x => String(x.ID) === id);   // v7.5
                     if (!d) return { id: id, huerfana: true, precio: facturado, facturado: facturado,
                                      esperado: null, variable: false, sinTarifa: false };
                     const pr = precioEsperadoDeOrden(d, nivelFactura);
                     const dif = (pr.precio !== null && facturado !== null) ? redondear(facturado - pr.precio) : null;
                     return {
                         id: id, equipo: d.Equipo, marca: d.Marca, modelo: d.Modelo, serie: d.Serie,
-                        tipo: d['Tipo de Servicio'], fecha: d.FechaEjecucionStr, cliente: d.Cliente,
+                        tipo: d.esRenta ? 'Renta · ' + notaRenta(d) : d['Tipo de Servicio'], fecha: d.FechaEjecucionStr, cliente: d.Cliente,
+                        esRenta: !!d.esRenta,
                         facturado: facturado, precio: facturado,
                         esperado: pr.precio, variable: pr.variable, sinTarifa: pr.sinTarifa,
                         diferencia: dif, huerfana: false
                     };
                 });
                 const importe = servicios.reduce((a, x) => a + (x.facturado || 0), 0);
+                // v7.5: una factura es "de rentas" si todo lo que ampara son rentas
+                const rentas = servicios.filter(x => x.esRenta).length;
                 return {
+                    rentas: rentas,
                     ...f, servicios: servicios, importe: importe,
                     sinImporte: servicios.filter(x => x.facturado === null).length,
                     conDiferencia: servicios.filter(x => x.diferencia !== null && x.diferencia !== 0).length,
@@ -1993,6 +2051,8 @@
                     huerfanas: servicios.filter(x => x.huerfana).length
                 };
             }).filter(f => {
+                if (tipoAud === 'rentas' && !f.rentas) return false;                          // v7.5
+                if (tipoAud === 'servicios' && f.rentas === f.servicios.length && f.rentas) return false;
                 // El periodo se mide por la fecha de la factura
                 if (anio !== 'todos') {
                     const d = parsearFechaMantenimiento(f.fecha) || new Date(f.fecha);
@@ -2007,7 +2067,10 @@
             }).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
 
             // --- Servicios sin facturar ---
-            const pendientes = datosDetalleOrdenes.filter(d =>
+            const universoPend = tipoAud === 'rentas' ? rentasDetalle
+                               : tipoAud === 'servicios' ? datosDetalleOrdenes
+                               : datosDetalleOrdenes.concat(rentasDetalle);   // v7.5
+            const pendientes = universoPend.filter(d =>
                 deCliente(d.Cliente) && enPeriodo(d) && !facturaPorOrden.has(String(d.ID).trim())
             ).filter(d => {
                 if (!texto) return true;
@@ -2017,9 +2080,10 @@
                 const pr = precioEsperadoDeOrden(d, nivel);
                 return {
                     id: d.ID, cliente: d.Cliente, equipo: d.Equipo, marca: d.Marca, modelo: d.Modelo,
-                    serie: d.Serie, tipo: d['Tipo de Servicio'], fecha: d.FechaEjecucionStr,
+                    serie: d.Serie, tipo: d.esRenta ? 'Renta · ' + notaRenta(d) : d['Tipo de Servicio'], fecha: d.FechaEjecucionStr,
                     fechaObj: d.FechaObj, precio: pr.precio,
-                    sinTarifa: pr.sinTarifa, variable: pr.variable
+                    sinTarifa: pr.sinTarifa, variable: pr.variable,
+                    esRenta: !!d.esRenta, enCurso: !!pr.enCurso   // v7.5
                 };
             }).sort((a, b) => (a.fechaObj && b.fechaObj) ? (b.fechaObj - a.fechaObj) : 0);
 
@@ -2031,6 +2095,7 @@
                 importeFacturado: importeFacturado, importePendiente: importePendiente,
                 serviciosFacturados: listaFacturas.reduce((a, f) => a + f.servicios.length, 0),
                 variables: pendientes.filter(x => x.variable).length,
+                rentasEnCurso: pendientes.filter(x => x.enCurso).length,   // v7.5
                 sinTarifa: pendientes.filter(x => x.sinTarifa).length +
                            listaFacturas.reduce((a, f) => a + f.sinTarifa, 0),
                 conDiferencia: listaFacturas.reduce((a, f) => a + f.conDiferencia, 0),
@@ -2067,9 +2132,10 @@
                 tarjetaIndicador('Sin facturar', a.pendientes.length,
                                  'servicios ejecutados y no cobrados', a.pendientes.length ? 'text-amber-600' : 'text-slate-900') +
                 tarjetaIndicador('Estimado pendiente', fmtMoneda(a.importePendiente, moneda),
-                                 a.variables
-                                    ? (a.variables + ' de precio variable, sin estimar')
-                                    : 'preventivos y calibraciones, nivel ' + a.nivel,
+                                 (a.variables || a.rentasEnCurso)
+                                    ? [a.variables ? a.variables + ' de precio variable' : '',
+                                       a.rentasEnCurso ? a.rentasEnCurso + ' renta(s) en curso' : ''].filter(Boolean).join(' · ') + ', sin estimar'
+                                    : 'preventivos, calibraciones y rentas, nivel ' + a.nivel,
                                  a.importePendiente ? 'text-amber-600' : 'text-slate-900');
 
             const badge = document.getElementById('audBadgePend');
@@ -2164,8 +2230,8 @@
                         '<td class="px-4 py-3 text-slate-500 text-xs">' + esc(x.tipo) + '</td>' +
                         '<td class="px-4 py-3 text-slate-600">' + esc(x.fecha) + '</td>' +
                         '<td class="px-4 py-3 text-right font-semibold ' +
-                            (x.variable || x.sinTarifa ? 'text-amber-600' : 'text-slate-800') + '">' +
-                            (x.variable ? 'precio variable' : (x.sinTarifa ? 'sin tarifa' : fmtMoneda(x.precio, 'MXN'))) + '</td>' +
+                            (x.variable || x.sinTarifa ? 'text-amber-600' : x.enCurso ? 'text-brand-600' : 'text-slate-800') + '">' +
+                            (x.enCurso ? 'en curso, sin importe' : x.variable ? 'precio variable' : (x.sinTarifa ? 'sin tarifa' : fmtMoneda(x.precio, 'MXN'))) + '</td>' +
                     '</tr>').join('') +
                 '</tbody></table></div>';
         }
@@ -2199,7 +2265,7 @@
                 renderAuditoria();
             });
 
-            ['audCliente', 'audAnio', 'audPeriodo', 'audNivel'].forEach(id =>
+            ['audCliente', 'audAnio', 'audPeriodo', 'audNivel', 'audTipo'].forEach(id =>
                 document.getElementById(id).addEventListener('change', renderAuditoria));
             document.getElementById('audTexto').addEventListener('input', debounce(renderAuditoria));
         }
@@ -2210,8 +2276,10 @@
             const p = document.getElementById('audPeriodo').value;
             const cliente = document.getElementById('audCliente').value;
             const per = p === 's1' ? 'Enero–Junio' : (p === 's2' ? 'Julio–Diciembre' : 'Todo el año');
+            const tipo = (document.getElementById('audTipo') || {}).value || 'todos';   // v7.5
             return (cliente === 'todos' ? 'Todas las unidades' : cliente) + ' · ' +
-                   (anio === 'todos' ? 'Todos los años' : anio) + ' · ' + per;
+                   (anio === 'todos' ? 'Todos los años' : anio) + ' · ' + per +
+                   (tipo === 'rentas' ? ' · Solo rentas' : tipo === 'servicios' ? ' · Solo servicios' : '');
         }
 
         async function exportarAuditoriaExcel() {
@@ -2251,7 +2319,7 @@
                              'Tipo de servicio', 'Fecha del servicio', 'Importe estimado']];
                 a.pendientes.forEach(x => f2.push([x.id, x.cliente, x.equipo || '', x.marca || '', x.modelo || '',
                                                    x.serie || '', x.tipo || '', x.fecha || '',
-                                                   (x.variable ? 'precio variable' : (x.precio === null ? '' : x.precio))]));
+                                                   (x.enCurso ? 'en curso' : x.variable ? 'precio variable' : (x.precio === null ? '' : x.precio))]));
                 f2.push([]); f2.push(['Importe pendiente', a.importePendiente]);
                 const h2 = XLSX.utils.aoa_to_sheet(f2);
                 h2['!cols'] = [{wch:12},{wch:26},{wch:28},{wch:14},{wch:14},{wch:18},{wch:24},{wch:14},{wch:16}];
@@ -3946,6 +4014,7 @@
                 }
                 if (vista === 'satisfaccion' && tienePermiso('satisfaccion')) { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
                 if (vista === 'cotizador' && tienePermiso('cotizador')) { mostrarCotizador(); return true; }
+                if (vista === 'rentas' && tienePermiso('rentas')) { mostrarRentas(); return true; }   // v7.5
                 if (vista === 'catalogos' && tienePermiso('catalogos')) {
                     mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
                     return true;
@@ -3956,7 +4025,7 @@
                     const unidad = decodeURIComponent(partes[1]);
                     if (!clientesUnicos.includes(unidad)) return false;
                     mostrarVistaCliente(unidad);
-                    if (['prev', 'cal', 'corr', 'ent', 'com'].includes(partes[2])) cambiarPestana(partes[2]);
+                    if (['prev', 'cal', 'corr', 'ent', 'ren', 'com'].includes(partes[2])) cambiarPestana(partes[2]);
                     return true;
                 }
                 return false;
@@ -3984,6 +4053,7 @@
             envolver('cambiarPestanaGestion', (t) => t === 'correctivos' ? '#proximos/correctivos' : '#proximos');   // v6.9
             envolver('mostrarSatisfaccion', '#satisfaccion');
             envolver('mostrarCotizador', '#cotizador');
+            envolver('mostrarRentas', '#rentas');   // v7.5
             envolver('mostrarCatalogos', '#catalogos');
             envolver('mostrarAuditoria', '#auditoria');
             envolver('mostrarAdminUsuarios', '#usuarios');
@@ -4139,6 +4209,12 @@
             const reOS = /(?:\bo\s*[.\/-]\s*s\s*[.:]?|\bos\s*[.:#]|\borden(?:\s+de\s+servicio)?\s*[#:.]?)\s*([A-Z0-9-]{2,})/gi;
             let m;
             while ((m = reOS.exec(t)) !== null) pistas.os.push(m[1]);
+            // v7.5: folios de renta escritos sin "O.S." ("Renta IAR-0012")
+            const reIAR = /\bIAR[\s._-]*(\d{1,})\b/gi;
+            while ((m = reIAR.exec(t)) !== null) {
+                const f = 'IAR-' + m[1];
+                if (!pistas.os.some(x => String(x).toUpperCase().replace(/[\s._]/g, '-') === f)) pistas.os.push(f);
+            }
 
             // "Serie: 5601A11516"
             const reSerie = /serie\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{3,})/gi;
@@ -4162,8 +4238,14 @@
 
             /* 1. Número de O.S. contra el folio de la orden, comparando solo
                el número: "IAB-24237" y "O.S. 24237" son la misma orden. */
+            /* v7.5: si la pista y la orden traen prefijo de letras (IAB, IAR…)
+               deben coincidir: IAR-0012 es una renta y IAB-12 un servicio. */
+            const prefijo = (v) => { const m = String(v || '').toUpperCase().match(/^([A-Z]+)[\s._-]*\d/); return m ? m[1] : ''; };
             pistas.os.forEach(os => {
-                const o = ordenes.find(x => mismoFolio(x.ID, os));
+                const po = prefijo(os);
+                const mismos = ordenes.filter(x => mismoFolio(x.ID, os));
+                const o = (po && mismos.find(x => prefijo(x.ID) === po)) ||
+                          mismos.find(x => !po || !prefijo(x.ID) || prefijo(x.ID) === po);
                 if (o) agregar(o, 'número de orden');
             });
 
@@ -4200,7 +4282,7 @@
         /* Se conserva para la carga masiva y para cualquier uso previo:
            devuelve solo los ids reconocidos. */
         function ordenesEnTexto(texto, universoIds) {
-            const ordenes = datosDetalleOrdenes.filter(d => universoIds.indexOf(String(d.ID)) > -1);
+            const ordenes = todasLasOrdenes().filter(d => universoIds.indexOf(String(d.ID)) > -1);
             return resolverOrdenesDeConcepto(texto, ordenes).ordenes.map(x => x.id);
         }
 
@@ -4226,7 +4308,7 @@
                comprobante no coincide con ninguna, se vuelve a intentar contra
                todo el historial: así se puede avisar que las órdenes existen
                pero pertenecen a otra unidad, en vez de decir que no hay nada. */
-            const deLaUnidad = datosDetalleOrdenes.filter(d => d.Cliente === clienteActual);
+            const deLaUnidad = todasLasOrdenes().filter(d => d.Cliente === clienteActual);   // v7.5: + rentas
 
             const asignadas = [], agregadas = [], sinAsociar = [], deOtraUnidad = [];
             const vias = new Set();
@@ -4235,10 +4317,10 @@
                 let r = resolverOrdenesDeConcepto(c.descripcion, deLaUnidad);
 
                 if (r.ordenes.length === 0) {
-                    const global = resolverOrdenesDeConcepto(c.descripcion, datosDetalleOrdenes);
+                    const global = resolverOrdenesDeConcepto(c.descripcion, todasLasOrdenes());
                     if (global.ordenes.length) {
                         global.ordenes.forEach(o => {
-                            const d = datosDetalleOrdenes.find(x => String(x.ID) === o.id);
+                            const d = todasLasOrdenes().find(x => String(x.ID) === o.id);
                             deOtraUnidad.push(o.id + ' (' + (d ? d.Cliente : 'otra unidad') + ')');
                         });
                     } else {
@@ -4499,20 +4581,33 @@
         let catalogoCotizacionLegado = [];
 
         function conceptosDelCotizador() {
-            const desdeTarifario = catalogoPrecios.map(t => {
+            const desdeTarifario = [];
+            catalogoPrecios.forEach(t => {
+                /* v7.5: un equipo en renta da dos conceptos, renta diaria y
+                   renta mensual, con su precio fijo en los tres niveles. */
+                if (t.esRenta) {
+                    const nombre = t.equipo + (t.marca ? ' · Marca ' + t.marca : '');
+                    [['dia', 'Renta diaria de ', 'Día'], ['mes', 'Renta mensual de ', 'Mes']].forEach(([k, pre, uni]) => {
+                        const v = t.precios[k];
+                        if (v === null || v === undefined) return;
+                        desdeTarifario.push({ grupo: 'Rentas de equipo', descripcion: pre + nombre, unidad: uni,
+                                              precios: { I: v, II: v, III: v }, clave: t.clave || '' });
+                    });
+                    return;
+                }
                 const esMant = tipoConTarifario(t.servicio);
                 const serv = normalizar(t.servicio.toLowerCase());
                 let descripcion = t.equipo + (t.marca ? ' · Marca ' + t.marca : '');   // v5.2
                 if (esMant && serv.includes('calibracion')) descripcion = 'Calibración de ' + t.equipo;
                 else if (esMant) descripcion = 'Mantenimiento preventivo integral para ' + t.equipo;
-                return {
+                desdeTarifario.push({
                     grupo: esMant ? (serv.includes('calibracion') ? 'Calibraciones' : 'Mantenimientos preventivos')
                                   : (t.servicio || 'Conceptos'),
                     descripcion: descripcion,
                     unidad: t.unidad || (esMant ? 'Servicio' : 'Pieza'),
                     precios: t.precios,
                     clave: t.clave || ''
-                };
+                });
             });
             const legado = catalogoCotizacionLegado.map(c => ({
                 grupo: c.tipo || 'Conceptos', descripcion: c.descripcion, unidad: c.unidad,
@@ -4534,7 +4629,9 @@
            para partidas guardadas antes de que existiera el número, porque la
            posición en la lista se mueve en cuanto se agrega o borra un concepto. */
         function conceptoDePartida(p) {
-            if (p && p.clave) return catalogoCotizacion.find(c => c.clave === p.clave) || null;
+            // v7.5: una renta comparte clave entre su concepto diario y el mensual
+            if (p && p.clave) return catalogoCotizacion.find(c => c.clave === p.clave && (!p.descripcion || c.descripcion === p.descripcion)) ||
+                                     catalogoCotizacion.find(c => c.clave === p.clave) || null;
             if (!p || p.origen === null || p.origen === undefined || p.origen === '') return null;
             return catalogoCotizacion[parseInt(p.origen, 10)] || null;
         }
@@ -4649,17 +4746,20 @@
            Productos comparten el mismo panel y la misma hoja; cambia el filtro
            por categoría, el formulario (los productos llevan marca) y los
            tipos sugeridos. */
-        const CATEGORIA_DE_PESTANA = { servicios: 'Servicio', productos: 'Producto' };
+        /* v7.5: cuarta pestaña, Rentas. Mismo panel y misma hoja; un equipo en
+           renta lleva Precio día y Precio mes (fijos, sin niveles). */
+        const CATEGORIA_DE_PESTANA = { servicios: 'Servicio', productos: 'Producto', rentas: 'Renta' };
         const TIPOS_SUGERIDOS = {
             Servicio: ['Preventivo', 'Calibración', 'Correctivo', 'Servicio', 'Instalación', 'Capacitación'],
-            Producto: ['Refacción', 'Material', 'Consumible', 'Accesorio', 'Equipo']
+            Producto: ['Refacción', 'Material', 'Consumible', 'Accesorio', 'Equipo'],
+            Renta: ['Renta']
         };
         function categoriaCatalogo() { return CATEGORIA_DE_PESTANA[pestanaCatalogo] || 'Servicio'; }
 
         function cambiarPestanaCatalogo(cual) {
             const anterior = pestanaCatalogo;
             pestanaCatalogo = cual;
-            [['tabCatCli', 'clientes'], ['tabCatSer', 'servicios'], ['tabCatPro', 'productos']].forEach(([id, k]) => {
+            [['tabCatCli', 'clientes'], ['tabCatSer', 'servicios'], ['tabCatPro', 'productos'], ['tabCatRen', 'rentas']].forEach(([id, k]) => {
                 document.getElementById(id).classList.toggle('tab-active', k === cual);
                 document.getElementById(id).classList.toggle('tab-inactive', k !== cual);
             });
@@ -4808,6 +4908,7 @@
             const cont = document.getElementById('catListaPrecios');
             const cat = categoriaCatalogo();
             const esProd = cat === 'Producto';
+            const esRen = cat === 'Renta';   // v7.5
             const deLaCategoria = preciosAdmin.filter(x => (x.categoria || 'Servicio') === cat);
             const tipos = [...new Set(deLaCategoria.map(x => x.servicio))].sort((a, b) => a.localeCompare(b, 'es'));
 
@@ -4830,25 +4931,28 @@
             if (!lista.length) {
                 cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">' +
                     (deLaCategoria.length ? 'Ningún concepto coincide.'
-                                          : (esProd ? 'Sin productos todavía.' : 'Sin servicios todavía.')) + '</p>';
+                                          : (esRen ? 'Sin equipos en renta todavía.' : esProd ? 'Sin productos todavía.' : 'Sin servicios todavía.')) + '</p>';
                 return;
             }
             const th = 'px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50 sticky top-0"><tr>' +
                 '<th class="' + th + ' text-left whitespace-nowrap">No. cat.</th>' +
-                '<th class="' + th + ' text-left">Tipo</th><th class="' + th + ' text-left">' + (esProd ? 'Producto' : 'Concepto') + '</th>' +
-                (esProd ? '<th class="' + th + ' text-left">Marca</th>' : '') +
-                '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
-                '<th class="' + th + ' text-right">Nivel III</th><th class="' + th + '"></th></tr></thead>' +
+                (esRen ? '' : '<th class="' + th + ' text-left">Tipo</th>') +
+                '<th class="' + th + ' text-left">' + (esRen ? 'Equipo' : esProd ? 'Producto' : 'Concepto') + '</th>' +
+                ((esProd || esRen) ? '<th class="' + th + ' text-left">Marca</th>' : '') +
+                (esRen ? '<th class="' + th + ' text-right">Precio día</th><th class="' + th + ' text-right">Precio mes</th>'
+                       : '<th class="' + th + ' text-right">Nivel I</th><th class="' + th + ' text-right">Nivel II</th>' +
+                         '<th class="' + th + ' text-right">Nivel III</th>') +
+                '<th class="' + th + '"></th></tr></thead>' +
                 '<tbody class="divide-y divide-slate-100">' +
                 lista.map(x =>
                     '<tr class="hover:bg-slate-50">' +
                         '<td class="px-3 py-2 font-mono text-xs text-slate-700 whitespace-nowrap">' + (x.clave ? esc(x.clave) : '<span class="text-slate-400">—</span>') + '</td>' +
-                        '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + esc(x.servicio) + '</td>' +
+                        (esRen ? '' : '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + esc(x.servicio) + '</td>') +
                         '<td class="px-3 py-2"><p class="text-slate-800">' + esc(x.concepto) + '</p>' +
                             (x.unidad ? '<p class="text-xs text-slate-400">' + esc(x.unidad) + '</p>' : '') + '</td>' +
-                        (esProd ? '<td class="px-3 py-2 text-xs text-slate-600">' + (x.marca ? esc(x.marca) : '<span class="text-slate-400">—</span>') + '</td>' : '') +
-                        ['n1', 'n2', 'n3'].map(k => '<td class="px-3 py-2 text-right font-mono text-xs whitespace-nowrap">' +
+                        ((esProd || esRen) ? '<td class="px-3 py-2 text-xs text-slate-600">' + (x.marca ? esc(x.marca) : '<span class="text-slate-400">—</span>') + '</td>' : '') +
+                        (esRen ? ['dia', 'mes'] : ['n1', 'n2', 'n3']).map(k => '<td class="px-3 py-2 text-right font-mono text-xs whitespace-nowrap">' +
                             fmtMoneda(x[k], x.moneda) + '</td>').join('') +
                         '<td class="px-3 py-2 text-right whitespace-nowrap">' +
                             '<button data-pre-editar="' + esc(x.id) + '" class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-1">Editar</button>' +
@@ -4890,14 +4994,20 @@
                 const esProd = cual === 'productos';
                 const lista = listaPreciosFiltrada().slice()
                     .sort((a, b) => a.servicio.localeCompare(b.servicio, 'es') || a.concepto.localeCompare(b.concepto, 'es'));
-                titulo = esProd ? 'Productos' : 'Servicios';
+                titulo = cual === 'rentas' ? 'Rentas' : esProd ? 'Productos' : 'Servicios';
                 const num = v => (v === null || v === undefined || v === '') ? '' : Number(v);
+                if (cual === 'rentas') {   // v7.5
+                    encabezados = ['No. catálogo', 'Equipo', 'Marca', 'Unidad', 'Precio día', 'Precio mes', 'Moneda', 'Notas'];
+                    filas = lista.map(x => [x.clave, x.concepto, x.marca, x.unidad, num(x.dia), num(x.mes), x.moneda, x.notas]);
+                    anchos = [13, 44, 18, 12, 12, 12, 8, 30];
+                } else {
                 encabezados = ['No. catálogo', 'Tipo', esProd ? 'Producto' : 'Concepto']
                     .concat(esProd ? ['Marca'] : [])
                     .concat(['Unidad', 'Nivel I', 'Nivel II', 'Nivel III', 'Moneda', 'Notas']);
                 filas = lista.map(x => [x.clave, x.servicio, x.concepto].concat(esProd ? [x.marca] : [])
                     .concat([x.unidad, num(x.n1), num(x.n2), num(x.n3), x.moneda, x.notas]));
                 anchos = [13, 16, 44].concat(esProd ? [18] : []).concat([12, 12, 12, 12, 8, 30]);
+                }
             }
             if (!filas.length) { avisar('No hay registros que exportar con la búsqueda actual.'); return; }
             try {
@@ -4909,8 +5019,9 @@
                 hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + filas.length, c: encabezados.length - 1 } }) };
                 // Precios con formato de moneda
                 if (cual !== 'clientes') {
-                    const c0 = encabezados.indexOf('Nivel I');
-                    for (let r = 4; r < 4 + filas.length; r++) for (let c = c0; c < c0 + 3; c++) {
+                    const c0 = cual === 'rentas' ? encabezados.indexOf('Precio día') : encabezados.indexOf('Nivel I');
+                    const nc = cual === 'rentas' ? 2 : 3;
+                    for (let r = 4; r < 4 + filas.length; r++) for (let c = c0; c < c0 + nc; c++) {
                         const cel = hoja[XLSX.utils.encode_cell({ r: r, c: c })];
                         if (cel && cel.t === 'n') cel.z = '"$"#,##0.00';
                     }
@@ -4924,19 +5035,26 @@
 
         function limpiarFormPrecio() {
             precioEnEdicion = null;
-            ['preServicio', 'preUnidad', 'preConcepto', 'preMarca', 'preN1', 'preN2', 'preN3', 'preNotas']
+            ['preServicio', 'preUnidad', 'preConcepto', 'preMarca', 'preN1', 'preN2', 'preN3', 'preDia', 'preMes', 'preNotas']
                 .forEach(id => { document.getElementById(id).value = ''; });
             const esProd = categoriaCatalogo() === 'Producto';
-            document.getElementById('preMarcaWrap').classList.toggle('hidden', !esProd);
-            document.getElementById('preServicio').placeholder = esProd ? 'Refacción' : 'Preventivo';
-            document.getElementById('preUnidad').placeholder = esProd ? 'Pieza, Caja, Kit…' : 'Servicio, Hora…';
-            document.getElementById('preConceptoEt').innerText = esProd ? 'Producto o descripción *' : 'Concepto o tipo de equipo *';
-            document.getElementById('preConceptoAyuda').innerText = esProd
+            const esRen = categoriaCatalogo() === 'Renta';   // v7.5
+            document.getElementById('preMarcaWrap').classList.toggle('hidden', !(esProd || esRen));
+            document.getElementById('preNivelesWrap').classList.toggle('hidden', esRen);
+            document.getElementById('preRentaWrap').classList.toggle('hidden', !esRen);
+            document.getElementById('preServicio').value = esRen ? 'Renta' : '';
+            document.getElementById('preServicio').disabled = esRen;
+            document.getElementById('preServicio').placeholder = esRen ? 'Renta' : esProd ? 'Refacción' : 'Preventivo';
+            document.getElementById('preUnidad').placeholder = esRen ? 'Equipo' : esProd ? 'Pieza, Caja, Kit…' : 'Servicio, Hora…';
+            document.getElementById('preConceptoEt').innerText = esRen ? 'Equipo en renta *' : esProd ? 'Producto o descripción *' : 'Concepto o tipo de equipo *';
+            document.getElementById('preConceptoAyuda').innerText = esRen
+                ? 'Escríbelo como aparece en las órdenes de renta (por ejemplo "Monitor de signos vitales"): así se le asigna su precio.'
+                : esProd
                 ? 'Describe el producto sin la marca (por ejemplo "Sensor de SpO2 adulto reusable"); la marca va en su propio campo.'
                 : 'En preventivos y calibraciones, el tipo de equipo genérico ("Ventilador") cubre a todos sus modelos.';
-            document.getElementById('catTituloPre').innerText = esProd ? 'Nuevo producto' : 'Nuevo servicio';
+            document.getElementById('catTituloPre').innerText = esRen ? 'Nuevo equipo en renta' : esProd ? 'Nuevo producto' : 'Nuevo servicio';
             document.getElementById('preClave').innerText = 'Se asigna al guardar';
-            document.getElementById('btnGuardarPrecio').innerText = esProd ? 'Guardar producto' : 'Guardar servicio';
+            document.getElementById('btnGuardarPrecio').innerText = esRen ? 'Guardar renta' : esProd ? 'Guardar producto' : 'Guardar servicio';
             document.getElementById('catCancelarPre').classList.add('hidden');
             mensajeCatUI('preMensaje', '', 'info');
         }
@@ -4953,7 +5071,10 @@
             document.getElementById('preN3').value = x.n3 === null ? '' : x.n3;
             document.getElementById('preNotas').value = x.notas;
             document.getElementById('preMarca').value = x.marca || '';
-            document.getElementById('catTituloPre').innerText = categoriaCatalogo() === 'Producto' ? 'Editar producto' : 'Editar servicio';
+            document.getElementById('preDia').value = (x.dia === null || x.dia === undefined) ? '' : x.dia;   // v7.5
+            document.getElementById('preMes').value = (x.mes === null || x.mes === undefined) ? '' : x.mes;
+            document.getElementById('catTituloPre').innerText = categoriaCatalogo() === 'Renta' ? 'Editar equipo en renta'
+                : categoriaCatalogo() === 'Producto' ? 'Editar producto' : 'Editar servicio';
             document.getElementById('preClave').innerText = x.clave || 'Se asigna al guardar';
             document.getElementById('btnGuardarPrecio').innerText = 'Guardar cambios';
             document.getElementById('catCancelarPre').classList.remove('hidden');
@@ -4965,6 +5086,12 @@
             if (!concepto) { mensajeCatUI('preMensaje', 'Escribe el concepto o el tipo de equipo.', 'error'); return; }
             let n1 = document.getElementById('preN1').value, n2 = document.getElementById('preN2').value,
                 n3 = document.getElementById('preN3').value;
+            const esRen = categoriaCatalogo() === 'Renta';   // v7.5
+            const dia = document.getElementById('preDia').value, mes = document.getElementById('preMes').value;
+            if (esRen) {
+                if (dia === '' && mes === '') { mensajeCatUI('preMensaje', 'Captura el precio por día, por mes o ambos.', 'error'); return; }
+                n1 = n2 = n3 = '';
+            } else
             if (n1 === '' && n2 === '' && n3 === '') { mensajeCatUI('preMensaje', 'Captura al menos el precio de Nivel I.', 'error'); return; }
             // Precio único: el Nivel I se copia a los niveles vacíos
             if (n1 !== '') { if (n2 === '') n2 = n1; if (n3 === '') n3 = n1; }
@@ -4975,19 +5102,19 @@
                 const j = await peticionAdmin('guardarPrecio', { precio: {
                     id: precioEnEdicion ? precioEnEdicion.id : '',
                     categoria: categoriaCatalogo(),
-                    servicio: document.getElementById('preServicio').value.trim() ||
-                              (categoriaCatalogo() === 'Producto' ? 'Refacción' : 'Preventivo'),
+                    servicio: esRen ? 'Renta' : (document.getElementById('preServicio').value.trim() ||
+                              (categoriaCatalogo() === 'Producto' ? 'Refacción' : 'Preventivo')),
                     concepto: concepto,
-                    marca: categoriaCatalogo() === 'Producto' ? document.getElementById('preMarca').value.trim() : '',
+                    marca: (categoriaCatalogo() === 'Producto' || esRen) ? document.getElementById('preMarca').value.trim() : '',
                     unidad: document.getElementById('preUnidad').value.trim(),
-                    n1: n1, n2: n2, n3: n3, moneda: 'MXN',
+                    n1: n1, n2: n2, n3: n3, dia: esRen ? dia : '', mes: esRen ? mes : '', moneda: 'MXN',
                     notas: document.getElementById('preNotas').value.trim()
                 } });
                 await cargarPreciosAdmin();
                 await refrescarTarifario();
                 limpiarFormPrecio();
                 renderPreciosCatalogo();
-                const etq = categoriaCatalogo() === 'Producto' ? 'Producto' : 'Servicio';
+                const etq = esRen ? 'Equipo en renta' : categoriaCatalogo() === 'Producto' ? 'Producto' : 'Servicio';
                 mensajeCatUI('preMensaje', (j.nuevo ? etq + ' agregado' : etq + ' actualizado') +
                              (j.clave ? ' · No. de catálogo ' + j.clave : '') + '.', 'ok');
             } catch (err) {
@@ -6320,11 +6447,11 @@
         let propuestasLote = [];
 
         function ordenesDeTodoElHistorial() {
-            return datosDetalleOrdenes.map(d => String(d.ID));
+            return todasLasOrdenes().map(d => String(d.ID));
         }
 
         function clienteDeOrden(id) {
-            const d = datosDetalleOrdenes.find(x => String(x.ID) === String(id));
+            const d = todasLasOrdenes().find(x => String(x.ID) === String(id));
             return d ? d.Cliente : '';
         }
 
@@ -6339,7 +6466,7 @@
 
             (cfdi.conceptos || []).forEach(c => {
                 // v4.5: reconoce por número de O.S. y, si no, por número de serie
-                const r = resolverOrdenesDeConcepto(c.descripcion, datosDetalleOrdenes);
+                const r = resolverOrdenesDeConcepto(c.descripcion, todasLasOrdenes());
                 if (r.ordenes.length === 0) {
                     prop.avisos.push('Concepto sin orden reconocible (' + textoPistas(r.pistas) + '): ' +
                                      (c.descripcion || '').slice(0, 40));
@@ -6567,7 +6694,8 @@
 
         function detalleOrden(id) {
             return datosDetalleOrdenes.find(d => String(d.ID) === String(id) && d.Cliente === clienteActual) ||
-                   datosDetalleOrdenes.find(d => String(d.ID) === String(id)) || null;
+                   datosDetalleOrdenes.find(d => String(d.ID) === String(id)) ||
+                   rentasDetalle.find(d => String(d.ID) === String(id)) || null;   // v7.5
         }
 
         /* v4.1: cada orden lleva su importe. En preventivos y calibraciones
@@ -6578,6 +6706,7 @@
             ordenesFacturaActual.forEach(o => {
                 if (o.tocado) return;                       // no se pisa lo ya escrito a mano
                 const d = detalleOrden(o.id);
+                if (d && d.esRenta) { o.importe = d.importeEstimado; return; }   // v7.5: precio fijo, sin niveles
                 if (!d || !tipoConTarifario(d['Tipo de Servicio'])) { o.importe = null; return; }
                 const t = tarifaDeEquipo(d.Equipo, d['Tipo de Servicio']);
                 o.importe = (t && t.precios[nivel] !== null && t.precios[nivel] !== undefined) ? t.precios[nivel] : null;
@@ -6602,12 +6731,14 @@
 
             cont.innerHTML = ordenesFacturaActual.map(o => {
                 const d = detalleOrden(o.id);
-                const conTarifa = d && tipoConTarifario(d['Tipo de Servicio']);
-                const t = conTarifa ? tarifaDeEquipo(d.Equipo, d['Tipo de Servicio']) : null;
-                const esperado = t ? t.precios[nivel] : null;
+                const esRen = !!(d && d.esRenta);   // v7.5
+                const conTarifa = d && (esRen || tipoConTarifario(d['Tipo de Servicio']));
+                const t = (conTarifa && !esRen) ? tarifaDeEquipo(d.Equipo, d['Tipo de Servicio']) : null;
+                const esperado = esRen ? d.importeEstimado : (t ? t.precios[nivel] : null);
 
                 let nota;
                 if (!d) nota = '<span class="text-red-600">Orden de otra unidad o ya no disponible</span>';
+                else if (esRen) nota = esc(d.Equipo) + ' · ' + esc(notaRenta(d));
                 else if (!conTarifa) nota = esc(d.Equipo) + ' · <span class="text-amber-700 font-semibold">precio variable</span>';
                 else if (esperado === null || esperado === undefined) nota = esc(d.Equipo) + ' · <span class="text-amber-700 font-semibold">sin tarifa en el tarifario</span>';
                 else nota = esc(d.Equipo) + ' · tarifario ' + fmtMoneda(esperado, t.moneda);
@@ -6624,7 +6755,7 @@
                            '<div class="shrink-0 flex items-center gap-2">' +
                                '<input type="number" step="0.01" min="0" data-importe-orden="' + esc(o.id) + '" ' +
                                    'value="' + (o.importe === null || o.importe === undefined ? '' : o.importe) + '" ' +
-                                   'placeholder="' + (conTarifa ? '0.00' : 'por definir') + '" ' +
+                                   'placeholder="' + ((conTarifa && esperado !== null) ? '0.00' : 'por definir') + '" ' +
                                    'class="w-28 p-1.5 border rounded-lg text-xs text-right outline-none focus:border-brand-500 ' +
                                    (difiere ? 'border-amber-400 bg-amber-50' : 'border-slate-300') + '">' +
                                '<button data-quitar-orden="' + esc(o.id) + '" class="text-xs font-semibold text-red-500 hover:text-red-700">Quitar</button>' +
@@ -6661,6 +6792,8 @@
 
             // Si alguna ya está facturada, se avisa y no se incluye
             const yaFacturadas = seleccion.filter(o => facturaPorOrden.has(o));
+            // v7.5: una renta en curso sin tiempo aún no tiene importe; se avisa
+            const enCursoSel = seleccion.map(id => detalleOrden(id)).filter(d => d && d.esRenta && d.importeEstimado === null);
             ordenesFacturaActual = seleccion.filter(o => !facturaPorOrden.has(o))
                                             .map(id => ({ id: id, importe: null, tocado: false }));
 
@@ -6684,9 +6817,11 @@
 
             sugerirImportes();
             renderListaOrdenesFactura();
-            mensajeFacturaUI(yaFacturadas.length
-                ? ('Se excluyeron ' + yaFacturadas.length + ' orden(es) que ya están en otra factura: ' + yaFacturadas.join(', ') + '.')
-                : '', yaFacturadas.length ? 'info' : 'info');
+            mensajeFacturaUI((yaFacturadas.length
+                ? ('Se excluyeron ' + yaFacturadas.length + ' orden(es) que ya están en otra factura: ' + yaFacturadas.join(', ') + '. ')
+                : '') + (enCursoSel.length
+                ? (enCursoSel.length + ' renta(s) en curso sin término: captura su importe a mano.')
+                : ''), 'info');
 
             const m = document.getElementById('modalFactura');
             m.classList.remove('hidden'); m.classList.add('flex');
@@ -6825,7 +6960,7 @@
 
             return c.datos().filter(d => {
                 const blob = normalizar((d.ID + ' ' + d.Equipo + ' ' + d.Marca + ' ' + d.Serie + ' ' +
-                                         d.Modelo + ' ' + d.Inventario + ' ' + d.Area).toLowerCase());
+                                         d.Modelo + ' ' + d.Inventario + ' ' + d.Area + ' ' + (d.facturaOrden || '')).toLowerCase());
                 const coincideTexto = !textoBusqueda || blob.includes(textoBusqueda);
                 const coincideAnio = anio === 'todos' || d.Anio === anio;
                 const coincideMesEjec = mesEjec === 'todos' || d.Mes === mesEjec;
@@ -6846,7 +6981,7 @@
                 filtrados.length + ' de ' + c.datos().length + ' registros';
 
             if (filtrados.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="' + (c.conProximo ? 9 : 8) +
+                tbody.innerHTML = '<tr><td colspan="' + (c.esRenta ? 11 : c.conProximo ? 9 : 8) +
                     '" class="px-4 py-8 text-center text-slate-500">No hay ' + c.titulo +
                     ' que coincidan con la búsqueda.</td></tr>';
                 return;
@@ -6864,7 +6999,9 @@
                 const celdaChk = `<td class="px-3 py-3 no-print"><input type="checkbox" class="chk-orden rounded border-slate-300" data-orden="${esc(d.ID)}"></td>`;
                 const celdaFactura = `<td class="px-4 py-3">${htmlCeldaFactura(d.ID)}</td>`;
 
-                if (c.conProximo) {
+                if (c.esRenta) {
+                    tr.innerHTML = celdaChk + filaRentaHTML(d) + celdaFactura;   // v7.5
+                } else if (c.conProximo) {
                     const vencido = d.ProximoMantDate && d.ProximoMantDate < hoy;
                     const badge = vencido
                         ? '<span class="ml-2 inline-block whitespace-nowrap bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full uppercase">⚠ Vencido</span>'
@@ -6931,6 +7068,25 @@
             if (filtrados.length === 0) return avisar('No hay datos para exportar');
 
             const campo = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+            if (c.esRenta) {   // v7.5
+                let csvR = '\uFEFF' + 'Orden,Equipo,Marca,Modelo,Serie,Area,Inicio,Termino,Tiempo,Cobro,Precio unitario,Importe estimado,Estado,Factura de la orden,Factura registrada\n';
+                filtrados.forEach(d => {
+                    const f = facturaPorOrden.get(String(d.ID).trim());
+                    csvR += [d.ID, d.Equipo, d.Marca, d.Modelo, d.Serie, d.Area, d.FechaEjecucionStr, d.TerminoStr,
+                             d.tiempoTexto, d.modalidad === 'mes' ? 'Por mes' : 'Por día',
+                             d.precioUnitario === null ? '' : d.precioUnitario,
+                             d.importeEstimado === null ? '' : d.importeEstimado,
+                             d.estado, d.facturaOrden, f ? f.numero : ''].map(campo).join(',') + '\n';
+                });
+                const blobR = new Blob([csvR], { type: 'text/csv;charset=utf-8;' });
+                const linkR = document.createElement('a');
+                linkR.href = URL.createObjectURL(blobR);
+                linkR.download = c.archivo + '_' + clienteActual.replace(/\s+/g, '_') + '.csv';
+                linkR.click();
+                URL.revokeObjectURL(linkR.href);
+                registrarEvento('exportar_csv', c.titulo + ' · ' + filtrados.length + ' registros');
+                return;
+            }
             const cabecera = c.conProximo
                 ? 'Orden,Equipo,Marca,Modelo,Serie,Inventario,Area,Fecha Ejecucion,Proximo Servicio'
                 : 'Orden,Equipo,Marca,Modelo,Serie,Inventario,Area,Fecha Ejecucion,Tipo de Servicio';
@@ -8937,6 +9093,7 @@
         };
 
         function renderizarDashboard(filtroMes) {
+            renderRentasDashboard(filtroMes);   // v7.5
             let sumMTTR = 0, sumFallas = 0, sumPrev = 0, sumCorr = 0, sumEntrega = 0, sumRefac = 0;
             let kpiTotalItems = 0;
 
@@ -9183,11 +9340,12 @@
             { clave: 'proximos',     etiqueta: 'Gestión de mantenimiento', btn: 'btnProximos',      vista: 'proximosContent' },
             { clave: 'satisfaccion', etiqueta: 'Satisfacción de clientes', btn: 'btnSatisfaccion', vista: 'satisfaccionContent' },
             { clave: 'cotizador',    etiqueta: 'Cotizador',               btn: 'btnCotizador',     vista: 'cotizadorContent' },
+            { clave: 'rentas',       etiqueta: 'Rentas',                  btn: 'btnRentas',        vista: 'rentasContent' },   // v7.5
             { clave: 'catalogos',    etiqueta: 'Catálogos',               btn: 'btnCatalogos',     vista: 'catalogosContent' },
             { clave: 'auditoria',    etiqueta: 'Auditoría financiera',    btn: 'btnAuditoria',     vista: 'auditoriaContent' },
             { clave: 'usuarios',     etiqueta: 'Usuarios',                btn: 'btnAdminUsuarios', vista: 'adminUsuariosContent' }
         ];
-        const PERMISOS_BASE_USUARIO = ['proximos', 'satisfaccion', 'cotizador'];
+        const PERMISOS_BASE_USUARIO = ['proximos', 'satisfaccion', 'cotizador', 'rentas'];   // v7.5: + rentas
 
         function permisosSesion() {
             const s = sesionActual();
@@ -10686,6 +10844,507 @@
         document.getElementById('modalOportunidades').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
         });
+
+        /* ============================================================
+           v7.5 — ÓRDENES DE RENTA
+
+           Las órdenes de renta llegan de su propio formulario de Jotform a la
+           pestaña "Ordenes de Renta". Se leen aparte de las órdenes de
+           trabajo (rentasDetalle) para no mover los KPIs de mantenimiento,
+           los próximos servicios ni las rutinas, pero aparecen en:
+             · la unidad (pestaña Rentas), con su facturación
+             · la auditoría financiera (facturadas y pendientes)
+             · el apartado Rentas (métricas) y el dashboard
+
+           IMPORTE. Los precios son fijos y vienen del catálogo de rentas
+           (Catálogos → Rentas): un precio por día y uno por mes, sin niveles.
+           Cada orden dice cómo se cobra en TIEMPO TOTAL ("15 días", "3 meses",
+           "2 semanas"); el importe es esa cantidad por el precio que toca.
+             · Sin tiempo total pero con inicio y término: días entre fechas.
+             · Sin tiempo total ni término: la renta está EN CURSO y no tiene
+               importe hasta que se cierre.
+             · Equipo sin precio en el catálogo: se usa el MONTO UNITARIO de la
+               orden, si lo trae.
+           Las fechas del formulario de renta vienen DD-MM-AAAA.
+
+           FOLIO. Las órdenes de renta usan el esquema IAR-0000. El ID se
+           normaliza a ese formato ("iar 12" → "IAR-12"; un número suelto de
+           órdenes anteriores → "IAR-0012"). En la lectura de CFDI el prefijo
+           cuenta: IAR-0012 no se confunde con la orden de trabajo IAB-0012.
+           ============================================================ */
+        const DIAS_POR_MES_RENTA = 30;
+
+        function esRenglonRenta(t) {
+            const c = normalizar(String(t.categoria || '').toLowerCase()).trim();
+            if (c) return c.indexOf('renta') === 0;
+            return normalizar(String(t.servicio || '').toLowerCase()).trim().indexOf('renta') === 0;
+        }
+
+        // Folio de renta en el esquema IAR-0000
+        const PREFIJO_FOLIO_RENTA = 'IAR';
+        function folioRenta(crudo) {
+            const t = String(crudo || '').trim().toUpperCase();
+            const m = t.match(/^IAR[\s._-]*(\d+)$/);
+            if (m) return PREFIJO_FOLIO_RENTA + '-' + m[1];
+            if (/^\d+$/.test(t)) return PREFIJO_FOLIO_RENTA + '-' + t.padStart(4, '0');
+            return t;
+        }
+
+        function todasLasOrdenes() { return datosDetalleOrdenes.concat(rentasDetalle); }
+
+        function interpretarTiempoRenta(texto, inicio, fin) {
+            const t = normalizar(String(texto || '').toLowerCase()).trim();
+            const dias = (inicio && fin) ? Math.max(1, Math.round((fin - inicio) / 86400000)) : null;
+            if (t) {
+                const m = t.match(/(\d+(?:[.,]\d+)?)\s*([a-z]*)/);
+                const n = m ? parseFloat(m[1].replace(',', '.')) : null;
+                const u = m ? m[2] : '';
+                const hayMes = /mes/.test(t), haySem = /semana/.test(t), hayDia = /dia/.test(t);
+                if (n !== null && n > 0) {
+                    if (/^mes/.test(u) || (!/^d/.test(u) && hayMes && !hayDia)) return { modalidad: 'mes', cantidad: n };
+                    if (/^sem/.test(u) || (haySem && !hayDia)) return { modalidad: 'dia', cantidad: n * 7 };
+                    if (/^d/.test(u) || hayDia) return { modalidad: 'dia', cantidad: n };
+                    // Número suelto: las fechas dicen si son días o meses
+                    if (dias !== null && Math.abs(n * DIAS_POR_MES_RENTA - dias) <= 5 && Math.abs(n - dias) > 2) {
+                        return { modalidad: 'mes', cantidad: n };
+                    }
+                    return { modalidad: 'dia', cantidad: n };
+                }
+                if (hayMes) return { modalidad: 'mes', cantidad: 1 };
+                if (haySem) return { modalidad: 'dia', cantidad: 7 };
+            }
+            if (dias !== null) return { modalidad: 'dia', cantidad: dias, deFechas: true };
+            return { modalidad: 'dia', cantidad: null };
+        }
+
+        function fechaCortaRenta(d) {
+            return d ? d.toLocaleDateString('es-MX', { timeZone: 'UTC' }) : '';
+        }
+
+        function procesarRentas(data) {
+            rentasDetalle = [];
+            rentasExcluidasPorMarcador = 0;
+            if (!data || !data.length) return;
+            const llaves = Object.keys(data[0]);
+
+            // Si el servidor aún no conoce &hoja=rentas devuelve las órdenes de
+            // trabajo: sin columnas propias de una renta, no se lee nada.
+            const propia = llaves.find(l => l.startsWith('tiempo total') || l.startsWith('monto unitario') ||
+                                            l.startsWith('termino') || l.startsWith('fecha de cancelacion'));
+            if (!propia) {
+                console.warn('[Rentas] La hoja recibida no parece de órdenes de renta; se omite. ¿Ya se publicó Code.gs v7.5?');
+                return;
+            }
+
+            const cID     = buscarColumna(llaves, ['id unico', 'idunico', 'folio', 'submission id']);
+            const cInicio = buscarColumna(llaves, ['inicio:', 'inicio', 'fecha de inicio']);
+            const cTerm   = buscarColumna(llaves, ['termino:', 'termino', 'fecha de termino']);
+            const cCanc   = buscarColumna(llaves, ['fecha de cancelacion:', 'fecha de cancelacion', 'cancelacion']);
+            const cEntr   = buscarColumna(llaves, ['fecha de entrega:', 'fecha de entrega']);
+            const cFact   = buscarColumna(llaves, ['factura:', 'factura', 'no. factura']);
+            const cUni    = buscarColumna(llaves, ['unidad:', 'unidad', 'hospital', 'cliente']);
+            const cEnt    = buscarColumna(llaves, ['entidad:', 'entidad']);
+            const cEq     = buscarColumna(llaves, ['equipo:', 'equipo']);
+            const cMarca  = buscarColumna(llaves, ['marca:', 'marca']);
+            const cMod    = buscarColumna(llaves, ['modelo:', 'modelo']);
+            const cSer    = buscarColumna(llaves, ['serie:', 'serie', 's/n']);
+            const cArea   = buscarColumna(llaves, ['area de ubicacion:', 'area de ubicacion', 'area o ubicacion', 'area', 'ubicacion']);
+            const cTiempo = buscarColumna(llaves, ['tiempo total:', 'tiempo total', 'tiempo de renta']);
+            const cMonto  = buscarColumna(llaves, ['monto unitario', 'precio unitario', 'monto']);
+            const cIng    = buscarColumna(llaves, ['nombre ingeniero de servicio:', 'nombre ingeniero de servicio', 'ingeniero de servicio', 'ingeniero']);
+            const cSol    = buscarColumna(llaves, ['solicitante:', 'solicitante']);
+            const cSub    = buscarColumna(llaves, ['submission date', 'fecha de envio']);
+            const cTel    = buscarColumna(llaves, ['telefono:', 'telefono']);
+            const cDir    = buscarColumna(llaves, ['domicilio:', 'domicilio', 'direccion']);
+            const cExcl   = buscarColumna(llaves, CANDIDATOS_COLUMNA_EXCLUSION.map(c => normalizar(c)));
+
+            const val = (row, c) => c ? String(row[c] ?? '').trim() : '';
+            const hoy = new Date(); hoy.setUTCHours(23, 59, 59, 0);
+            const usados = new Set();
+
+            data.forEach(row => {
+                if (cExcl && estaMarcadaParaExcluir(row[cExcl])) { rentasExcluidasPorMarcador++; return; }
+                const crudo = val(row, cID);
+                const equipo = val(row, cEq);
+                if (!crudo || (!equipo && !val(row, cUni))) return;
+
+                const id = folioRenta(crudo);
+                if (usados.has(id)) return;          // renglón repetido en la hoja
+                usados.add(id);
+
+                const inicio = parsearFechaMantenimiento(val(row, cInicio), 'DMY') ||
+                               parsearFechaMantenimiento(val(row, cEntr), 'DMY') ||
+                               parsearFechaMantenimiento(val(row, cSub), 'DMY');
+                const termino = parsearFechaMantenimiento(val(row, cTerm), 'DMY');
+                const cancelacion = parsearFechaMantenimiento(val(row, cCanc), 'DMY');
+                const fin = (cancelacion && (!termino || cancelacion < termino)) ? cancelacion : termino;
+
+                const tiempoTexto = val(row, cTiempo);
+                const t = interpretarTiempoRenta(tiempoTexto, inicio, fin);
+
+                // Sin término capturado, el fin se estima con el tiempo contratado
+                let finEstimado = null;
+                if (!fin && inicio && t.cantidad !== null) {
+                    finEstimado = new Date(inicio);
+                    if (t.modalidad === 'mes') finEstimado.setUTCMonth(finEstimado.getUTCMonth() + Math.round(t.cantidad));
+                    else finEstimado.setUTCDate(finEstimado.getUTCDate() + Math.round(t.cantidad));
+                }
+                const finRef = fin || finEstimado;
+
+                const tarifa = tarifaDeEquipo(equipo, 'renta');
+                const deCatalogo = tarifa ? tarifa.precios[t.modalidad] : null;
+                const montoOrden = aNumeroPrecio(val(row, cMonto));
+                const precioUnitario = (deCatalogo !== null && deCatalogo !== undefined) ? deCatalogo : montoOrden;
+                const origenPrecio = (deCatalogo !== null && deCatalogo !== undefined) ? 'catalogo' : (montoOrden !== null ? 'orden' : null);
+                const importe = (t.cantidad !== null && precioUnitario !== null) ? redondear(t.cantidad * precioUnitario) : null;
+
+                const estado = (cancelacion && cancelacion <= hoy) ? 'Cancelada'
+                             : (finRef && finRef <= hoy) ? 'Concluida' : 'En curso';
+
+                const obj = {
+                    ID: id, folioOriginal: crudo, esRenta: true,
+                    Cliente: unidadDeEmpresa(val(row, cUni) || val(row, cEnt)),
+                    Entidad: val(row, cEnt),
+                    Equipo: equipo || 'Sin equipo',
+                    Marca: val(row, cMarca) || 'Sin marca',
+                    Modelo: normalizarSerie(val(row, cMod) || 'N/A'),
+                    Serie: normalizarSerie(val(row, cSer) || 'N/A'),
+                    Inventario: '',
+                    Area: val(row, cArea) || 'N/A',
+                    Ingeniero: val(row, cIng) || 'Sin Asignar',
+                    Solicitante: val(row, cSol),
+                    Telefono: val(row, cTel), Direccion: val(row, cDir),
+                    'Tipo de Servicio': 'Renta',
+                    FechaEjecucion: val(row, cInicio),
+                    FechaObj: inicio,
+                    FechaEjecucionStr: inicio ? fechaCortaRenta(inicio) : 'Sin fecha',
+                    Mes: inicio ? MESES_ES[inicio.getUTCMonth()] : 'sin mes',
+                    Anio: inicio ? String(inicio.getUTCFullYear()) : 'sin año',
+                    TerminoObj: finRef,
+                    TerminoStr: fin ? fechaCortaRenta(fin) : (finEstimado ? fechaCortaRenta(finEstimado) + ' (estimado)' : ''),
+                    terminoEstimado: !fin && !!finEstimado,
+                    cancelada: !!cancelacion,
+                    tiempoTexto: tiempoTexto || (t.deFechas ? t.cantidad + ' día(s) por fechas' : ''),
+                    modalidad: t.modalidad,
+                    cantidad: t.cantidad,
+                    diasEquivalentes: t.cantidad === null ? null : (t.modalidad === 'mes' ? t.cantidad * DIAS_POR_MES_RENTA : t.cantidad),
+                    precioUnitario: precioUnitario,
+                    origenPrecio: origenPrecio,
+                    claveCatalogo: tarifa ? tarifa.clave : '',
+                    montoOrden: montoOrden,
+                    importeEstimado: importe,
+                    sinTiempo: t.cantidad === null,
+                    sinTarifa: t.cantidad !== null && precioUnitario === null,
+                    facturaOrden: val(row, cFact),
+                    estado: estado,
+                    // Compatibilidad con código que pregunta por el tipo
+                    esPreventivo: false, esCalibracion: false, esCorrectivo: false, esEntrega: false,
+                    esPrev: false, esCorr: false, Fotos: []
+                };
+                rentasDetalle.push(obj);
+            });
+
+            rentasDetalle.sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
+
+            // Una unidad que solo tiene rentas también aparece en la barra lateral
+            const nuevas = [...new Set(rentasDetalle.map(r => r.Cliente))]
+                .filter(c => c && c !== 'Sin unidad' && !clientesUnicos.includes(c));
+            if (nuevas.length) clientesUnicos = clientesUnicos.concat(nuevas).sort();
+        }
+
+        function cantidadRentaTexto(d) {
+            if (d.cantidad === null) return '';
+            const n = Number.isInteger(d.cantidad) ? d.cantidad : d.cantidad.toFixed(1);
+            return d.modalidad === 'mes' ? n + (d.cantidad === 1 ? ' mes' : ' meses') : n + (d.cantidad === 1 ? ' día' : ' días');
+        }
+
+        // Explica de dónde sale el importe: "15 días × $350.00"
+        function notaRenta(d) {
+            if (d.sinTiempo) return 'en curso, sin término';
+            const base = cantidadRentaTexto(d);
+            if (d.precioUnitario === null) return base + ' · sin precio en el catálogo de rentas';
+            return base + ' × ' + fmtMoneda(d.precioUnitario, 'MXN') + (d.origenPrecio === 'orden' ? ' (monto de la orden)' : '');
+        }
+
+        function badgeEstadoRenta(estado) {
+            const cls = estado === 'En curso' ? 'bg-brand-100 text-brand-700'
+                      : estado === 'Cancelada' ? 'bg-slate-200 text-slate-600' : 'bg-green-100 text-green-700';
+            return '<span class="inline-block whitespace-nowrap text-xs font-bold px-2 py-0.5 rounded-full ' + cls + '">' + esc(estado) + '</span>';
+        }
+
+        function celdaImporteRenta(d) {
+            if (d.importeEstimado !== null) {
+                return '<span class="font-semibold text-slate-800">' + fmtMoneda(d.importeEstimado, 'MXN') + '</span>' +
+                       '<span class="block text-xs text-slate-400">' + esc(d.precioUnitario !== null ? fmtMoneda(d.precioUnitario, 'MXN') + (d.modalidad === 'mes' ? '/mes' : '/día') : '') + '</span>';
+            }
+            if (d.sinTiempo) return '<span class="text-xs text-brand-600 font-semibold">en curso</span>';
+            return '<span class="text-xs text-amber-600 font-semibold uppercase">sin precio</span>';
+        }
+
+        // Celdas de una renta en la pestaña de la unidad (sin casilla ni factura)
+        function filaRentaHTML(d) {
+            return '<td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">' + esc(d.ID) +
+                       (d.facturaOrden ? '<span class="block text-xs font-normal text-slate-400" title="Factura anotada en la orden">Fact. ' + esc(d.facturaOrden) + '</span>' : '') + '</td>' +
+                   '<td class="px-4 py-3"><div class="font-semibold text-slate-800">' + esc(d.Equipo) + '</div>' +
+                       '<div class="text-xs text-slate-500">' + esc(d.Marca) + ' / ' + esc(d.Modelo) + '</div></td>' +
+                   '<td class="px-4 py-3 text-slate-600">' + esc(d.Serie) + '</td>' +
+                   '<td class="px-4 py-3 text-slate-600">' + esc(d.Area) + '</td>' +
+                   '<td class="px-4 py-3 text-slate-600 whitespace-nowrap">' + esc(d.FechaEjecucionStr) + '</td>' +
+                   '<td class="px-4 py-3 text-slate-600 whitespace-nowrap">' + (d.TerminoStr ? esc(d.TerminoStr) : '<span class="text-slate-300">—</span>') + '</td>' +
+                   '<td class="px-4 py-3 text-slate-600 whitespace-nowrap">' + (d.cantidad !== null ? esc(cantidadRentaTexto(d)) : '<span class="text-slate-300">—</span>') +
+                       (d.tiempoTexto && d.cantidad !== null ? '<span class="block text-xs text-slate-400">' + (d.modalidad === 'mes' ? 'cobro por mes' : 'cobro por día') + '</span>' : '') + '</td>' +
+                   '<td class="px-4 py-3 text-right whitespace-nowrap">' + celdaImporteRenta(d) + '</td>' +
+                   '<td class="px-4 py-3">' + badgeEstadoRenta(d.estado) + '</td>';
+        }
+
+        /* ---------- Apartado Rentas (métricas) ---------- */
+        async function mostrarRentas() {
+            if (!tienePermiso('rentas')) { sinPermiso('rentas'); return; }
+            resetSidebarStyles();
+            const btn = document.getElementById('btnRentas');
+            btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
+            btn.classList.remove('text-slate-400');
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('clienteContent').style.display = 'none';
+            ['adminUsuariosContent', 'auditoriaContent', 'cotizadorContent', 'catalogosContent', 'proximosContent', 'satisfaccionContent']
+                .forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('rentasContent').classList.remove('hidden');
+            cerrarSidebarMovil();
+            poblarFiltrosRentas();
+            renderRentas();
+            registrarEvento('ver_rentas');
+        }
+
+        function poblarFiltrosRentas() {
+            const selA = document.getElementById('renAnio');
+            const prevA = selA.value;
+            const anios = aniosDisponibles(rentasDetalle).filter(a => a !== 'sin año');
+            selA.innerHTML = '<option value="todos">Todos los años</option>' + anios.map(a => '<option value="' + a + '">' + a + '</option>').join('');
+            selA.value = Array.from(selA.options).some(o => o.value === prevA) ? prevA : 'todos';
+
+            const selM = document.getElementById('renMes');
+            const prevM = selM.value;
+            selM.innerHTML = '<option value="todos">Todos los meses</option>' +
+                MESES_ES.map((m, i) => '<option value="' + i + '">' + m.charAt(0).toUpperCase() + m.slice(1) + '</option>').join('');
+            selM.value = Array.from(selM.options).some(o => o.value === prevM) ? prevM : 'todos';
+
+            const selU = document.getElementById('renUnidad');
+            const prevU = selU.value;
+            const unidades = [...new Set(rentasDetalle.map(r => r.Cliente))].sort((a, b) => a.localeCompare(b, 'es'));
+            selU.innerHTML = '<option value="todos">Todas las unidades</option>' +
+                unidades.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+            selU.value = Array.from(selU.options).some(o => o.value === prevU) ? prevU : 'todos';
+        }
+
+        function rentasFiltradas(ignorarPeriodo) {
+            const anio = document.getElementById('renAnio').value || 'todos';
+            const mes = document.getElementById('renMes').value || 'todos';
+            const unidad = document.getElementById('renUnidad').value || 'todos';
+            const estado = document.getElementById('renEstado').value || 'todos';
+            const q = normalizar(document.getElementById('renTexto').value.toLowerCase()).trim();
+            return rentasDetalle.filter(r => {
+                if (unidad !== 'todos' && r.Cliente !== unidad) return false;
+                if (estado !== 'todos' && r.estado !== estado) return false;
+                if (!ignorarPeriodo) {
+                    if (anio !== 'todos' && r.Anio !== anio) return false;
+                    if (mes !== 'todos' && (!r.FechaObj || r.FechaObj.getUTCMonth() !== parseInt(mes, 10))) return false;
+                }
+                if (q) {
+                    const blob = normalizar((r.ID + ' ' + r.folioOriginal + ' ' + r.Equipo + ' ' + r.Marca + ' ' + r.Modelo + ' ' +
+                                             r.Serie + ' ' + r.Cliente + ' ' + r.Area + ' ' + r.facturaOrden).toLowerCase());
+                    if (!blob.includes(q)) return false;
+                }
+                return true;
+            });
+        }
+
+        function resumenRentas(lista) {
+            const sum = (f) => lista.reduce((a, r) => a + (f(r) || 0), 0);
+            const facturadas = lista.filter(r => facturaPorOrden.has(String(r.ID)));
+            return {
+                ordenes: lista.length,
+                activas: lista.filter(r => r.estado === 'En curso').length,
+                dias: sum(r => r.diasEquivalentes),
+                importe: redondear(sum(r => r.importeEstimado)),
+                facturado: redondear(facturadas.reduce((a, r) => a + (Number(importePorOrden.get(String(r.ID))) || 0), 0)),
+                nFacturadas: facturadas.length,
+                pendiente: redondear(lista.filter(r => !facturaPorOrden.has(String(r.ID))).reduce((a, r) => a + (r.importeEstimado || 0), 0)),
+                nPendientes: lista.filter(r => !facturaPorOrden.has(String(r.ID))).length,
+                sinImporte: lista.filter(r => r.importeEstimado === null).length,
+                sinTarifa: lista.filter(r => r.sinTarifa).length
+            };
+        }
+
+        function renderRentas() {
+            const lista = rentasFiltradas(false);
+            const k = resumenRentas(lista);
+            const activasHoy = rentasFiltradas(true).filter(r => r.estado === 'En curso').length;
+
+            const aviso = document.getElementById('renAviso');
+            const avisos = [];
+            if (!rentasDetalle.length) avisos.push('No se encontraron órdenes de renta. Revisa que exista la pestaña «Ordenes de Renta» en la hoja y que el servidor (Code.gs v7.5) esté publicado.');
+            if (k.sinTarifa) avisos.push(k.sinTarifa + ' renta(s) sin precio: da de alta el equipo en Catálogos → Rentas con su precio por día o por mes.');
+            aviso.innerHTML = avisos.map(esc).join('<br>');
+            aviso.classList.toggle('hidden', !avisos.length);
+
+            document.getElementById('renResumen').innerHTML =
+                tarjetaIndicador('Rentas activas', activasHoy, 'equipos en renta hoy', 'text-brand-600') +
+                tarjetaIndicador('Órdenes', k.ordenes, 'en el periodo elegido') +
+                tarjetaIndicador('Días rentados', Math.round(k.dias).toLocaleString('es-MX'), 'un mes cuenta como ' + DIAS_POR_MES_RENTA + ' días') +
+                tarjetaIndicador('Importe estimado', fmtMoneda(k.importe, 'MXN'), k.sinImporte ? k.sinImporte + ' sin importe (en curso o sin precio)' : 'tiempo × precio fijo', 'text-green-700') +
+                tarjetaIndicador('Facturado', fmtMoneda(k.facturado, 'MXN'), k.nFacturadas + ' renta(s) facturada(s)') +
+                tarjetaIndicador('Por facturar', fmtMoneda(k.pendiente, 'MXN'), k.nPendientes + ' renta(s) sin factura', k.pendiente ? 'text-amber-600' : 'text-slate-900');
+
+            renderGraficasRentas(lista);
+            renderRentasPorUnidad(lista);
+
+            document.getElementById('renContador').innerText = lista.length + ' de ' + rentasDetalle.length + ' órdenes';
+            const cont = document.getElementById('renLista');
+            if (!lista.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic py-6 text-center">No hay órdenes de renta con esos filtros.</p>';
+                return;
+            }
+            const th = 'px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
+                ['Orden', 'Unidad', 'Equipo', 'Serie', 'Inicio', 'Término', 'Tiempo', 'Importe', 'Estado', 'Factura']
+                    .map(h => '<th class="' + th + (h === 'Importe' ? ' text-right' : '') + '">' + h + '</th>').join('') +
+                '</tr></thead><tbody class="divide-y divide-slate-100">' +
+                lista.map(r => '<tr class="hover:bg-slate-50">' +
+                    '<td class="px-3 py-2 font-bold text-slate-700 whitespace-nowrap">' + esc(r.ID) + '</td>' +
+                    '<td class="px-3 py-2"><button data-ren-unidad="' + esc(r.Cliente) + '" class="text-left text-xs font-semibold text-brand-600 hover:underline">' + esc(r.Cliente) + '</button></td>' +
+                    '<td class="px-3 py-2"><p class="text-slate-800">' + esc(r.Equipo) + '</p><p class="text-xs text-slate-500">' + esc(r.Marca + ' / ' + r.Modelo) + '</p></td>' +
+                    '<td class="px-3 py-2 text-xs text-slate-600">' + esc(r.Serie) + '</td>' +
+                    '<td class="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">' + esc(r.FechaEjecucionStr) + '</td>' +
+                    '<td class="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">' + (r.TerminoStr ? esc(r.TerminoStr) : '—') + '</td>' +
+                    '<td class="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">' + (r.cantidad !== null ? esc(cantidadRentaTexto(r)) : '—') + '</td>' +
+                    '<td class="px-3 py-2 text-right whitespace-nowrap">' + celdaImporteRenta(r) + '</td>' +
+                    '<td class="px-3 py-2">' + badgeEstadoRenta(r.estado) + '</td>' +
+                    '<td class="px-3 py-2">' + htmlCeldaFactura(r.ID) + '</td>' +
+                '</tr>').join('') +
+                '</tbody></table>';
+        }
+
+        function renderGraficasRentas(lista) {
+            chartsRentas.forEach(c => { try { c.destroy(); } catch (_) {} });
+            chartsRentas = [];
+            if (typeof Chart === 'undefined') return;
+
+            const porMes = new Map();
+            lista.filter(r => r.FechaObj).forEach(r => {
+                const clave = r.FechaObj.getUTCFullYear() + '-' + String(r.FechaObj.getUTCMonth() + 1).padStart(2, '0');
+                porMes.set(clave, (porMes.get(clave) || 0) + (r.importeEstimado || 0));
+            });
+            const meses = Array.from(porMes.keys()).sort().slice(-12);
+            chartsRentas.push(new Chart(document.getElementById('chartRentasMes'), {
+                type: 'bar',
+                data: { labels: meses.map(m => MESES_CORTOS[parseInt(m.slice(5), 10) - 1] + ' ' + m.slice(2, 4)),
+                        datasets: [{ data: meses.map(m => redondear(porMes.get(m))), backgroundColor: COLOR_INSTITUCIONAL, borderRadius: 4, maxBarThickness: 36 }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false,
+                    scales: { y: { beginAtZero: true, ticks: { callback: (v) => '$' + Number(v).toLocaleString('es-MX') } }, x: { grid: { display: false } } },
+                    plugins: { legend: { display: false }, datalabels: { display: false },
+                               tooltip: { callbacks: { label: (c) => ' ' + fmtMoneda(c.raw, 'MXN') } } } }
+            }));
+
+            const porEquipo = new Map();
+            lista.forEach(r => porEquipo.set(r.Equipo, (porEquipo.get(r.Equipo) || 0) + (r.diasEquivalentes || 0)));
+            const top = Array.from(porEquipo.entries()).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 8);
+            chartsRentas.push(new Chart(document.getElementById('chartRentasEquipos'), {
+                type: 'bar',
+                data: { labels: top.map(e => e[0].length > 32 ? e[0].slice(0, 30) + '…' : e[0]),
+                        datasets: [{ data: top.map(e => Math.round(e[1])), backgroundColor: '#3E9FD1', borderRadius: 4, maxBarThickness: 24 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+                    layout: { padding: { right: 36 } },
+                    scales: { x: { beginAtZero: true }, y: { grid: { display: false } } },
+                    plugins: { legend: { display: false },
+                               datalabels: { anchor: 'end', align: 'end', formatter: (v) => v + ' d', font: { weight: 'bold', size: 11 } },
+                               tooltip: { callbacks: { label: (c) => ' ' + c.raw + ' día(s)' } } } }
+            }));
+        }
+
+        function renderRentasPorUnidad(lista) {
+            const cont = document.getElementById('renPorUnidad');
+            const grupos = new Map();
+            lista.forEach(r => { if (!grupos.has(r.Cliente)) grupos.set(r.Cliente, []); grupos.get(r.Cliente).push(r); });
+            if (!grupos.size) { cont.innerHTML = '<p class="text-sm text-slate-500 italic py-4 text-center">Sin datos.</p>'; return; }
+            const filas = Array.from(grupos.entries()).map(([u, rs]) => ({ u: u, k: resumenRentas(rs) }))
+                .sort((a, b) => b.k.importe - a.k.importe || b.k.ordenes - a.k.ordenes);
+            const th = 'px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider';
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
+                '<th class="' + th + ' text-left">Unidad</th><th class="' + th + ' text-right">Órdenes</th>' +
+                '<th class="' + th + ' text-right">En curso</th><th class="' + th + ' text-right">Días</th>' +
+                '<th class="' + th + ' text-right">Importe estimado</th><th class="' + th + ' text-right">Facturado</th>' +
+                '<th class="' + th + ' text-right">Por facturar</th></tr></thead><tbody class="divide-y divide-slate-100">' +
+                filas.map(f => '<tr class="hover:bg-slate-50">' +
+                    '<td class="px-3 py-2"><button data-ren-unidad="' + esc(f.u) + '" class="text-left font-semibold text-brand-600 hover:underline">' + esc(f.u) + '</button></td>' +
+                    '<td class="px-3 py-2 text-right">' + f.k.ordenes + '</td>' +
+                    '<td class="px-3 py-2 text-right">' + f.k.activas + '</td>' +
+                    '<td class="px-3 py-2 text-right">' + Math.round(f.k.dias).toLocaleString('es-MX') + '</td>' +
+                    '<td class="px-3 py-2 text-right font-mono text-xs">' + fmtMoneda(f.k.importe, 'MXN') + '</td>' +
+                    '<td class="px-3 py-2 text-right font-mono text-xs text-green-700">' + fmtMoneda(f.k.facturado, 'MXN') + '</td>' +
+                    '<td class="px-3 py-2 text-right font-mono text-xs ' + (f.k.pendiente ? 'text-amber-600' : 'text-slate-400') + '">' + fmtMoneda(f.k.pendiente, 'MXN') + '</td>' +
+                '</tr>').join('') + '</tbody></table>';
+        }
+
+        async function exportarRentasExcel() {
+            const lista = rentasFiltradas(false);
+            if (!lista.length) { avisar('No hay órdenes de renta con los filtros actuales.'); return; }
+            try {
+                await cargarSheetJS();
+                const enc = ['Orden', 'Unidad', 'Equipo', 'Marca', 'Modelo', 'No. de serie', 'Área', 'Inicio', 'Término',
+                             'Tiempo total (orden)', 'Cobro', 'Cantidad', 'Precio unitario', 'Importe estimado', 'Estado',
+                             'Factura en la orden', 'Factura registrada', 'Importe facturado'];
+                const filas = lista.map(r => {
+                    const f = facturaPorOrden.get(String(r.ID));
+                    const imp = f ? importePorOrden.get(String(r.ID)) : null;
+                    return [r.ID, r.Cliente, r.Equipo, r.Marca, r.Modelo, r.Serie, r.Area, r.FechaEjecucionStr, r.TerminoStr,
+                            r.tiempoTexto, r.modalidad === 'mes' ? 'Por mes' : 'Por día', r.cantidad === null ? '' : r.cantidad,
+                            r.precioUnitario === null ? '' : r.precioUnitario, r.importeEstimado === null ? '' : r.importeEstimado,
+                            r.estado, r.facturaOrden, f ? f.numero : '', (imp === null || imp === undefined) ? '' : Number(imp)];
+                });
+                const aoa = [['Órdenes de renta · Ingenieros Asociados'], ['Exportado el ' + isoLocal() + ' · ' + filas.length + ' orden(es)'], [], enc].concat(filas);
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = [12, 28, 30, 14, 14, 16, 18, 12, 18, 16, 10, 10, 14, 16, 12, 14, 14, 14].map(w => ({ wch: w }));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + filas.length, c: enc.length - 1 } }) };
+                [12, 13, 17].forEach(c => { for (let r = 4; r < 4 + filas.length; r++) {
+                    const cel = hoja[XLSX.utils.encode_cell({ r: r, c: c })];
+                    if (cel && cel.t === 'n') cel.z = '"$"#,##0.00';
+                } });
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Rentas');
+                XLSX.writeFile(libro, 'Rentas_' + isoLocal() + '.xlsx');
+                registrarEvento('exportar_rentas', filas.length + ' orden(es)');
+            } catch (err) { avisar(err.message); }
+        }
+
+        ['renAnio', 'renMes', 'renUnidad', 'renEstado'].forEach(id => document.getElementById(id).addEventListener('change', renderRentas));
+        document.getElementById('renTexto').addEventListener('input', debounce(renderRentas));
+        ['renLista', 'renPorUnidad'].forEach(id => document.getElementById(id).addEventListener('click', (e) => {
+            const u = e.target.closest('[data-ren-unidad]');
+            if (u) {
+                if (!clientesUnicos.includes(u.dataset.renUnidad)) return;
+                mostrarVistaCliente(u.dataset.renUnidad);
+                cambiarPestana('ren');
+                return;
+            }
+            const fac = e.target.closest('button.btn-ver-factura');
+            if (fac) abrirFacturaExistente(fac.dataset.factura);
+        }));
+
+        /* Renglón de rentas del dashboard: responde al filtro de mes. */
+        function renderRentasDashboard(filtroMes) {
+            const caja = document.getElementById('dashRentas');
+            if (!caja) return;
+            caja.classList.toggle('hidden', rentasDetalle.length === 0);
+            if (!rentasDetalle.length) return;
+            const lista = (!filtroMes || filtroMes === 'todos') ? rentasDetalle : rentasDetalle.filter(r => r.Mes === filtroMes);
+            const k = resumenRentas(lista);
+            document.getElementById('dashRenActivas').innerText = rentasDetalle.filter(r => r.estado === 'En curso').length;
+            document.getElementById('dashRenOrdenes').innerText = k.ordenes;
+            document.getElementById('dashRenOrdenesDet').innerText = (!filtroMes || filtroMes === 'todos') ? 'en todo el historial' : 'iniciadas en ' + filtroMes;
+            document.getElementById('dashRenDias').innerText = Math.round(k.dias).toLocaleString('es-MX');
+            document.getElementById('dashRenImporte').innerText = fmtMoneda(k.importe, 'MXN');
+        }
+
 
         function iniciarAplicacion() {
             cargarComLocal();
