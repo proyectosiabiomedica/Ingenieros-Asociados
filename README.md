@@ -1351,6 +1351,21 @@ Las órdenes de renta llegan de su propio formulario de Jotform a la pestaña **
 3. Dar de alta los equipos en **Catálogos → Rentas**.
 4. Los usuarios que ya tienen permisos guardados en la hoja *Usuarios* no reciben `rentas` solos: hay que marcárselo en **Usuarios** (los administradores y los usuarios sin permisos guardados ya lo tienen).
 
+## 4.34 Exportar servicios realizados (v7.6)
+
+En el detalle de cada unidad, el botón **Exportar CSV** de cada pestaña (Preventivos, Calibraciones, Correctivos, Entregas y Rentas) se cambió por **Exportar servicios realizados**, que abre un cuadro como el del calendario de próximos:
+
+- **Periodo:** anual, semestral, mensual o todo el historial, por la fecha en que se realizó el servicio (en rentas, la de inicio).
+- **Tipo de servicio:** abre en el de la pestaña; también *Preventivos y calibraciones* y *Todos los servicios*.
+- **Facturación:** facturados y pendientes, solo facturados o solo pendientes.
+- **Nivel de precio:** abre en el nivel de la unidad (catálogo de clientes o, si no, su última factura).
+- El cuadro muestra antes de exportar el **facturado**, el **estimado por tarifario**, lo **por facturar** y la **diferencia**.
+
+Cada servicio lleva su **estimado por tarifario** (precio del nivel elegido; en rentas, tiempo × precio fijo; correctivos y entregas salen como *precio variable*), su **factura** con fecha, el **importe facturado** y la **diferencia** facturado − estimado cuando hay ambos.
+
+- **Excel:** una hoja con todas las columnas por separado, filtro, renglón de totales y un resumen.
+- **PDF:** hoja carta horizontal con tarjetas de totales y la tabla (se imprime con «Guardar como PDF», igual que el calendario).
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1433,6 +1448,7 @@ Las órdenes de renta llegan de su propio formulario de Jotform a la pestaña **
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 7.6 | **Exportar servicios realizados.** El «Exportar CSV» de las pestañas de cada unidad se sustituye por un cuadro de exportación a **Excel y PDF** con periodo, tipo de servicio, facturación y nivel de precio; cada servicio muestra su costo **facturado** y el **estimado por tarifario**, con totales, por facturar y diferencia (ver 4.34) |
 | 7.5 | **Órdenes de renta.** Se lee la pestaña «Ordenes de Renta» (`&hoja=rentas`). Catálogo **Rentas** con Precio día y Precio mes fijos; cada orden se cobra por día o por mes según su TIEMPO TOTAL. Pestaña **Rentas** en cada unidad con facturación, rentas en la **auditoría financiera** (filtro Tipo y CFDI), apartado **Rentas** con métricas y exportación, renglón de rentas en el dashboard y conceptos de renta en el cotizador. Permiso nuevo `rentas` (ver 4.33) |
 | 6.9 | **Gestión de mantenimiento.** «Próximos mantenimientos» se renombra a *Gestión de mantenimiento* y suma la pestaña **Correctivos por ingeniero**: correctivos por ingeniero con promedio mensual, unidades, equipos, días de atención, órdenes que requieren cotización, detalle de órdenes y exportación a Excel (ver 4.32) |
 | 6.8 | **Cortes de página del PDF de Drive.** Las medidas para decidir dónde termina cada hoja se toman después de que la copia carga sus fuentes e imágenes (antes podían tomarse con la fuente de respaldo y el corte caía a la mitad de un renglón, como la nota de condiciones ambientales que salía partida entre la hoja 1 y la 2). Además, cada corte se comprueba sobre la imagen ya dibujada: si el renglón de pixeles tiene tinta, se sube hasta uno limpio |

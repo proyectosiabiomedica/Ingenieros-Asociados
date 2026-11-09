@@ -72,7 +72,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '7.5';
+        const VERSION_APP = '7.6';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2766,6 +2766,375 @@
             setTimeout(() => window.print(), 120);
         }
 
+
+        /* ============================================================
+           v7.6 — EXPORTAR SERVICIOS REALIZADOS (Excel y PDF)
+           Sustituye al "Exportar CSV" de cada pestaña de la unidad. Mismo
+           cuadro que el calendario de próximos: periodo (anual, semestral,
+           mensual o todo), tipo de servicio, facturación y nivel de precio.
+
+           Por cada servicio realizado se reportan dos costos:
+             · FACTURADO: lo que se capturó al registrar su factura (por
+               plataforma o CFDI). Es el dato real.
+             · ESTIMADO POR TARIFARIO: lo que debía cobrarse según el catálogo
+               y el nivel elegido (en rentas, tiempo × precio fijo). Correctivos
+               y entregas no tienen tarifa fija: salen como "precio variable".
+           La diferencia (facturado − estimado) solo se calcula cuando hay
+           ambos. "Por facturar" es el estimado de los que no tienen factura.
+           ============================================================ */
+        let claveTabRealizados = 'prev';
+
+        const TIPOS_REALIZADOS = {
+            prev:  { etiqueta: 'Preventivos',                  datos: () => dataPreventivos },
+            cal:   { etiqueta: 'Calibraciones',                datos: () => dataCalibraciones },
+            mant:  { etiqueta: 'Preventivos y calibraciones',  datos: () => dataPreventivos.concat(dataCalibraciones) },
+            corr:  { etiqueta: 'Correctivos / Asistencias',    datos: () => dataCorrectivos },
+            ent:   { etiqueta: 'Entregas / Materiales',        datos: () => dataEntregas },
+            ren:   { etiqueta: 'Rentas',                       datos: () => dataRentas },
+            todos: { etiqueta: 'Todos los servicios',          datos: () => dataPreventivos.concat(dataCalibraciones, dataCorrectivos, dataEntregas, dataRentas) }
+        };
+
+        function mesesRealizados() {
+            const periodo = document.getElementById('relPeriodo').value;
+            const rango = document.getElementById('relRango').value;
+            if (periodo === 'anual' || periodo === 'todo') return [0,1,2,3,4,5,6,7,8,9,10,11];
+            if (periodo === 'semestral') return (rango === '2') ? [6,7,8,9,10,11] : [0,1,2,3,4,5];
+            const m = parseInt(rango, 10);
+            return [Number.isFinite(m) ? m : new Date().getMonth()];
+        }
+
+        function etiquetaPeriodoRealizados() {
+            const periodo = document.getElementById('relPeriodo').value;
+            const anio = document.getElementById('relAnio').value;
+            const meses = mesesRealizados();
+            if (periodo === 'todo') return 'Todo el historial';
+            if (periodo === 'anual') return 'Año ' + anio;
+            if (periodo === 'semestral') {
+                return (meses[0] === 0 ? 'Primer' : 'Segundo') + ' semestre ' + anio +
+                       ' (' + MESES_CORTOS[meses[0]] + '–' + MESES_CORTOS[meses[meses.length - 1]] + ')';
+            }
+            return MESES_CORTOS[meses[0]] + ' ' + anio;
+        }
+
+        function poblarRangoRealizados() {
+            const periodo = document.getElementById('relPeriodo').value;
+            const sel = document.getElementById('relRango');
+            document.getElementById('relAnio').disabled = periodo === 'todo';
+            if (periodo === 'anual' || periodo === 'todo') {
+                sel.innerHTML = '<option value="">' + (periodo === 'todo' ? 'Todas las fechas' : 'Todo el año') + '</option>';
+                sel.disabled = true;
+            } else if (periodo === 'semestral') {
+                sel.innerHTML = '<option value="1">Enero – Junio</option><option value="2">Julio – Diciembre</option>';
+                sel.value = new Date().getMonth() < 6 ? '1' : '2';
+                sel.disabled = false;
+            } else {
+                sel.innerHTML = MESES_CORTOS.map((m, i) =>
+                    '<option value="' + i + '">' + MESES_ES[i].charAt(0).toUpperCase() + MESES_ES[i].slice(1) + '</option>').join('');
+                sel.value = String(new Date().getMonth());
+                sel.disabled = false;
+            }
+        }
+
+        // Nivel de convenio de la unidad: catálogo de clientes, si no la última factura
+        function nivelSugeridoUnidad() {
+            const u = normalizar(String(clienteActual || '').toLowerCase()).trim();
+            const enCat = (typeof catalogoClientes !== 'undefined' ? catalogoClientes : [])
+                .find(c => c.nivel && normalizar(String(c.unidad || '').toLowerCase()).trim() === u);
+            if (enCat) return enCat.nivel;
+            const ult = facturas.filter(f => f.cliente === clienteActual && f.nivel)
+                .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')))[0];
+            return ult ? ult.nivel : 'I';
+        }
+
+        function construirRealizados() {
+            const tipo = document.getElementById('relTipo').value;
+            const nivel = document.getElementById('relNivel').value;
+            const fact = document.getElementById('relFacturacion').value;
+            const periodo = document.getElementById('relPeriodo').value;
+            const anio = document.getElementById('relAnio').value;
+            const meses = mesesRealizados();
+
+            const vistos = new Set();
+            const filas = [];
+            (TIPOS_REALIZADOS[tipo] || TIPOS_REALIZADOS.todos).datos().forEach(d => {
+                const id = String(d.ID);
+                if (vistos.has(id)) return;
+                vistos.add(id);
+                if (periodo !== 'todo') {
+                    if (!d.FechaObj) return;
+                    if (String(d.FechaObj.getUTCFullYear()) !== String(anio)) return;
+                    if (meses.indexOf(d.FechaObj.getUTCMonth()) === -1) return;
+                }
+                const f = facturaPorOrden.get(id);
+                if (fact === 'facturados' && !f) return;
+                if (fact === 'pendientes' && f) return;
+
+                const pr = precioEsperadoDeOrden(d, nivel);
+                const impF = f ? importePorOrden.get(id) : null;
+                const facturado = (impF === null || impF === undefined || impF === '') ? null : Number(impF);
+                const estimado = pr.precio === null || pr.precio === undefined ? null : Number(pr.precio);
+                filas.push({
+                    id: id, fecha: d.FechaEjecucionStr || '', fechaObj: d.FechaObj,
+                    tipo: d.esRenta ? 'Renta · ' + notaRenta(d) : (d['Tipo de Servicio'] || ''),
+                    equipo: d.Equipo || '', marca: d.Marca || '', modelo: d.Modelo || '',
+                    serie: d.Serie || '', inventario: d.Inventario || '', area: d.Area || '',
+                    ingeniero: d.Ingeniero || '',
+                    estimado: estimado,
+                    notaEstimado: estimado !== null ? '' : pr.enCurso ? 'en curso' : pr.variable ? 'precio variable' : pr.sinTarifa ? 'sin tarifa' : '',
+                    factura: f ? (f.numero || '') : '',
+                    fechaFactura: f ? (f.fecha || '') : '',
+                    facturado: facturado,
+                    facturadaSinImporte: !!f && facturado === null,
+                    diferencia: (facturado !== null && estimado !== null) ? redondear(facturado - estimado) : null,
+                    estado: f ? 'Facturado' : 'Pendiente'
+                });
+            });
+            filas.sort((a, b) => ((a.fechaObj ? a.fechaObj.getTime() : 0) - (b.fechaObj ? b.fechaObj.getTime() : 0)) ||
+                                 a.id.localeCompare(b.id, 'es', { numeric: true }));
+
+            const suma = (arr, k) => redondear(arr.reduce((a, r) => a + (r[k] || 0), 0));
+            const fac = filas.filter(r => r.estado === 'Facturado');
+            const pen = filas.filter(r => r.estado === 'Pendiente');
+            return {
+                filas: filas, nivel: nivel, tipoEtiqueta: (TIPOS_REALIZADOS[tipo] || TIPOS_REALIZADOS.todos).etiqueta,
+                totalEstimado: suma(filas, 'estimado'),
+                totalFacturado: suma(fac, 'facturado'),
+                estimadoFacturados: suma(fac, 'estimado'),
+                porFacturar: suma(pen, 'estimado'),
+                diferencia: suma(filas.filter(r => r.diferencia !== null), 'diferencia'),
+                nFacturados: fac.length, nPendientes: pen.length,
+                sinEstimado: filas.filter(r => r.estimado === null).length,
+                pendientesSinEstimado: pen.filter(r => r.estimado === null).length,
+                facturadasSinImporte: filas.filter(r => r.facturadaSinImporte).length
+            };
+        }
+
+        function actualizarResumenRealizados() {
+            const k = construirRealizados();
+            const cont = document.getElementById('relResumen');
+            if (!k.filas.length) {
+                cont.innerHTML = '<span class="font-semibold text-slate-700">Sin servicios realizados con esos filtros.</span> ' +
+                                 'Cambia el periodo, el tipo de servicio o la facturación.';
+                return;
+            }
+            const linea = (et, v, cls) => '<div class="flex justify-between gap-3"><span>' + et + '</span><span class="font-mono font-semibold ' + (cls || 'text-slate-800') + '">' + v + '</span></div>';
+            cont.innerHTML =
+                '<p class="font-semibold text-slate-700 mb-2">' + k.filas.length + ' servicio(s) · ' + esc(k.tipoEtiqueta) + ' · ' +
+                    esc(etiquetaPeriodoRealizados()) + ' · nivel ' + esc(k.nivel) + '</p>' +
+                '<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">' +
+                    linea('Facturado (' + k.nFacturados + ')', fmtMoneda(k.totalFacturado, 'MXN'), 'text-green-700') +
+                    linea('Estimado por tarifario', fmtMoneda(k.totalEstimado, 'MXN')) +
+                    linea('Por facturar (' + k.nPendientes + ', estimado)', fmtMoneda(k.porFacturar, 'MXN'), k.porFacturar ? 'text-amber-700' : '') +
+                    linea('Diferencia facturado − estimado', fmtMoneda(k.diferencia, 'MXN'), k.diferencia < 0 ? 'text-red-700' : '') +
+                '</div>' +
+                (k.sinEstimado
+                    ? '<p class="mt-2 text-amber-700">' + k.sinEstimado + ' servicio(s) sin estimado (precio variable, sin tarifa o renta en curso): no suman al estimado.</p>'
+                    : '') +
+                (k.facturadasSinImporte
+                    ? '<p class="mt-1 text-amber-700">' + k.facturadasSinImporte + ' servicio(s) facturado(s) sin importe capturado.</p>'
+                    : '');
+        }
+
+        function abrirModalRealizados(clave) {
+            claveTabRealizados = clave;
+            document.getElementById('relTipo').value = TIPOS_REALIZADOS[clave] ? clave : 'todos';
+            document.getElementById('relSubtitulo').innerText = clienteActual + ' · costo facturado y estimado por tarifario de cada servicio';
+
+            // Años con servicios de la unidad, más el actual
+            const actual = new Date().getFullYear();
+            const anios = new Set([actual]);
+            TIPOS_REALIZADOS.todos.datos().forEach(d => { if (d.FechaObj) anios.add(d.FechaObj.getUTCFullYear()); });
+            const selAnio = document.getElementById('relAnio');
+            selAnio.innerHTML = Array.from(anios).sort((a, b) => b - a).map(a => '<option value="' + a + '">' + a + '</option>').join('');
+            selAnio.value = String(actual);
+
+            document.getElementById('relPeriodo').value = 'anual';
+            document.getElementById('relFacturacion').value = 'todos';
+            document.getElementById('relNivel').value = nivelSugeridoUnidad();
+            poblarRangoRealizados();
+            document.getElementById('relMensaje').classList.add('hidden');
+            actualizarResumenRealizados();
+
+            const m = document.getElementById('modalRealizados');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+
+        function cerrarModalRealizados() {
+            const m = document.getElementById('modalRealizados');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+
+        ['relPeriodo', 'relAnio', 'relRango', 'relTipo', 'relNivel', 'relFacturacion'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                if (id === 'relPeriodo') poblarRangoRealizados();
+                actualizarResumenRealizados();
+            });
+        });
+
+        function mensajeRealizadosUI(texto, tipo) {
+            const el = document.getElementById('relMensaje');
+            const estilos = {
+                error: 'bg-red-50 text-red-700 border border-red-200',
+                ok:    'bg-green-50 text-green-700 border border-green-200',
+                info:  'bg-slate-100 text-slate-600 border border-slate-200'
+            };
+            el.className = 'text-xs rounded-lg p-3 ' + (estilos[tipo] || estilos.info);
+            el.innerText = texto;
+            el.classList.toggle('hidden', !texto);
+        }
+
+        function nombreArchivoRealizados(ext) {
+            const limpio = (t) => normalizar(String(t || '')).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+            return 'Servicios_realizados_' + limpio(clienteActual) + '_' + limpio(etiquetaPeriodoRealizados()) +
+                   '_Nivel_' + document.getElementById('relNivel').value + '.' + ext;
+        }
+
+        async function exportarRealizadosExcel() {
+            const k = construirRealizados();
+            if (!k.filas.length) { mensajeRealizadosUI('No hay servicios realizados con esos filtros.', 'error'); return; }
+            const btn = document.getElementById('btnRealizadosExcel');
+            btn.disabled = true; btn.innerText = 'Generando…';
+            try {
+                await cargarSheetJS();
+                const enc = ['Orden', 'Fecha', 'Tipo de servicio', 'Equipo', 'Marca', 'Modelo', 'No. de serie', 'Inventario', 'Área',
+                             'Ingeniero', 'Estimado por tarifario', 'Factura', 'Fecha de factura', 'Facturado', 'Diferencia', 'Estado'];
+                const num = (v) => (v === null || v === undefined) ? '' : v;
+                const aoa = [
+                    ['Servicios realizados'],
+                    [clienteActual],
+                    [k.tipoEtiqueta + '  ·  ' + etiquetaPeriodoRealizados() + '  ·  Nivel de precio ' + k.nivel],
+                    [],
+                    enc
+                ];
+                k.filas.forEach(r => aoa.push([r.id, r.fecha, r.tipo, r.equipo, r.marca, r.modelo, r.serie, r.inventario, r.area,
+                    r.ingeniero, r.estimado !== null ? r.estimado : r.notaEstimado, r.factura, r.fechaFactura,
+                    r.facturado !== null ? r.facturado : (r.facturadaSinImporte ? 'sin importe' : ''), num(r.diferencia), r.estado]));
+                const filaTotal = aoa.length;
+                aoa.push(['Total', '', '', '', '', '', '', '', '', '', k.totalEstimado, '', '', k.totalFacturado, k.diferencia, '']);
+                aoa.push([]);
+                aoa.push(['Resumen']);
+                aoa.push(['Servicios', k.filas.length]);
+                aoa.push(['Facturados', k.nFacturados]);
+                aoa.push(['Importe facturado', k.totalFacturado]);
+                aoa.push(['Estimado de los facturados', k.estimadoFacturados]);
+                aoa.push(['Diferencia facturado − estimado', k.diferencia]);
+                aoa.push(['Pendientes de facturar', k.nPendientes]);
+                aoa.push(['Por facturar (estimado)', k.porFacturar]);
+                aoa.push(['Estimado total por tarifario', k.totalEstimado]);
+                if (k.sinEstimado) aoa.push([k.sinEstimado + ' servicio(s) sin estimado (precio variable, sin tarifa o renta en curso): no suman al estimado.']);
+
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = [12, 11, 24, 30, 16, 16, 18, 14, 18, 20, 16, 14, 13, 14, 13, 11].map(w => ({ wch: w }));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: filaTotal - 1, c: enc.length - 1 } }) };
+                const fmt = '"$"#,##0.00';
+                for (let r = 5; r <= filaTotal; r++) [10, 13, 14].forEach(c => {
+                    const cel = hoja[XLSX.utils.encode_cell({ r: r, c: c })];
+                    if (cel && cel.t === 'n') cel.z = fmt;
+                });
+                for (let r = filaTotal + 2; r < aoa.length; r++) {
+                    const cel = hoja[XLSX.utils.encode_cell({ r: r, c: 1 })];
+                    const et = String((aoa[r] || [])[0] || '');
+                    if (cel && cel.t === 'n' && /importe|estimado|diferencia|facturar \(/i.test(et)) cel.z = fmt;
+                }
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Servicios realizados');
+                XLSX.writeFile(libro, nombreArchivoRealizados('xlsx'));
+                registrarEvento('exportar_realizados', 'Excel · ' + k.tipoEtiqueta + ' · ' + etiquetaPeriodoRealizados() + ' · ' + k.filas.length + ' servicio(s)');
+                mensajeRealizadosUI('Archivo generado.', 'ok');
+            } catch (err) {
+                mensajeRealizadosUI(err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Exportar a Excel';
+            }
+        }
+
+        /* PDF: mismo camino que el calendario (hoja carta horizontal y
+           "Guardar como PDF" en el diálogo de impresión). */
+        function exportarRealizadosPDF() {
+            const k = construirRealizados();
+            if (!k.filas.length) { mensajeRealizadosUI('No hay servicios realizados con esos filtros.', 'error'); return; }
+
+            const ANCHO = 259;
+            const dinero = (v) => fmtMoneda(v, 'MXN');
+            const th = 'background:#005DA1;color:#fff;font-size:7.5pt;font-weight:700;padding:1.2mm;' +
+                       'border:0.2mm solid #005DA1;text-align:left;vertical-align:bottom;';
+            const td = 'font-size:7.5pt;padding:1.2mm;border:0.2mm solid #cbd5e1;vertical-align:top;overflow-wrap:anywhere;';
+            const der = 'text-align:right;white-space:nowrap;';
+            const cols = [20, 18, 78, 40, 26, 26, 27, 24];   // suma 259
+            const tarjeta = (et, v, color) =>
+                '<td style="width:25%;padding:2mm 2.5mm;border:0.2mm solid #cbd5e1;background:#f8fafc">' +
+                '<div style="font-size:6.8pt;color:#64748b;text-transform:uppercase;font-weight:700">' + et + '</div>' +
+                '<div style="font-size:11pt;font-weight:700;color:' + (color || '#0f172a') + '">' + v + '</div></td>';
+
+            let html =
+                '<div style="font-family:Inter,Arial,sans-serif;color:#0f172a;width:' + ANCHO + 'mm;' +
+                '-webkit-print-color-adjust:exact;print-color-adjust:exact">' +
+                '<h1 style="font-size:14pt;margin:0 0 1.5mm">Servicios realizados</h1>' +
+                '<p style="font-size:10pt;margin:0 0 1mm;font-weight:700">' + esc(clienteActual) + '</p>' +
+                '<p style="font-size:8.5pt;margin:0 0 3mm;color:#475569">' + esc(k.tipoEtiqueta) + '  ·  ' + esc(etiquetaPeriodoRealizados()) +
+                '  ·  Nivel de precio ' + esc(k.nivel) + '  ·  ' + k.filas.length + ' servicio(s)</p>' +
+                '<table style="width:' + ANCHO + 'mm;border-collapse:collapse;margin-bottom:3mm"><tr>' +
+                    tarjeta('Facturado (' + k.nFacturados + ')', dinero(k.totalFacturado), '#15803d') +
+                    tarjeta('Estimado por tarifario', dinero(k.totalEstimado)) +
+                    tarjeta('Por facturar (' + k.nPendientes + ')', dinero(k.porFacturar), k.porFacturar ? '#b45309' : null) +
+                    tarjeta('Diferencia facturado − estimado', dinero(k.diferencia), k.diferencia < 0 ? '#b91c1c' : null) +
+                '</tr></table>' +
+                '<table style="width:' + ANCHO + 'mm;table-layout:fixed;border-collapse:collapse">' +
+                '<colgroup>' + cols.map(w => '<col style="width:' + w + 'mm">').join('') + '</colgroup>' +
+                '<thead><tr>' +
+                '<th style="' + th + '">Orden</th><th style="' + th + '">Fecha</th><th style="' + th + '">Equipo</th>' +
+                '<th style="' + th + '">Tipo de servicio</th><th style="' + th + 'text-align:right">Estimado</th>' +
+                '<th style="' + th + '">Factura</th><th style="' + th + 'text-align:right">Facturado</th>' +
+                '<th style="' + th + 'text-align:right">Diferencia</th>' +
+                '</tr></thead><tbody>';
+
+            k.filas.forEach(r => {
+                const util = (v) => (v && !/^(n\/?a|s\/?n|-)$/i.test(String(v).trim())) ? v : '';
+                const detalle = [[util(r.marca), util(r.modelo)].filter(Boolean).join(' · '),
+                                 [util(r.serie) ? 'S/N ' + r.serie : '', util(r.inventario) ? 'Inv. ' + r.inventario : '', util(r.area)].filter(Boolean).join(' · ')].filter(Boolean);
+                html += '<tr style="break-inside:avoid;page-break-inside:avoid">' +
+                    '<td style="' + td + 'font-weight:700">' + esc(r.id) + '</td>' +
+                    '<td style="' + td + '">' + esc(r.fecha) + '</td>' +
+                    '<td style="' + td + '"><b>' + esc(r.equipo) + '</b>' +
+                        detalle.map(t => '<br><span style="color:#475569;font-size:6.8pt">' + esc(t) + '</span>').join('') + '</td>' +
+                    '<td style="' + td + '">' + esc(r.tipo) + '</td>' +
+                    '<td style="' + td + der + (r.estimado === null ? 'color:#b45309;font-size:6.8pt;' : '') + '">' +
+                        (r.estimado !== null ? dinero(r.estimado) : esc(r.notaEstimado || '—')) + '</td>' +
+                    '<td style="' + td + (r.factura ? '' : 'color:#b45309;') + '">' + (r.factura ? esc(r.factura) +
+                        (r.fechaFactura ? '<br><span style="color:#475569;font-size:6.8pt">' + esc(r.fechaFactura) + '</span>' : '') : 'Pendiente') + '</td>' +
+                    '<td style="' + td + der + 'font-weight:700;color:#15803d">' +
+                        (r.facturado !== null ? dinero(r.facturado) : (r.facturadaSinImporte ? '<span style="font-weight:400;color:#b45309;font-size:6.8pt">sin importe</span>' : '')) + '</td>' +
+                    '<td style="' + td + der + (r.diferencia < 0 ? 'color:#b91c1c;' : '') + '">' + (r.diferencia !== null ? dinero(r.diferencia) : '') + '</td>' +
+                '</tr>';
+            });
+            html += '<tr style="break-inside:avoid">' +
+                '<td colspan="4" style="' + td + 'font-weight:700;background:#f1f5f9;text-align:right">Total</td>' +
+                '<td style="' + td + der + 'font-weight:700;background:#f1f5f9">' + dinero(k.totalEstimado) + '</td>' +
+                '<td style="' + td + 'background:#f1f5f9"></td>' +
+                '<td style="' + td + der + 'font-weight:700;background:#f1f5f9;color:#15803d">' + dinero(k.totalFacturado) + '</td>' +
+                '<td style="' + td + der + 'font-weight:700;background:#f1f5f9">' + dinero(k.diferencia) + '</td>' +
+                '</tr></tbody></table>' +
+                '<p style="font-size:7pt;color:#475569;margin-top:2mm">Estimado: precio del tarifario en el nivel elegido (en rentas, tiempo × precio fijo). ' +
+                'Facturado: importe capturado al registrar la factura. Diferencia = facturado − estimado, solo cuando hay ambos.' +
+                (k.sinEstimado ? ' ' + k.sinEstimado + ' servicio(s) sin estimado (precio variable, sin tarifa o renta en curso) no suman al estimado.' : '') +
+                '</p></div>';
+
+            cerrarModalRealizados();
+            const cont = document.getElementById('calendarioImprimible');
+            cont.innerHTML = html;
+            cont.classList.remove('hidden');
+            document.body.classList.add('printing-calendario');
+            registrarEvento('exportar_realizados', 'PDF · ' + k.tipoEtiqueta + ' · ' + etiquetaPeriodoRealizados() + ' · ' + k.filas.length + ' servicio(s)');
+
+            const limpiar = () => {
+                document.body.classList.remove('printing-calendario');
+                cont.classList.add('hidden');
+                cont.innerHTML = '';
+                window.removeEventListener('afterprint', limpiar);
+            };
+            window.addEventListener('afterprint', limpiar);
+            setTimeout(() => window.print(), 120);
+        }
 
         /* ============================================================
            v5.4 — PRÓXIMOS MANTENIMIENTOS DE TODAS LAS UNIDADES

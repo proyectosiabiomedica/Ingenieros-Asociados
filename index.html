@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=7.5">
+    <link rel="stylesheet" href="estilos.css?v=7.6">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -452,9 +452,9 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     Imprimir Tabla
                                 </button>
-                                <button onclick="exportarCSVServicio('prev')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Exportar CSV
+                                <button onclick="abrirModalRealizados('prev')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
                                 </button>
                                 <button onclick="abrirModalExportar('prev')" class="bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -525,9 +525,9 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     Imprimir Tabla
                                 </button>
-                                <button onclick="exportarCSVServicio('cal')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Exportar CSV
+                                <button onclick="abrirModalRealizados('cal')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
                                 </button>
                                 <button onclick="abrirModalExportar('cal')" class="bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -588,9 +588,9 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     Imprimir Tabla
                                 </button>
-                                <button onclick="exportarCSVServicio('corr')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Exportar CSV
+                                <button onclick="abrirModalRealizados('corr')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
                                 </button>
                             </div>
                         </div>
@@ -646,9 +646,9 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                     Imprimir Tabla
                                 </button>
-                                <button onclick="exportarCSVServicio('ent')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Exportar CSV
+                                <button onclick="abrirModalRealizados('ent')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
                                 </button>
                             </div>
                         </div>
@@ -703,9 +703,9 @@
                                 <button onclick="imprimirTablaServicio('ren')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
                                     Imprimir Tabla
                                 </button>
-                                <button onclick="exportarCSVServicio('ren')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Exportar CSV
+                                <button onclick="abrirModalRealizados('ren')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
                                 </button>
                             </div>
                         </div>
@@ -1869,6 +1869,76 @@
         </div>
     </div>
 
+    <!-- ============ v7.6: exportación de servicios realizados ============ -->
+    <div id="modalRealizados" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[76] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Exportar servicios realizados</h3>
+                    <p id="relSubtitulo" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="cerrarModalRealizados()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Cerrar">&times;</button>
+            </div>
+
+            <div class="p-5 overflow-y-auto flex flex-col gap-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Periodo</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
+                        <select id="relPeriodo" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="anual">Anual</option>
+                            <option value="semestral">Semestral</option>
+                            <option value="mensual">Mensual</option>
+                            <option value="todo">Todo el historial</option>
+                        </select>
+                        <select id="relAnio" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                        <select id="relRango" class="p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Por fecha en que se realizó el servicio (en rentas, la fecha de inicio).</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Tipo de servicio</label>
+                        <select id="relTipo" class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="prev">Preventivos</option>
+                            <option value="cal">Calibraciones</option>
+                            <option value="mant">Preventivos y calibraciones</option>
+                            <option value="corr">Correctivos / Asistencias</option>
+                            <option value="ent">Entregas / Materiales</option>
+                            <option value="ren">Rentas</option>
+                            <option value="todos">Todos los servicios</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Facturación</label>
+                        <select id="relFacturacion" class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="todos">Facturados y pendientes</option>
+                            <option value="facturados">Solo facturados</option>
+                            <option value="pendientes">Solo pendientes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Nivel de precio</label>
+                        <select id="relNivel" class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
+                            <option value="I">Nivel I</option>
+                            <option value="II">Nivel II</option>
+                            <option value="III">Nivel III</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="relResumen" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-600"></div>
+                <p id="relMensaje" class="hidden text-xs rounded-lg p-3"></p>
+            </div>
+
+            <div class="flex flex-wrap justify-end items-center gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button onclick="cerrarModalRealizados()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cancelar</button>
+                <button id="btnRealizadosPDF" onclick="exportarRealizadosPDF()" class="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors">Exportar a PDF</button>
+                <button id="btnRealizadosExcel" onclick="exportarRealizadosExcel()" class="bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors">Exportar a Excel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Contenedor que se imprime cuando se exporta a PDF -->
     <div id="calendarioImprimible" class="hidden"></div>
 
@@ -2282,6 +2352,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=7.5"></script>
+    <script src="app.js?v=7.6"></script>
 </body>
 </html>
