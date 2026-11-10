@@ -72,7 +72,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '7.7';
+        const VERSION_APP = '7.8';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -3862,6 +3862,7 @@
             document.getElementById('ocTipo').innerHTML = tiposCorrectivoDisponibles().map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('');
             ['ocFalla', 'ocReporta', 'ocNotas'].forEach(id => { document.getElementById(id).value = ''; });
             document.getElementById('ocPrioridad').value = 'Normal';
+            document.getElementById('ocTablero').checked = true;
             document.getElementById('ocFecha').value = isoLocal();
             document.getElementById('ocMensaje').classList.add('hidden');
             cambiarUnidadOrdenCorr();
@@ -3917,6 +3918,9 @@
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ accion: 'crearAsignaciones', token: tokenSesion(), ingeniero: ingeniero, fechaProgramada: fecha, notas: notas,
+                        // v7.7: tarjeta en el tablero de la app de Órdenes
+                        tablero: document.getElementById('ocTablero').checked
+                            ? { prioridad: prioridad === 'Normal' ? 'media' : 'alta' } : null,
                         equipos: [{ llave: llave, unidad: unidad, tipo: tipo, equipo: x.equipo, marca: x.marca, modelo: x.modelo, serie: x.serie,
                                     inventario: x.inventario, area: x.area, ordenAnterior: base.ID || '', prellenado: prellenado }] })
                 });
@@ -3932,8 +3936,11 @@
                 cerrarOrdenCorrectiva();
                 await cargarAsignaciones();
                 renderOrdenesCorrAsignadas();
+                const tab = j.tablero;
                 mostrarAviso('Orden de ' + tipo.toLowerCase() + ' de ' + equipo + ' (' + unidad + ') asignada a ' + ingeniero +
-                             ' para el ' + new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX') + '.');
+                             ' para el ' + new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX') + '.' +
+                             (tab ? (tab.ok ? ' También quedó en su tablero.' : ' No se pudo agregar al tablero: ' + tab.error) : ''),
+                             tab && !tab.ok ? 12 : undefined);
             } catch (err) {
                 mostrar('No se asignó: ' + err.message, 'error');
             } finally {

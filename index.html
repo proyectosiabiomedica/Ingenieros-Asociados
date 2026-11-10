@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=7.7">
+    <link rel="stylesheet" href="estilos.css?v=7.8">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -2094,6 +2094,10 @@
                     <label for="ocNotas" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Indicaciones para el ingeniero</label>
                     <textarea id="ocNotas" rows="2" maxlength="300" placeholder="Opcional" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
                 </div>
+                <label class="flex items-start gap-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <input id="ocTablero" type="checkbox" checked class="mt-0.5 rounded border-slate-300">
+                    <span><b>Agregar también al tablero</b> de la app de Órdenes, en la columna «Asignada» del ingeniero. Urgente y Equipo detenido entran con prioridad alta.</span>
+                </label>
                 <p id="ocMensaje" class="hidden text-sm"></p>
             </div>
             <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
@@ -2456,6 +2460,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=7.7"></script>
+    <script src="app.js?v=7.8"></script>
 </body>
 </html>
