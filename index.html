@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=7.6">
+    <link rel="stylesheet" href="estilos.css?v=7.7">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -985,8 +985,8 @@
             </div>
 
             <div class="border-b border-slate-200 mb-5 flex gap-5">
-                <button id="tabGmProx" onclick="cambiarPestanaGestion('proximos')" class="py-3 px-2 text-sm focus:outline-none tab-active transition-colors">Próximos mantenimientos</button>
-                <button id="tabGmCorr" onclick="cambiarPestanaGestion('correctivos')" class="py-3 px-2 text-sm focus:outline-none tab-inactive transition-colors">Correctivos por ingeniero</button>
+                <button id="tabGmProx" onclick="cambiarPestanaGestion('proximos')" class="py-3 px-2 text-sm focus:outline-none tab-active transition-colors">Preventivos</button>
+                <button id="tabGmCorr" onclick="cambiarPestanaGestion('correctivos')" class="py-3 px-2 text-sm focus:outline-none tab-inactive transition-colors">Correctivos</button>
             </div>
 
             <div id="gmPanelProximos">
@@ -1063,6 +1063,25 @@
 
             <!-- v6.9: correctivos por ingeniero (productividad) -->
             <div id="gmPanelCorrectivos" class="hidden">
+                <!-- v7.7: prellenar una orden de servicio y asignarla a un ingeniero -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 mb-5 overflow-hidden">
+                    <div class="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800">Órdenes de servicio asignadas</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Correctivos y asistencias que se prellenaron aquí; le llegan al ingeniero como borrador en su app de Órdenes de Trabajo.</p>
+                        </div>
+                        <button onclick="abrirOrdenCorrectiva()" class="shrink-0 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Prellenar y asignar orden
+                        </button>
+                    </div>
+                    <div class="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center gap-3 text-xs">
+                        <label class="flex items-center gap-1.5 text-slate-600"><input id="ocVerCerradas" type="checkbox" class="rounded border-slate-300"> Mostrar enviadas y canceladas</label>
+                        <span id="ocConteo" class="text-slate-400 font-semibold"></span>
+                    </div>
+                    <div id="ocLista" class="overflow-x-auto"></div>
+                </div>
+
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
                     <div class="bg-white rounded-xl border border-slate-200 p-4">
                         <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Correctivos</p>
@@ -1999,6 +2018,91 @@
         </div>
     </div>
 
+    <!-- ============ v7.7: prellenar orden de servicio correctiva y asignarla ============ -->
+    <div id="modalOrdenCorr" role="dialog" aria-modal="true" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[77] items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-3xl rounded-xl shadow-2xl flex flex-col max-h-[94vh]">
+            <div class="flex justify-between items-start gap-4 p-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Prellenar y asignar orden de servicio</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">La orden le llegará al ingeniero como borrador en su app de Órdenes de Trabajo, con estos datos ya capturados.</p>
+                </div>
+                <button onclick="cerrarOrdenCorrectiva()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" title="Cerrar" aria-label="Cerrar">&times;</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex flex-col gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label for="ocUnidad" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Unidad *</label>
+                        <select id="ocUnidad" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500 bg-white"></select>
+                    </div>
+                    <div>
+                        <label for="ocTipo" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Tipo de servicio *</label>
+                        <select id="ocTipo" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500 bg-white"></select>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="ocEquipoBuscar" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Buscar equipo de la unidad</label>
+                    <input id="ocEquipoBuscar" type="text" placeholder="Buscar en los equipos atendidos de la unidad (nombre, serie, área)…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    <select id="ocEquipoSel" size="5" class="w-full mt-2 p-1 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500 bg-white"></select>
+                    <p class="text-xs text-slate-400 mt-1">Al elegir un equipo se copian sus datos de la última orden. Si no aparece, captúralo a mano abajo.</p>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div class="col-span-2 md:col-span-1"><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Equipo *</label>
+                        <input id="ocEquipo" type="text" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Marca</label>
+                        <input id="ocMarca" type="text" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Modelo</label>
+                        <input id="ocModelo" type="text" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">No. de serie</label>
+                        <input id="ocSerie" type="text" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Inventario</label>
+                        <input id="ocInventario" type="text" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                    <div><label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Área o ubicación</label>
+                        <input id="ocArea" type="text" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                </div>
+
+                <div>
+                    <label for="ocFalla" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Falla reportada / motivo *</label>
+                    <textarea id="ocFalla" rows="2" maxlength="300" placeholder="Qué reporta el área: «No enciende», «Alarma de oclusión constante»…" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><label for="ocReporta" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Quién reporta</label>
+                        <input id="ocReporta" type="text" placeholder="Nombre y área (opcional)" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></div>
+                    <div><label for="ocPrioridad" class="text-xs font-bold text-slate-500 uppercase tracking-wide">Prioridad</label>
+                        <select id="ocPrioridad" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500 bg-white">
+                            <option value="Normal">Normal</option>
+                            <option value="Urgente">Urgente</option>
+                            <option value="Equipo detenido">Equipo detenido</option>
+                        </select></div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                    <div>
+                        <label for="ocIngeniero" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Asignar a *</label>
+                        <select id="ocIngeniero" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500 bg-white">
+                            <option value="">Cargando ingenieros…</option>
+                        </select>
+                        <p id="ocOrigenIngenieros" class="text-xs text-slate-500 mt-1 hidden"></p>
+                    </div>
+                    <div>
+                        <label for="ocFecha" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Fecha programada *</label>
+                        <input id="ocFecha" type="date" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
+                    </div>
+                </div>
+                <div>
+                    <label for="ocNotas" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Indicaciones para el ingeniero</label>
+                    <textarea id="ocNotas" rows="2" maxlength="300" placeholder="Opcional" class="w-full mt-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500"></textarea>
+                </div>
+                <p id="ocMensaje" class="hidden text-sm"></p>
+            </div>
+            <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button onclick="cerrarOrdenCorrectiva()" class="text-sm font-semibold text-slate-600 hover:text-slate-800 px-4 py-2 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarOrdenCorr" onclick="confirmarOrdenCorrectiva()" class="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">Prellenar y asignar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v6.0: envío de la encuesta de satisfacción ============ -->
     <div id="modalEncuesta" role="dialog" aria-modal="true" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[77] items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
@@ -2352,6 +2456,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=7.6"></script>
+    <script src="app.js?v=7.7"></script>
 </body>
 </html>

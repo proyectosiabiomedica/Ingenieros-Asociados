@@ -1366,6 +1366,21 @@ Cada servicio lleva su **estimado por tarifario** (precio del nivel elegido; en 
 - **Excel:** una hoja con todas las columnas por separado, filtro, renglón de totales y un resumen.
 - **PDF:** hoja carta horizontal con tarjetas de totales y la tabla (se imprime con «Guardar como PDF», igual que el calendario).
 
+## 4.35 Prellenar y asignar órdenes de servicio (v7.7)
+
+En **Gestión de mantenimiento** las pestañas se llaman ahora **Preventivos** (antes *Próximos mantenimientos*) y **Correctivos** (antes *Correctivos por ingeniero*).
+
+En **Correctivos**, el botón **Prellenar y asignar orden** abre un formulario para armar una orden de servicio correctiva y asignarla a un ingeniero:
+
+- **Unidad** y **tipo de servicio** (los textos de correctivo/asistencia que ya existen en las órdenes, que son opciones válidas del formulario de Jotform).
+- **Equipo:** se busca entre los equipos atendidos en la unidad y se copian marca, modelo, serie, inventario y área de su última orden; si no aparece, se captura a mano.
+- **Falla reportada** (obligatoria), **quién reporta** y **prioridad** (Normal, Urgente, Equipo detenido). Viajan en las indicaciones de la asignación; Urgente y Equipo detenido van al inicio en mayúsculas.
+- **Ingeniero** (usuarios de la app de Órdenes, igual que en preventivos), **fecha programada** e indicaciones adicionales.
+
+Usa el mismo canal que la asignación de preventivos (v6.2): una fila en la pestaña **Asignaciones**, que la app de Órdenes de Trabajo convierte en un borrador con UNIDAD, DOMICILIO, TELÉFONO, EMAIL, ÁREA, EQUIPO, MARCA, MODELO, SERIE, INVENTARIO, TIPO DE SERVICIO e INGENIERO ya capturados. Un equipo no puede tener dos correctivos abiertos a la vez.
+
+Arriba de los indicadores de la pestaña está la lista **Órdenes de servicio asignadas** (abiertas por omisión; *Mostrar enviadas y canceladas* muestra el resto), con su estado, el folio cuando el ingeniero la envía y el botón **Cancelar**. Respeta el filtro de unidad de la pestaña. No requiere cambios en `Code.gs`.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1448,6 +1463,7 @@ Cada servicio lleva su **estimado por tarifario** (precio del nivel elegido; en 
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 7.7 | **Prellenar y asignar órdenes de servicio.** Las pestañas de Gestión de mantenimiento pasan a ser **Preventivos** y **Correctivos**; en Correctivos, botón para prellenar una orden correctiva (unidad, equipo, tipo, falla, prioridad) y asignarla a un ingeniero como borrador en la app de Órdenes, con lista de órdenes asignadas y cancelación (ver 4.35) |
 | 7.6 | **Exportar servicios realizados.** El «Exportar CSV» de las pestañas de cada unidad se sustituye por un cuadro de exportación a **Excel y PDF** con periodo, tipo de servicio, facturación y nivel de precio; cada servicio muestra su costo **facturado** y el **estimado por tarifario**, con totales, por facturar y diferencia (ver 4.34) |
 | 7.5 | **Órdenes de renta.** Se lee la pestaña «Ordenes de Renta» (`&hoja=rentas`). Catálogo **Rentas** con Precio día y Precio mes fijos; cada orden se cobra por día o por mes según su TIEMPO TOTAL. Pestaña **Rentas** en cada unidad con facturación, rentas en la **auditoría financiera** (filtro Tipo y CFDI), apartado **Rentas** con métricas y exportación, renglón de rentas en el dashboard y conceptos de renta en el cotizador. Permiso nuevo `rentas` (ver 4.33) |
 | 6.9 | **Gestión de mantenimiento.** «Próximos mantenimientos» se renombra a *Gestión de mantenimiento* y suma la pestaña **Correctivos por ingeniero**: correctivos por ingeniero con promedio mensual, unidades, equipos, días de atención, órdenes que requieren cotización, detalle de órdenes y exportación a Excel (ver 4.32) |

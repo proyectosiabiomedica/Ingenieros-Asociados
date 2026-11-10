@@ -72,7 +72,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '7.6';
+        const VERSION_APP = '7.7';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -3336,9 +3336,13 @@
             document.getElementById('gmPanelProximos').classList.toggle('hidden', corr);
             document.getElementById('gmPanelCorrectivos').classList.toggle('hidden', !corr);
             document.getElementById('gmDescripcion').innerText = corr
-                ? 'Correctivos y asistencias atendidos por cada ingeniero, para ver su productividad por periodo y por unidad.'
+                ? 'Prellena órdenes de servicio correctivas y asígnalas a un ingeniero; abajo, los correctivos atendidos por cada ingeniero por periodo y por unidad.'
                 : 'Todas las unidades en una sola lista, para planear rutas y no dejar vencer equipos. Cada equipo se programa a partir de su último preventivo o calibración y de su frecuencia.';
-            if (corr) { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); }
+            if (corr) {
+                poblarFiltrosCorrectivos(); renderCorrectivosIngeniero();
+                renderOrdenesCorrAsignadas();                                  // v7.7
+                cargarAsignaciones().then(renderOrdenesCorrAsignadas);
+            }
         }
 
         function correctivosBase() {
@@ -3672,8 +3676,8 @@
             return res;
         }
 
-        function llenarSelectIngenieros(res, sugeridos) {
-            const sel = document.getElementById('asgIngeniero');
+        function llenarSelectIngenieros(res, sugeridos, idSelect, idNota) {
+            const sel = document.getElementById(idSelect || 'asgIngeniero');   // v7.7: también el de órdenes correctivas
             const norm = t => normalizar(String(t || '')).toLowerCase().replace(/\s+/g, ' ').trim();
             const ings = res.lista.filter(i => !i.coordinacion), coord = res.lista.filter(i => i.coordinacion);
             const opt = i => '<option value="' + esc(i.nombre) + '">' + esc(i.nombre) + '</option>';
@@ -3688,7 +3692,7 @@
                 const igual = res.lista.find(i => norm(i.nombre) === norm(sugeridos[0]));
                 sel.value = igual ? igual.nombre : '';
             } else sel.value = '';
-            const nota = document.getElementById('asgOrigenIngenieros');
+            const nota = document.getElementById(idNota || 'asgOrigenIngenieros');
             const texto = res.origen === 'app' ? ''
                         : res.origen === 'ordenes' && res.lista.length
                             ? 'No se pudo leer la lista de usuarios de la app de Órdenes; se muestran los ingenieros de las órdenes anteriores. Verifica que el nombre sea el mismo con el que entra a la app.' + (res.error ? ' (' + res.error + ')' : '')
@@ -3760,6 +3764,247 @@
                 btn.disabled = false; btn.innerText = 'Asignar';
             }
         }
+
+        /* ============================================================
+           v7.7 — PRELLENAR Y ASIGNAR ÓRDENES DE SERVICIO (CORRECTIVOS)
+           Desde la pestaña Correctivos de Gestión de mantenimiento se arma una
+           orden de servicio (unidad, equipo, tipo, falla reportada) y se le
+           asigna a un ingeniero. Usa el mismo canal que las asignaciones de
+           preventivos (v6.2): una fila en la pestaña "Asignaciones" que la app
+           de Órdenes de Trabajo convierte en un borrador prellenado.
+             · Los datos del equipo se copian de su última orden en la unidad.
+             · El tipo de servicio se elige entre los textos de correctivo que
+               ya existen en las órdenes, que son opciones válidas del formulario.
+             · La falla, quién reporta y la prioridad viajan en las
+               indicaciones (Notas) de la asignación.
+             · Llave "corr#unidad#equipo": un equipo no puede tener dos
+               correctivos abiertos a la vez; uno capturado a mano lleva una
+               llave única.
+           ============================================================ */
+        const TIPOS_CORRECTIVO_BASE = ['Mantenimiento Correctivo', 'Asistencia Técnica'];
+        let equiposOrdenCorr = [];
+
+        function esAsignacionCorrectiva(a) {
+            return String(a.llave || '').indexOf('corr#') === 0 ||
+                   /correct|asist/i.test(normalizar(String(a.tipo || '')));
+        }
+
+        function tiposCorrectivoDisponibles() {
+            const cuenta = new Map();
+            datosDetalleOrdenes.filter(d => d.esCorrectivo).forEach(d => {
+                const t = String(d['Tipo de Servicio'] || '').trim();
+                if (t) cuenta.set(t, (cuenta.get(t) || 0) + 1);
+            });
+            const lista = Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+            return lista.length ? lista : TIPOS_CORRECTIVO_BASE;
+        }
+
+        // Equipos atendidos en la unidad: uno por equipo, con su última orden
+        function equiposDeUnidad(unidad) {
+            const ult = new Map();
+            datosDetalleOrdenes.forEach(d => {
+                if (d.Cliente !== unidad) return;
+                const k = llaveEquipoCal(d);
+                const p = ult.get(k);
+                if (!p || ((d.FechaObj ? d.FechaObj.getTime() : 0) > (p.FechaObj ? p.FechaObj.getTime() : 0))) ult.set(k, d);
+            });
+            return Array.from(ult.entries()).map(([k, d]) => ({ llave: k, orden: d }))
+                .sort((a, b) => String(a.orden.Equipo).localeCompare(String(b.orden.Equipo), 'es'));
+        }
+
+        const limpioOC = (v) => { const t = String(v || '').trim(); return /^(n\/?a|s\/?n|sin (marca|equipo|serie)|-)$/i.test(t) ? '' : t; };
+
+        function pintarEquiposOrdenCorr() {
+            const q = normalizar(document.getElementById('ocEquipoBuscar').value.toLowerCase()).trim();
+            const sel = document.getElementById('ocEquipoSel');
+            const lista = equiposOrdenCorr.filter(e => {
+                if (!q) return true;
+                const d = e.orden;
+                return normalizar([d.Equipo, d.Marca, d.Modelo, d.Serie, d.Inventario, d.Area].join(' ').toLowerCase()).includes(q);
+            }).slice(0, 300);
+            sel.innerHTML = lista.length
+                ? lista.map(e => {
+                    const d = e.orden;
+                    const det = [[limpioOC(d.Marca), limpioOC(d.Modelo)].filter(Boolean).join(' '), limpioOC(d.Serie) ? 'S/N ' + d.Serie : '', limpioOC(d.Area)].filter(Boolean).join(' · ');
+                    return '<option value="' + esc(e.llave) + '">' + esc(d.Equipo + (det ? ' — ' + det : '')) + '</option>';
+                  }).join('')
+                : '<option value="" disabled>' + (equiposOrdenCorr.length ? 'Ningún equipo coincide' : 'La unidad no tiene equipos atendidos') + '</option>';
+        }
+
+        function cambiarUnidadOrdenCorr() {
+            equiposOrdenCorr = equiposDeUnidad(document.getElementById('ocUnidad').value);
+            document.getElementById('ocEquipoBuscar').value = '';
+            ['ocEquipo', 'ocMarca', 'ocModelo', 'ocSerie', 'ocInventario', 'ocArea'].forEach(id => { document.getElementById(id).value = ''; });
+            document.getElementById('ocEquipoSel').dataset.llave = '';
+            pintarEquiposOrdenCorr();
+        }
+
+        function elegirEquipoOrdenCorr() {
+            const sel = document.getElementById('ocEquipoSel');
+            const e = equiposOrdenCorr.find(x => x.llave === sel.value);
+            if (!e) return;
+            const d = e.orden;
+            document.getElementById('ocEquipo').value = limpioOC(d.Equipo);
+            document.getElementById('ocMarca').value = limpioOC(d.Marca);
+            document.getElementById('ocModelo').value = limpioOC(d.Modelo);
+            document.getElementById('ocSerie').value = limpioOC(d.Serie);
+            document.getElementById('ocInventario').value = limpioOC(d.Inventario);
+            document.getElementById('ocArea').value = limpioOC(d.Area);
+            sel.dataset.llave = e.llave;
+        }
+
+        async function abrirOrdenCorrectiva(unidadInicial) {
+            const selU = document.getElementById('ocUnidad');
+            const unidades = clientesUnicos.slice().sort((a, b) => a.localeCompare(b, 'es'));
+            selU.innerHTML = '<option value="">Elige la unidad…</option>' + unidades.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+            const filtroU = document.getElementById('corrUnidad') ? document.getElementById('corrUnidad').value : '';
+            selU.value = unidadInicial || filtroU || '';
+            document.getElementById('ocTipo').innerHTML = tiposCorrectivoDisponibles().map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('');
+            ['ocFalla', 'ocReporta', 'ocNotas'].forEach(id => { document.getElementById(id).value = ''; });
+            document.getElementById('ocPrioridad').value = 'Normal';
+            document.getElementById('ocFecha').value = isoLocal();
+            document.getElementById('ocMensaje').classList.add('hidden');
+            cambiarUnidadOrdenCorr();
+
+            const sel = document.getElementById('ocIngeniero');
+            sel.innerHTML = '<option value="">Cargando ingenieros…</option>';
+            sel.disabled = true;
+            document.getElementById('ocOrigenIngenieros').classList.add('hidden');
+            const m = document.getElementById('modalOrdenCorr');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            const res = await obtenerIngenierosAsignables();
+            llenarSelectIngenieros(res, [], 'ocIngeniero', 'ocOrigenIngenieros');
+            sel.disabled = false;
+        }
+
+        function cerrarOrdenCorrectiva() {
+            const m = document.getElementById('modalOrdenCorr');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+
+        async function confirmarOrdenCorrectiva() {
+            const v = (id) => document.getElementById(id).value.trim();
+            const msg = document.getElementById('ocMensaje');
+            const mostrar = (t, tipo) => { msg.innerText = t; msg.className = 'text-sm ' + (tipo === 'error' ? 'text-red-600' : 'text-slate-600'); msg.classList.remove('hidden'); };
+            const unidad = v('ocUnidad'), tipo = v('ocTipo'), equipo = v('ocEquipo'), falla = v('ocFalla');
+            const ingeniero = v('ocIngeniero'), fecha = v('ocFecha');
+            if (!unidad) { mostrar('Elige la unidad.', 'error'); return; }
+            if (!equipo) { mostrar('Elige el equipo de la lista o escribe su nombre.', 'error'); return; }
+            if (!falla) { mostrar('Describe la falla reportada o el motivo del servicio.', 'error'); return; }
+            if (!ingeniero) { mostrar('Elige al ingeniero.', 'error'); return; }
+            if (!fecha) { mostrar('Elige la fecha programada.', 'error'); return; }
+
+            // Datos del equipo elegido (si se editaron a mano, manda lo capturado)
+            const llaveLista = document.getElementById('ocEquipoSel').dataset.llave || '';
+            const elegido = equiposOrdenCorr.find(x => x.llave === llaveLista);
+            const base = elegido ? elegido.orden : (datosDetalleOrdenes.filter(d => d.Cliente === unidad)
+                .sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0))[0] || {});
+            const x = { unidad: unidad, equipo: equipo, marca: v('ocMarca'), modelo: v('ocModelo'), serie: v('ocSerie'),
+                        inventario: v('ocInventario'), area: v('ocArea'), orden: base, tipo: tipo };
+            const llaveEquipo = llaveEquipoCal({ Serie: x.serie, Inventario: x.inventario, Equipo: x.equipo, Marca: x.marca, Modelo: x.modelo, Area: x.area });
+            const llave = 'corr#' + normalizar(unidad.toLowerCase()) + '#' + llaveEquipo;
+            const prellenado = prellenadoDeEquipo(x);
+            prellenado['TIPO DE SERVICIO O MANTENIMIENTO'] = tipo;
+
+            const prioridad = v('ocPrioridad');
+            const notas = [(prioridad !== 'Normal' ? prioridad.toUpperCase() + '. ' : '') + 'Falla reportada: ' + falla,
+                           v('ocReporta') ? 'Reporta: ' + v('ocReporta') : '',
+                           v('ocNotas')].filter(Boolean).join(' · ').slice(0, 500);
+
+            const btn = document.getElementById('btnConfirmarOrdenCorr');
+            btn.disabled = true; btn.innerText = 'Asignando…';
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'crearAsignaciones', token: tokenSesion(), ingeniero: ingeniero, fechaProgramada: fecha, notas: notas,
+                        equipos: [{ llave: llave, unidad: unidad, tipo: tipo, equipo: x.equipo, marca: x.marca, modelo: x.modelo, serie: x.serie,
+                                    inventario: x.inventario, area: x.area, ordenAnterior: base.ID || '', prellenado: prellenado }] })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'El servidor respondió de forma inesperada.');
+                if (!j.creadas || !j.creadas.length) {
+                    const o = (j.omitidas || [])[0];
+                    mostrar('Este equipo ya tiene un correctivo abierto' + (o && o.ingeniero ? ' asignado a ' + o.ingeniero : '') +
+                            '. Cancélalo en la lista o espera a que se envíe la orden.', 'error');
+                    return;
+                }
+                registrarEvento('orden_correctiva_asignada', equipo + ' · ' + unidad + ' a ' + ingeniero);
+                cerrarOrdenCorrectiva();
+                await cargarAsignaciones();
+                renderOrdenesCorrAsignadas();
+                mostrarAviso('Orden de ' + tipo.toLowerCase() + ' de ' + equipo + ' (' + unidad + ') asignada a ' + ingeniero +
+                             ' para el ' + new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX') + '.');
+            } catch (err) {
+                mostrar('No se asignó: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = 'Prellenar y asignar';
+            }
+        }
+
+        function renderOrdenesCorrAsignadas() {
+            const cont = document.getElementById('ocLista');
+            if (!cont) return;
+            const verCerradas = document.getElementById('ocVerCerradas').checked;
+            const unidad = document.getElementById('corrUnidad').value;
+            const todas = asignaciones.filter(esAsignacionCorrectiva);
+            const lista = todas.filter(a => (verCerradas || ['Asignada', 'Borrador'].indexOf(a.estado) > -1) && (!unidad || a.unidad === unidad))
+                .sort((a, b) => String(b.creada).localeCompare(String(a.creada))).slice(0, 200);
+            const abiertas = todas.filter(a => ['Asignada', 'Borrador'].indexOf(a.estado) > -1).length;
+            document.getElementById('ocConteo').innerText = abiertas + ' abierta(s)' + (unidad ? ' · filtrado por ' + unidad : '');
+            if (!lista.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic px-4 py-5 text-center">' +
+                    (todas.length ? 'No hay órdenes con este filtro.' : 'Aún no se han asignado órdenes desde aquí. Usa «Prellenar y asignar orden».') + '</p>';
+                return;
+            }
+            const th = 'px-4 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
+            const color = { Asignada: 'bg-blue-100 text-blue-800', Borrador: 'bg-amber-100 text-amber-800', Enviada: 'bg-green-100 text-green-800', Cancelada: 'bg-slate-200 text-slate-600' };
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
+                ['Programada', 'Unidad', 'Equipo', 'Servicio y falla', 'Ingeniero', 'Estado', ''].map(h => '<th class="' + th + '">' + h + '</th>').join('') +
+                '</tr></thead><tbody class="divide-y divide-slate-100">' +
+                lista.map(a => {
+                    const fecha = a.fechaProgramada ? new Date(a.fechaProgramada + 'T12:00:00').toLocaleDateString('es-MX') : '';
+                    const urgente = /^(URGENTE|EQUIPO DETENIDO)/.test(a.notas);
+                    return '<tr class="hover:bg-slate-50 align-top">' +
+                        '<td class="px-4 py-2 whitespace-nowrap text-slate-700">' + esc(fecha) + '</td>' +
+                        '<td class="px-4 py-2 text-slate-700">' + esc(a.unidad) + '</td>' +
+                        '<td class="px-4 py-2"><p class="font-semibold text-slate-800">' + esc(a.equipo) + '</p>' +
+                            '<p class="text-xs text-slate-500">' + esc([a.marca, a.modelo, a.serie ? 'S/N ' + a.serie : '', a.area].filter(Boolean).join(' · ')) + '</p></td>' +
+                        '<td class="px-4 py-2 max-w-xs"><p class="text-xs font-semibold text-slate-700">' + esc(a.tipo) + '</p>' +
+                            '<p class="text-xs ' + (urgente ? 'text-red-600 font-semibold' : 'text-slate-500') + '">' + esc(a.notas) + '</p></td>' +
+                        '<td class="px-4 py-2 text-slate-700 whitespace-nowrap">' + esc(a.ingeniero) + '</td>' +
+                        '<td class="px-4 py-2"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded-full ' + (color[a.estado] || 'bg-slate-100 text-slate-700') + '">' + esc(a.estado) + '</span>' +
+                            (a.folio ? '<p class="text-xs text-slate-500 mt-1">Orden ' + esc(a.folio) + '</p>' : '') + '</td>' +
+                        '<td class="px-4 py-2 text-right">' + (['Asignada', 'Borrador'].indexOf(a.estado) > -1
+                            ? '<button data-cancelar-oc="' + esc(a.id) + '" class="text-xs font-semibold text-red-500 hover:text-red-700">Cancelar</button>' : '') + '</td>' +
+                    '</tr>';
+                }).join('') + '</tbody></table>';
+        }
+
+        document.getElementById('ocUnidad').addEventListener('change', cambiarUnidadOrdenCorr);
+        (() => { let t = null;   // (debounce se declara más abajo; aquí basta un temporizador)
+            document.getElementById('ocEquipoBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(pintarEquiposOrdenCorr, 150); });
+        })();
+        document.getElementById('ocEquipoSel').addEventListener('change', elegirEquipoOrdenCorr);
+        document.getElementById('ocVerCerradas').addEventListener('change', renderOrdenesCorrAsignadas);
+        document.getElementById('corrUnidad').addEventListener('change', renderOrdenesCorrAsignadas);
+        document.getElementById('ocLista').addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-cancelar-oc]');
+            if (!b) return;
+            const a = asignaciones.find(x => x.id === b.dataset.cancelarOc);
+            if (!a) return;
+            if (!(await confirmar('¿Cancelar la orden de ' + a.equipo + ' (' + a.unidad + ') asignada a ' + a.ingeniero + '?' +
+                                  (a.estado === 'Borrador' ? '\n\nEl ingeniero ya tiene el borrador en su app; al sincronizar se le avisará que fue cancelada.' : ''),
+                                  { titulo: 'Cancelar orden asignada', textoSi: 'Cancelar orden', textoNo: 'Volver', peligro: true }))) return;
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'cancelarAsignacion', token: tokenSesion(), id: a.id }) });
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'No se pudo cancelar.');
+                a.estado = 'Cancelada';
+                registrarEvento('asignacion_cancelada', a.equipo + ' · ' + a.unidad);
+                renderOrdenesCorrAsignadas();
+            } catch (err) { avisar(err.message); }
+        });
 
         async function exportarProximosExcel() {
             const lista = proximosFiltrados();
