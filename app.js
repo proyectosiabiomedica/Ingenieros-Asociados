@@ -864,7 +864,21 @@
             }
 
             // v3.8: facturas registradas (para la columna Factura de las pestañas)
-            await cargarFacturas();
+            // v7.9: el panel ya está armado; si el servidor tarda con las
+            // facturas, no se detiene la carga: se espera hasta 15 s y, si
+            // llegan después, se repintan las tablas.
+            progresoCarga.a(97, 'Consultando facturas');
+            let facturasListas = false;
+            const promFacturas = cargarFacturas().then(() => { facturasListas = true; });
+            await Promise.race([promFacturas, new Promise(res => setTimeout(res, 15000))]);
+            if (!facturasListas) {
+                promFacturas.then(() => {
+                    try {
+                        if (clienteActual) Object.keys(PESTANAS_SERVICIO).forEach(k => renderTablaServicio(k));
+                        if (!document.getElementById('rentasContent').classList.contains('hidden')) renderRentas();
+                    } catch (_) {}
+                });
+            }
 
             progresoCarga.terminar();
 
@@ -1909,17 +1923,21 @@
 
         async function cargarFacturas() {
             if (!hayBackend()) { facturas = []; reconstruirIndiceFacturas(); return; }
+            // v7.9: con tiempo límite, para que una respuesta colgada no frene nada
+            const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const reloj = ctl ? setTimeout(() => ctl.abort(), 60000) : null;
             try {
                 const r = await fetch(URL_APPS_SCRIPT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'listarFacturas', token: tokenSesion() })
+                    body: JSON.stringify({ accion: 'listarFacturas', token: tokenSesion() }),
+                    signal: ctl ? ctl.signal : undefined
                 });
                 const j = await r.json().catch(() => null);
                 facturas = (j && j.ok && Array.isArray(j.facturas)) ? j.facturas : [];
             } catch (_) {
                 facturas = [];      // sin señal se muestra sin facturas, no se rompe
-            }
+            } finally { if (reloj) clearTimeout(reloj); }
             reconstruirIndiceFacturas();
         }
 
