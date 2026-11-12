@@ -1,7 +1,65 @@
 /* Ingenieros Asociados · Gestión de Mantenimiento · app.js
    Lógica de la plataforma (v5.6: separada de index.html para que el
    service worker la guarde aparte). */
-        Chart.register(ChartDataLabels);
+
+        /* v7.9 — RED DE SEGURIDAD DEL ARRANQUE
+           Si algo falla mientras la pantalla de carga sigue visible (una
+           librería que no llegó, una página vieja en caché con un app.js
+           nuevo, una red que corta), en lugar de girar para siempre se
+           muestra qué pasó y un botón que borra la copia local y recarga. */
+        (function () {
+            let mostrado = false, caja = null, reloj = null;
+            function avisoArranque(motivo) {
+                const b = document.getElementById('loadingBanner');
+                if (mostrado || !b || b.style.display === 'none') return;
+                mostrado = true;
+                caja = document.createElement('div');
+                caja.style.cssText = 'margin-top:1.25rem;max-width:26rem;font-size:.875rem;color:#334155;text-align:center';
+                caja.innerHTML = '<p style="font-weight:700;color:#b91c1c;margin-bottom:.35rem">La plataforma no terminó de cargar.</p>' +
+                    '<p style="margin-bottom:.75rem">Suele deberse a una copia vieja guardada en este navegador o a la red. ' +
+                    'Pulsa el botón para borrar la copia local y volver a cargar.</p>' +
+                    '<button type="button" style="background:#005DA1;color:#fff;font-weight:600;padding:.55rem 1.1rem;border-radius:.5rem">Recargar sin copia local</button>' +
+                    '<p style="margin-top:.75rem;font-size:.7rem;color:#94a3b8;word-break:break-word"></p>';
+                caja.querySelector('p:last-child').textContent = 'Detalle: ' + String(motivo || '').slice(0, 180);
+                caja.querySelector('button').onclick = recargarLimpio;
+                const cont = b.firstElementChild || b;
+                cont.appendChild(caja);
+            }
+            async function recargarLimpio() {
+                try {
+                    if ('serviceWorker' in navigator) {
+                        const regs = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(regs.map(r => r.unregister()));
+                    }
+                    if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); }
+                    try { sessionStorage.clear(); } catch (_) {}
+                } catch (_) {}
+                location.replace(location.pathname + '?r=' + Date.now() + location.hash);
+            }
+            window.__avisoArranque = avisoArranque;
+            // Cada carga de datos reinicia el aviso y su reloj de 90 segundos
+            window.__reiniciarAvisoArranque = function (activo) {
+                if (caja && caja.parentNode) caja.parentNode.removeChild(caja);
+                caja = null; mostrado = false;
+                clearTimeout(reloj);
+                if (activo) reloj = setTimeout(() => avisoArranque('La carga tardó más de 90 segundos (red lenta o sin respuesta del servidor).'), 90000);
+            };
+            // Errores de código o de una librería (<script>) que no llegó; una imagen o fuente que falle no cuenta
+            window.addEventListener('error', (e) => {
+                const t = e && e.target;
+                if (t && t !== window && t.tagName !== 'SCRIPT') return;
+                avisoArranque(e.message || (t && t.src ? 'No cargó ' + t.src : 'error'));
+            }, true);
+            window.addEventListener('unhandledrejection', (e) => avisoArranque(e && e.reason && (e.reason.message || e.reason)));
+        })();
+
+        // Elemento que puede no existir si el navegador trae una página vieja en caché
+        function elOpcional(id) {
+            return document.getElementById(id) || { addEventListener() {}, classList: { add() {}, remove() {}, toggle() {} }, style: {}, dataset: {} };
+        }
+
+        if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+        else window.__avisoArranque && setTimeout(() => window.__avisoArranque('No cargaron las librerías de gráficas (Chart.js).'), 0);
 
         /* ============================================================
            CONFIGURACIÓN GENERAL
@@ -72,7 +130,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '7.8';
+        const VERSION_APP = '7.9';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -248,7 +306,17 @@
                 if (enCache) return enCache;
             }
             const url = urlDatos(hoja, forzar);   // puede lanzar si falta la URL
-            const r = await fetch(url);
+            // v7.9: ninguna hoja puede dejar la carga esperando para siempre;
+            // las opcionales (rentas) se rinden antes
+            const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const limite = hoja === 'rentas' ? 30000 : 120000;
+            const reloj = ctl ? setTimeout(() => ctl.abort(), limite) : null;
+            let r;
+            try { r = await fetch(url, ctl ? { signal: ctl.signal } : undefined); }
+            catch (err) {
+                if (err && err.name === 'AbortError') throw new Error('El servidor no respondió en ' + Math.round(limite / 1000) + ' s (' + hoja + ').');
+                throw err;
+            } finally { if (reloj) clearTimeout(reloj); }
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const texto = await r.text();
             // v5.3: el backend responde JSON cuando la sesión no es válida
@@ -630,6 +698,7 @@
 
             return {
                 iniciar(etapa) {
+                    if (window.__reiniciarAvisoArranque) window.__reiniciarAvisoArranque(true);   // v7.9
                     objetivo = 0; actual = 0; animando = false;
                     pintar();
                     this.etapa(etapa || 'Iniciando');
@@ -647,6 +716,7 @@
                 },
                 // Cierra solo cuando el número alcanzó el 100 en pantalla
                 terminar() {
+                    if (window.__reiniciarAvisoArranque) window.__reiniciarAvisoArranque(false);  // v7.9
                     this.a(100, 'Listo');
                     const b = document.getElementById('loadingBanner');
                     if (!b) return;
@@ -1703,9 +1773,9 @@
             // v7.5: rentas de la unidad, la más reciente primero
             dataRentas = rentasDetalle.filter(r => r.Cliente === clienteNombre)
                 .sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
-            document.getElementById('clienteRentasCount').innerText = dataRentas.length;
             const activasU = dataRentas.filter(r => r.estado === 'En curso').length;
-            document.getElementById('clienteRentasActivas').innerText = activasU ? activasU + ' en curso' : '';
+            elOpcional('clienteRentasCount').innerText = dataRentas.length;
+            elOpcional('clienteRentasActivas').innerText = activasU ? activasU + ' en curso' : '';
 
             /* v3.7: los recuadros de arriba siguen resumiendo por familia
                —programado contra no programado—, aunque las pestañas de abajo
@@ -2266,7 +2336,7 @@
             });
 
             ['audCliente', 'audAnio', 'audPeriodo', 'audNivel', 'audTipo'].forEach(id =>
-                document.getElementById(id).addEventListener('change', renderAuditoria));
+                elOpcional(id).addEventListener('change', renderAuditoria));
             document.getElementById('audTexto').addEventListener('input', debounce(renderAuditoria));
         }
 
@@ -2965,7 +3035,7 @@
         }
 
         ['relPeriodo', 'relAnio', 'relRango', 'relTipo', 'relNivel', 'relFacturacion'].forEach(id => {
-            document.getElementById(id).addEventListener('change', () => {
+            elOpcional(id).addEventListener('change', () => {
                 if (id === 'relPeriodo') poblarRangoRealizados();
                 actualizarResumenRealizados();
             });
@@ -3987,14 +4057,14 @@
                 }).join('') + '</tbody></table>';
         }
 
-        document.getElementById('ocUnidad').addEventListener('change', cambiarUnidadOrdenCorr);
+        elOpcional('ocUnidad').addEventListener('change', cambiarUnidadOrdenCorr);
         (() => { let t = null;   // (debounce se declara más abajo; aquí basta un temporizador)
-            document.getElementById('ocEquipoBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(pintarEquiposOrdenCorr, 150); });
+            elOpcional('ocEquipoBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(pintarEquiposOrdenCorr, 150); });
         })();
-        document.getElementById('ocEquipoSel').addEventListener('change', elegirEquipoOrdenCorr);
-        document.getElementById('ocVerCerradas').addEventListener('change', renderOrdenesCorrAsignadas);
+        elOpcional('ocEquipoSel').addEventListener('change', elegirEquipoOrdenCorr);
+        elOpcional('ocVerCerradas').addEventListener('change', renderOrdenesCorrAsignadas);
         document.getElementById('corrUnidad').addEventListener('change', renderOrdenesCorrAsignadas);
-        document.getElementById('ocLista').addEventListener('click', async (e) => {
+        elOpcional('ocLista').addEventListener('click', async (e) => {
             const b = e.target.closest('[data-cancelar-oc]');
             if (!b) return;
             const a = asignaciones.find(x => x.id === b.dataset.cancelarOc);
@@ -9659,7 +9729,8 @@
         // v3.7: los mismos listeners para las cuatro pestañas de servicio
         Object.keys(PESTANAS_SERVICIO).forEach(clave => {
             const c = PESTANAS_SERVICIO[clave];
-            const el = (base) => document.getElementById(base + c.suf);
+            if (!document.getElementById('tabla' + c.suf)) return;   // v7.9: página vieja sin esta pestaña
+            const el = (base) => elOpcional(base + c.suf);
 
             el('filtroTexto').addEventListener('input', debounce(() => renderTablaServicio(clave)));
 
@@ -11937,9 +12008,9 @@
             } catch (err) { avisar(err.message); }
         }
 
-        ['renAnio', 'renMes', 'renUnidad', 'renEstado'].forEach(id => document.getElementById(id).addEventListener('change', renderRentas));
-        document.getElementById('renTexto').addEventListener('input', debounce(renderRentas));
-        ['renLista', 'renPorUnidad'].forEach(id => document.getElementById(id).addEventListener('click', (e) => {
+        ['renAnio', 'renMes', 'renUnidad', 'renEstado'].forEach(id => elOpcional(id).addEventListener('change', renderRentas));
+        elOpcional('renTexto').addEventListener('input', debounce(renderRentas));
+        ['renLista', 'renPorUnidad'].forEach(id => elOpcional(id).addEventListener('click', (e) => {
             const u = e.target.closest('[data-ren-unidad]');
             if (u) {
                 if (!clientesUnicos.includes(u.dataset.renUnidad)) return;
