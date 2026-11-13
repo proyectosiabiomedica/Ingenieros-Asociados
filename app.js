@@ -641,12 +641,16 @@
             // 1. Versiones
             paso('versiones');
             const pag = versionDePagina();
-            let versionSW = '';
+            // v8.0.1: puede haber dos copias mientras la nueva espera a activarse;
+            // cuenta la vigente si existe
+            let versionSW = '', swEsperando = false;
             try {
                 if (window.caches) {
-                    const k = (await caches.keys()).find(n => /^ia-app-v/.test(n));
-                    versionSW = k ? k.replace('ia-app-v', '') : '';
+                    const vs = (await caches.keys()).filter(n => /^ia-app-v/.test(n)).map(n => n.replace('ia-app-v', ''));
+                    versionSW = vs.indexOf(VERSION_APP) > -1 ? VERSION_APP : (vs.sort().pop() || '');
                 }
+                const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+                swEsperando = !!(reg && reg.waiting);
             } catch (_) {}
             if (pag && pag !== VERSION_APP) {
                 mal('Versión', 'El código es ' + VERSION_APP + ' pero la página es ' + pag + '. El navegador mezcla archivos de versiones distintas.');
@@ -654,8 +658,10 @@
             } else {
                 ok('Versión', 'Código y página ' + VERSION_APP + (versionSW ? ' · copia local (service worker) ' + versionSW : ''));
             }
-            if (versionSW && versionSW !== VERSION_APP) {
-                nota('Copia local de otra versión', 'El service worker guarda la versión ' + versionSW + '. Se actualiza solo al recargar; si no, usa «Recargar sin copia local».');
+            if (swEsperando) {
+                nota('Actualización en espera', 'La copia local nueva ya se descargó y se activa al cerrar y volver a abrir la plataforma. No impide trabajar.');
+            } else if (versionSW && versionSW !== VERSION_APP) {
+                nota('Copia local de otra versión', 'El service worker guarda la versión ' + versionSW + '. Se actualiza sola al recargar; si no, usa «Recargar sin copia local».');
             }
 
             // 2. Navegador
@@ -755,7 +761,7 @@
                             continue;
                         }
                         const filas = Math.max(0, s.texto.split('\n').length - 1);
-                        ok('Hoja: ' + nombre, filas.toLocaleString('es-MX') + ' renglones · ' + tamano(s.texto.length) + ' · ' + seg(s.ms));
+                        ok('Hoja: ' + nombre, filas.toLocaleString('es-MX') + (filas === 1 ? ' renglón · ' : ' renglones · ') + tamano(s.texto.length) + ' · ' + seg(s.ms));
                         if (esencial && s.ms > 60000) {
                             nota('Descarga lenta', 'Las órdenes de trabajo tardaron ' + seg(s.ms) + '. Con una red así la carga puede tardar varios minutos.');
                             sugerir('La red de este equipo es lenta para los datos: prueba con otra red o en otro horario.');
