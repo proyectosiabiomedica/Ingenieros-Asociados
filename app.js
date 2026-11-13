@@ -15,13 +15,19 @@
                 mostrado = true;
                 caja = document.createElement('div');
                 caja.style.cssText = 'margin-top:1.25rem;max-width:26rem;font-size:.875rem;color:#334155;text-align:center';
-                caja.innerHTML = '<p style="font-weight:700;color:#b91c1c;margin-bottom:.35rem">La plataforma no terminó de cargar.</p>' +
-                    '<p style="margin-bottom:.75rem">Suele deberse a una copia vieja guardada en este navegador o a la red. ' +
-                    'Pulsa el botón para borrar la copia local y volver a cargar.</p>' +
-                    '<button type="button" style="background:#005DA1;color:#fff;font-weight:600;padding:.55rem 1.1rem;border-radius:.5rem">Recargar sin copia local</button>' +
+                const lento = /tard/.test(String(motivo || ''));
+                caja.innerHTML = '<p style="font-weight:700;color:' + (lento ? '#b45309' : '#b91c1c') + ';margin-bottom:.35rem">' +
+                    (lento ? 'La carga está tardando más de lo normal.' : 'La plataforma no terminó de cargar.') + '</p>' +
+                    '<p style="margin-bottom:.75rem">' + (lento
+                        ? 'Puedes seguir esperando, o revisar qué falla con el diagnóstico.'
+                        : 'Suele deberse a una copia vieja guardada en este navegador o a la red. Pulsa el botón para borrar la copia local y volver a cargar.') + '</p>' +
+                    '<div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">' +
+                    '<button type="button" data-a="diag" style="background:#fff;color:#005DA1;border:1px solid #005DA1;font-weight:600;padding:.55rem 1.1rem;border-radius:.5rem">Diagnóstico de conexión</button>' +
+                    '<button type="button" data-a="recargar" style="background:#005DA1;color:#fff;font-weight:600;padding:.55rem 1.1rem;border-radius:.5rem">Recargar sin copia local</button></div>' +
                     '<p style="margin-top:.75rem;font-size:.7rem;color:#94a3b8;word-break:break-word"></p>';
                 caja.querySelector('p:last-child').textContent = 'Detalle: ' + String(motivo || '').slice(0, 180);
-                caja.querySelector('button').onclick = recargarLimpio;
+                caja.querySelector('[data-a="recargar"]').onclick = recargarLimpio;
+                caja.querySelector('[data-a="diag"]').onclick = () => { if (typeof ejecutarDiagnostico === 'function') ejecutarDiagnostico(); };
                 const cont = b.firstElementChild || b;
                 cont.appendChild(caja);
             }
@@ -37,6 +43,7 @@
                 location.replace(location.pathname + '?r=' + Date.now() + location.hash);
             }
             window.__avisoArranque = avisoArranque;
+            window.__recargarLimpio = recargarLimpio;
             // Cada carga de datos reinicia el aviso y su reloj de 90 segundos
             window.__reiniciarAvisoArranque = function (activo) {
                 if (caja && caja.parentNode) caja.parentNode.removeChild(caja);
@@ -130,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '7.9';
+        const VERSION_APP = '8.0';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -309,7 +316,7 @@
             // v7.9: ninguna hoja puede dejar la carga esperando para siempre;
             // las opcionales (rentas) se rinden antes
             const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const limite = hoja === 'rentas' ? 30000 : 120000;
+            const limite = hoja === 'rentas' ? 30000 : 240000;   // v8.0: 4 min para redes lentas
             const reloj = ctl ? setTimeout(() => ctl.abort(), limite) : null;
             let r;
             try { r = await fetch(url, ctl ? { signal: ctl.signal } : undefined); }
@@ -528,127 +535,411 @@
            ============================================================ */
         let seOfrecioInstalacion = false;
 
+        /* ============================================================
+           v8.0 — VERSIÓN VISIBLE
+           Se muestra debajo de "Entrar al panel" y en el pie del menú, para
+           saber con qué versión trabaja cada usuario. Si la página (index.html)
+           y el código (app.js) no son de la misma versión, también se dice:
+           es la señal de una copia vieja en ese navegador.
+           ============================================================ */
+        function versionDePagina() {
+            const sc = Array.from(document.scripts).find(x => /app\.js\?v=/.test(x.src || ''));
+            const m = sc ? sc.src.match(/[?&]v=([^&]+)/) : null;
+            return m ? decodeURIComponent(m[1]) : '';
+        }
+
+        function pintarVersion() {
+            const pag = versionDePagina();
+            const texto = 'Versión ' + VERSION_APP + (pag && pag !== VERSION_APP ? ' · página ' + pag + ' (recarga)' : '');
+            document.querySelectorAll('.version-app').forEach(el => {
+                el.textContent = texto;
+                el.title = 'Código ' + VERSION_APP + (pag ? ' · página ' + pag : '');
+            });
+        }
+        pintarVersion();
+
+        function recargarSinCopiaLocal() {
+            if (window.__recargarLimpio) window.__recargarLimpio();
+            else location.reload();
+        }
+
+        /* ============================================================
+           v8.0 — DIAGNÓSTICO DE CONEXIÓN
+           Sustituye al diagnóstico de instalación. Se abre desde la pantalla
+           de acceso, el aviso de error, el aviso de carga lenta, el pie del
+           menú o con ?diagnostico=1. Revisa en orden:
+             1. Versión del código, de la página y del service worker
+             2. Navegador: red, almacenamiento, tipo de conexión
+             3. El sitio (GitHub Pages)
+             4. El servidor de Google (ping a Apps Script) y su versión
+             5. La sesión (si hay una iniciada)
+             6. Cada hoja de datos, con tiempo y tamaño
+             7. Las facturas
+             8. Librerías y service worker
+           Al final propone qué hacer y deja un reporte para copiar y mandar.
+           ============================================================ */
+        let reporteDiagnostico = '';
+
+        async function pedirConLimite(url, opciones, ms) {
+            const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const reloj = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+            const t0 = performance.now();
+            try {
+                const r = await fetch(url, Object.assign({}, opciones || {}, ctl ? { signal: ctl.signal } : {}));
+                const texto = await r.text();
+                return { r: r, texto: texto, ms: Math.round(performance.now() - t0) };
+            } catch (err) {
+                const e = new Error(err && err.name === 'AbortError' ? 'Sin respuesta en ' + Math.round(ms / 1000) + ' s' :
+                                    ((err && err.message) || 'Error de red') + ' (la red o un filtro bloqueó la petición)');
+                e.ms = Math.round(performance.now() - t0);
+                throw e;
+            } finally { if (reloj) clearTimeout(reloj); }
+        }
+
+        const seg = (ms) => (ms / 1000).toFixed(1) + ' s';
+        const tamano = (n) => !n ? 'vacía' : n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+
         async function ejecutarDiagnostico() {
             const panel = document.getElementById('panelDiagnostico');
             const cont = document.getElementById('resultadoDiagnostico');
             panel.classList.remove('hidden'); panel.classList.add('flex');
-            cont.innerHTML = '<p class="text-slate-500 italic">Revisando…</p>';
 
             const puntos = [];
-            const ok   = (t, d) => puntos.push({ estado: 'ok', titulo: t, detalle: d });
-            const mal  = (t, d) => puntos.push({ estado: 'mal', titulo: t, detalle: d });
-            const nota = (t, d) => puntos.push({ estado: 'nota', titulo: t, detalle: d });
-
-            // 1. Origen seguro
-            const hostLocal = ['localhost', '127.0.0.1', '[::1]'].indexOf(location.hostname) > -1;
-            if (location.protocol === 'https:' || hostLocal) {
-                ok('Conexión segura (HTTPS)', location.origin);
-            } else if (location.protocol === 'file:') {
-                mal('Conexión segura (HTTPS)',
-                    'La página se abrió como archivo local (file://). Así el navegador nunca ofrece instalar. Ábrela desde su dirección de GitHub Pages.');
-            } else {
-                mal('Conexión segura (HTTPS)', 'El sitio se está sirviendo por ' + location.protocol + ', y se requiere https.');
-            }
-
-            // 2. ¿Ya está instalada?
-            if (esAplicacionInstalada()) {
-                nota('Ya está instalada', 'Estás viendo la versión instalada, por eso no aparece el icono de instalar.');
-            }
-
-            // 3. Manifiesto
-            const enlaceManifiesto = document.querySelector('link[rel="manifest"]');
-            if (!enlaceManifiesto) {
-                mal('Manifiesto enlazado', 'Falta la etiqueta <link rel="manifest"> en la página.');
-            } else {
-                try {
-                    const r = await fetch(enlaceManifiesto.href, { cache: 'no-store' });
-                    if (!r.ok) {
-                        mal('manifest.json accesible',
-                            'El navegador recibió un error ' + r.status + ' al pedirlo. Revisa que el archivo esté subido junto a index.html.');
-                    } else {
-                        const m = await r.json();
-                        ok('manifest.json accesible', enlaceManifiesto.href);
-                        const faltan = ['name', 'start_url', 'display', 'icons'].filter(k => !m[k]);
-                        if (faltan.length) mal('Contenido del manifiesto', 'Faltan campos: ' + faltan.join(', '));
-                        else ok('Contenido del manifiesto', 'name, start_url, display e icons presentes');
-
-                        // 4. Iconos: deben existir 192 y 512, y descargarse
-                        const tam = (m.icons || []).map(i => i.sizes).join(' ');
-                        if (tam.indexOf('192x192') === -1 || tam.indexOf('512x512') === -1) {
-                            mal('Tamaños de icono', 'Se requieren un icono de 192x192 y otro de 512x512. Declarados: ' + (tam || 'ninguno'));
-                        } else {
-                            ok('Tamaños de icono', '192x192 y 512x512 declarados');
-                        }
-                        for (const icono of (m.icons || [])) {
-                            const url = new URL(icono.src, enlaceManifiesto.href).href;
-                            try {
-                                const ri = await fetch(url, { cache: 'no-store' });
-                                if (ri.ok) ok('Icono ' + icono.sizes, url);
-                                else mal('Icono ' + icono.sizes, 'Error ' + ri.status + ' al descargarlo: ' + url);
-                            } catch (e) {
-                                mal('Icono ' + icono.sizes, 'No se pudo descargar: ' + url);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    mal('manifest.json accesible', 'No se pudo leer o no es un JSON válido: ' + e.message);
-                }
-            }
-
-            // 5. Service worker
-            if (!('serviceWorker' in navigator)) {
-                mal('Service worker', 'Este navegador no lo admite.');
-            } else {
-                try {
-                    const reg = await navigator.serviceWorker.getRegistration();
-                    if (!reg) {
-                        mal('Service worker registrado',
-                            'No hay ninguno. Suele significar que sw.js no está subido junto a index.html, o que devolvió un error al cargarse.');
-                    } else if (reg.active) {
-                        ok('Service worker activo', 'Ámbito: ' + reg.scope);
-                    } else {
-                        nota('Service worker instalándose', 'Aún no toma el control. Recarga la página y vuelve a revisar.');
-                    }
-                    // ¿sw.js se descarga?
-                    const rs = await fetch('sw.js', { cache: 'no-store' });
-                    if (rs.ok) ok('sw.js accesible', new URL('sw.js', location.href).href);
-                    else mal('sw.js accesible', 'Error ' + rs.status + '. Verifica que el archivo esté subido.');
-                } catch (e) {
-                    mal('Service worker', e.message);
-                }
-            }
-
-            // 6. Invitación del navegador
-            if (seOfrecioInstalacion || promptInstalacion) {
-                ok('El navegador ofreció la instalación', 'Usa el botón "Instalar aplicación" del menú lateral.');
-            } else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                nota('Navegador iOS',
-                     'Safari nunca muestra el icono de instalar ni avisa a la página. La instalación se hace a mano: Compartir → Agregar a inicio.');
-            } else if (!esAplicacionInstalada()) {
-                nota('El navegador todavía no la ofrece',
-                     'Si todo lo anterior salió bien, suele bastar con recargar una vez, o cerrar y volver a abrir el navegador. ' +
-                     'Chrome también espera a que el sitio se haya usado un momento antes de ofrecerla.');
-            }
-
+            const sugerencias = [];
+            let enCurso = '';
             const icono = { ok: '✓', mal: '✕', nota: 'i' };
             const color = {
                 ok:   'bg-green-50 border-green-200 text-green-800',
                 mal:  'bg-red-50 border-red-200 text-red-800',
                 nota: 'bg-amber-50 border-amber-200 text-amber-800'
             };
-            const fallas = puntos.filter(p => p.estado === 'mal').length;
+            const pintar = (final) => {
+                const fallas = puntos.filter(p => p.estado === 'mal').length;
+                cont.innerHTML =
+                    (final
+                        ? (fallas === 0
+                            ? '<p class="mb-3 text-sm font-semibold text-green-700">Todo respondió bien desde este equipo.</p>'
+                            : '<p class="mb-3 text-sm font-semibold text-red-700">' + fallas + ' punto(s) con problema.</p>')
+                        : '<p class="mb-3 text-sm text-slate-500 italic">Revisando: ' + esc(enCurso) + '…</p>') +
+                    (final && sugerencias.length
+                        ? '<div class="mb-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-brand-900"><p class="font-bold text-sm mb-1">Qué hacer</p>' +
+                          '<ul class="list-disc pl-5 text-xs space-y-1">' + sugerencias.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>'
+                        : '') +
+                    puntos.map(p =>
+                        '<div class="flex gap-3 items-start border rounded-lg p-3 mb-2 ' + color[p.estado] + '">' +
+                            '<span class="font-bold shrink-0 w-4 text-center">' + icono[p.estado] + '</span>' +
+                            '<div class="min-w-0"><p class="font-semibold">' + esc(p.titulo) + '</p>' +
+                            '<p class="text-xs opacity-90 break-words">' + esc(p.detalle) + '</p></div>' +
+                        '</div>').join('');
+            };
+            const ok   = (t, d) => { puntos.push({ estado: 'ok',   titulo: t, detalle: d }); pintar(false); };
+            const mal  = (t, d) => { puntos.push({ estado: 'mal',  titulo: t, detalle: d }); pintar(false); };
+            const nota = (t, d) => { puntos.push({ estado: 'nota', titulo: t, detalle: d }); pintar(false); };
+            const paso = (t) => { enCurso = t; pintar(false); };
+            const sugerir = (t) => { if (sugerencias.indexOf(t) === -1) sugerencias.push(t); };
 
-            cont.innerHTML =
-                (fallas === 0
-                    ? '<p class="mb-4 text-sm text-slate-600">No se encontró ningún requisito incumplido. Si aun así no aparece el icono, revisa las notas de abajo.</p>'
-                    : '<p class="mb-4 text-sm font-semibold text-red-700">' + fallas + ' punto(s) impiden la instalación. Corrige los marcados en rojo.</p>') +
-                puntos.map(p =>
-                    '<div class="flex gap-3 items-start border rounded-lg p-3 mb-2 ' + color[p.estado] + '">' +
-                        '<span class="font-bold shrink-0 w-4 text-center">' + icono[p.estado] + '</span>' +
-                        '<div class="min-w-0"><p class="font-semibold">' + esc(p.titulo) + '</p>' +
-                        '<p class="text-xs opacity-90 break-words">' + esc(p.detalle) + '</p></div>' +
-                    '</div>').join('');
+            // 1. Versiones
+            paso('versiones');
+            const pag = versionDePagina();
+            let versionSW = '';
+            try {
+                if (window.caches) {
+                    const k = (await caches.keys()).find(n => /^ia-app-v/.test(n));
+                    versionSW = k ? k.replace('ia-app-v', '') : '';
+                }
+            } catch (_) {}
+            if (pag && pag !== VERSION_APP) {
+                mal('Versión', 'El código es ' + VERSION_APP + ' pero la página es ' + pag + '. El navegador mezcla archivos de versiones distintas.');
+                sugerir('Pulsa «Recargar sin copia local» para traer la versión completa.');
+            } else {
+                ok('Versión', 'Código y página ' + VERSION_APP + (versionSW ? ' · copia local (service worker) ' + versionSW : ''));
+            }
+            if (versionSW && versionSW !== VERSION_APP) {
+                nota('Copia local de otra versión', 'El service worker guarda la versión ' + versionSW + '. Se actualiza solo al recargar; si no, usa «Recargar sin copia local».');
+            }
+
+            // 2. Navegador
+            paso('navegador');
+            const ua = navigator.userAgent;
+            const nav = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Otro';
+            const so = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+            const cx = navigator.connection ? (navigator.connection.effectiveType || '') + (navigator.connection.downlink ? ' · ~' + navigator.connection.downlink + ' Mbps' : '') : '';
+            if (navigator.onLine === false) {
+                mal('Internet', 'El navegador indica que no hay conexión a internet.');
+                sugerir('Revisa la conexión a internet del equipo.');
+            } else {
+                ok('Navegador', nav + (so ? ' en ' + so : '') + (cx ? ' · conexión ' + cx : '') + (esAplicacionInstalada() ? ' · aplicación instalada' : ''));
+            }
+            let almacen = true;
+            try { localStorage.setItem('ia_diag', '1'); localStorage.removeItem('ia_diag'); sessionStorage.setItem('ia_diag', '1'); sessionStorage.removeItem('ia_diag'); }
+            catch (_) { almacen = false; }
+            if (!almacen) {
+                mal('Almacenamiento del navegador', 'El navegador no deja guardar datos (modo privado estricto o bloqueo de cookies del sitio). Sin esto la sesión no se conserva.');
+                sugerir('Permite cookies y datos de sitio para esta página, o abre la plataforma fuera del modo privado.');
+            }
+
+            // 3. El sitio
+            paso('el sitio');
+            try {
+                const s = await pedirConLimite('manifest.json?diag=' + Date.now(), { cache: 'no-store' }, 20000);
+                if (s.r.ok) ok('Sitio de la plataforma', location.host + ' respondió en ' + seg(s.ms));
+                else mal('Sitio de la plataforma', 'Respondió con error ' + s.r.status + '.');
+            } catch (e) {
+                mal('Sitio de la plataforma', e.message);
+            }
+
+            // 4. Servidor de Google
+            paso('el servidor de Google');
+            let servidorOk = false;
+            if (!hayBackend()) {
+                nota('Servidor', 'No hay servidor de Apps Script configurado.');
+            } else {
+                try {
+                    const s = await pedirConLimite(URL_APPS_SCRIPT + '?accion=ping&t=' + Date.now(), {}, 30000);
+                    let j = null; try { j = JSON.parse(s.texto); } catch (_) {}
+                    if (j && j.ok) {
+                        servidorOk = true;
+                        ok('Servidor de Google (Apps Script)', 'Respondió en ' + seg(s.ms) + ' · versión del servidor ' + (j.version || '¿?') +
+                           (j.hojaRentas === false ? ' · sin pestaña «Ordenes de Renta»' : ''));
+                        if (s.ms > 8000) nota('Servidor lento', 'El servidor tardó ' + seg(s.ms) + ' en una petición mínima: la red de este equipo es lenta o Google tardó en despertar el script.');
+                        if (j.fecha) {
+                            const desfase = Math.abs(Date.now() - new Date(j.fecha).getTime());
+                            if (desfase > 10 * 60000) {
+                                nota('Reloj del equipo', 'La hora de este equipo difiere ' + Math.round(desfase / 60000) + ' min de la del servidor. Puede vencer la sesión antes de tiempo.');
+                                sugerir('Ajusta la fecha y hora automáticas del equipo.');
+                            }
+                        }
+                    } else {
+                        mal('Servidor de Google (Apps Script)', 'Respondió, pero no con lo esperado (' + s.r.status + '): ' + s.texto.slice(0, 120));
+                        sugerir('Revisa que Code.gs esté publicado como aplicación web con acceso para «Cualquier usuario».');
+                    }
+                } catch (e) {
+                    mal('Servidor de Google (Apps Script)', 'No se pudo contactar: ' + e.message);
+                    sugerir('La red de este equipo podría bloquear script.google.com o script.googleusercontent.com (filtro de contenido, antivirus o proxy). Prueba con otra red (por ejemplo, datos del celular) y, si ahí sí entra, pide a sistemas que permitan esos dominios.');
+                }
+            }
+
+            // 5. Sesión
+            paso('la sesión');
+            const token = tokenSesion();
+            let sesionOk = false;
+            if (!token) {
+                nota('Sesión', 'No hay sesión iniciada en este navegador: se revisó solo la conexión. Entra con tu PIN y vuelve a abrir el diagnóstico para revisar también las hojas de datos.');
+            } else if (servidorOk) {
+                try {
+                    const s = await pedirConLimite(URL_APPS_SCRIPT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ accion: 'miSesion', token: token }) }, 30000);
+                    let j = null; try { j = JSON.parse(s.texto); } catch (_) {}
+                    if (j && j.ok) { sesionOk = true; ok('Sesión', nombreUsuario() + ' · válida (' + seg(s.ms) + ')'); }
+                    else {
+                        mal('Sesión', (j && j.error) || 'El servidor no reconoce la sesión.');
+                        sugerir('Pulsa «Salir» y vuelve a entrar con tu PIN.');
+                    }
+                } catch (e) {
+                    mal('Sesión', 'No se pudo comprobar: ' + e.message);
+                }
+            }
+
+            // 6. Hojas de datos
+            if (sesionOk) {
+                const hojas = [['corpus', 'Órdenes de trabajo', true], ['dashboard', 'Indicadores', false], ['patrones', 'Equipos de calibración', false],
+                               ['precios', 'Tarifario', false], ['rentas', 'Órdenes de renta', false]];
+                for (const [h, nombre, esencial] of hojas) {
+                    paso('hoja ' + nombre);
+                    try {
+                        const s = await pedirConLimite(urlDatos(h, false), {}, esencial ? 180000 : 60000);
+                        const rechazo = s.texto.charAt(0) === '{' && /"ok"\s*:\s*false/.test(s.texto);
+                        if (!s.r.ok || rechazo) {
+                            let msg = 'HTTP ' + s.r.status; try { msg = JSON.parse(s.texto).error || msg; } catch (_) {}
+                            (esencial ? mal : nota)('Hoja: ' + nombre, msg);
+                            continue;
+                        }
+                        const filas = Math.max(0, s.texto.split('\n').length - 1);
+                        ok('Hoja: ' + nombre, filas.toLocaleString('es-MX') + ' renglones · ' + tamano(s.texto.length) + ' · ' + seg(s.ms));
+                        if (esencial && s.ms > 60000) {
+                            nota('Descarga lenta', 'Las órdenes de trabajo tardaron ' + seg(s.ms) + '. Con una red así la carga puede tardar varios minutos.');
+                            sugerir('La red de este equipo es lenta para los datos: prueba con otra red o en otro horario.');
+                        }
+                    } catch (e) {
+                        (esencial ? mal : nota)('Hoja: ' + nombre, e.message);
+                        if (esencial) sugerir('No bajan las órdenes de trabajo: si el servidor sí respondió, la descarga grande se corta en esta red (proxy o filtro con límite de tamaño o tiempo). Prueba con otra red.');
+                    }
+                }
+                // 7. Facturas
+                paso('facturas');
+                try {
+                    const s = await pedirConLimite(URL_APPS_SCRIPT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ accion: 'listarFacturas', token: token }) }, 60000);
+                    let j = null; try { j = JSON.parse(s.texto); } catch (_) {}
+                    if (j && j.ok) ok('Facturas', (j.facturas || []).length + ' registradas · ' + seg(s.ms));
+                    else nota('Facturas', (j && j.error) || 'Respuesta inesperada');
+                } catch (e) { nota('Facturas', e.message + '. La plataforma abre sin ellas.'); }
+            }
+
+            // 8. Librerías y service worker
+            paso('librerías');
+            const libs = [['Gráficas (Chart.js)', typeof Chart !== 'undefined'], ['Lector de hojas (PapaParse)', typeof Papa !== 'undefined']];
+            const faltan = libs.filter(l => !l[1]).map(l => l[0]);
+            if (faltan.length) {
+                mal('Librerías', 'No cargaron: ' + faltan.join(', ') + '. La red bloquea cdn.jsdelivr.net o cdnjs.cloudflare.com.');
+                sugerir('Pide a sistemas que permitan cdn.jsdelivr.net y cdnjs.cloudflare.com, o prueba con otra red.');
+            } else {
+                ok('Librerías', 'Gráficas y lector de hojas cargados');
+            }
+            try {
+                const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+                if (reg && reg.active) ok('Copia local (service worker)', 'Activa');
+                else nota('Copia local (service worker)', 'No está activa: la plataforma funciona, pero sin copia para trabajar sin señal.');
+            } catch (_) {}
+
+            if (!sugerencias.length && puntos.some(p => p.estado === 'mal')) sugerir('Pulsa «Copiar reporte» y envíalo a quien administra la plataforma.');
+
+            // Reporte en texto para copiar
+            const ahora = new Date();
+            reporteDiagnostico = 'Diagnóstico de conexión · Ingenieros Asociados\n' +
+                ahora.toLocaleString('es-MX') + ' · ' + (token ? nombreUsuario() : 'sin sesión') + '\n' +
+                location.href.split('#')[0] + '\n' + ua + '\n\n' +
+                puntos.map(p => (p.estado === 'ok' ? '[OK] ' : p.estado === 'mal' ? '[FALLA] ' : '[NOTA] ') + p.titulo + ': ' + p.detalle).join('\n') +
+                (sugerencias.length ? '\n\nQué hacer:\n- ' + sugerencias.join('\n- ') : '');
+            pintar(true);
+            registrarEvento('diagnostico', puntos.filter(p => p.estado === 'mal').map(p => p.titulo).join(', ') || 'sin fallas');
         }
+
+        async function copiarDiagnostico() {
+            const btn = document.getElementById('btnCopiarDiagnostico');
+            if (!reporteDiagnostico) return;
+            try { await navigator.clipboard.writeText(reporteDiagnostico); }
+            catch (_) {
+                const ta = document.createElement('textarea');
+                ta.value = reporteDiagnostico; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); } catch (__) {}
+                ta.remove();
+            }
+            btn.innerText = 'Copiado';
+            setTimeout(() => { btn.innerText = 'Copiar reporte'; }, 1800);
+        }
+
+        /* ============================================================
+           v8.0 — RUTINAS DE SERVICIO (todas las unidades)
+           Lista única de las órdenes que generan rutina (preventivos y
+           calibraciones) de todos los hospitales, con buscador y filtros.
+           «Ver rutina» la abre igual que desde la unidad, sin salir de aquí.
+           Se muestra a quien tiene el apartado Gestión de mantenimiento.
+           ============================================================ */
+        const LIMITE_RUTINAS = 300;
+
+        function mostrarRutinas() {
+            if (!tienePermiso('proximos')) { sinPermiso('proximos'); return; }
+            resetSidebarStyles();
+            const btn = document.getElementById('btnRutinas');
+            btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
+            btn.classList.remove('text-slate-400');
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('clienteContent').style.display = 'none';
+            ['adminUsuariosContent', 'auditoriaContent', 'cotizadorContent', 'catalogosContent', 'proximosContent', 'satisfaccionContent', 'rentasContent']
+                .forEach(id => elOpcional(id).classList.add('hidden'));
+            document.getElementById('rutinasContent').classList.remove('hidden');
+            clienteActual = '';
+            cerrarSidebarMovil();
+            poblarFiltrosRutinas();
+            renderRutinas();
+            if (window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) document.getElementById('rsvBuscar').focus();
+            registrarEvento('ver_rutinas');
+        }
+
+        function rutinasDisponibles() {
+            return datosDetalleOrdenes.filter(d => d.esPreventivo || d.esCalibracion);
+        }
+
+        function poblarFiltrosRutinas() {
+            const base = rutinasDisponibles();
+            const llenar = (id, opciones, primera) => {
+                const sel = document.getElementById(id);
+                const prev = sel.value;
+                sel.innerHTML = '<option value="todos">' + primera + '</option>' +
+                    opciones.map(o => '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>').join('');
+                sel.value = Array.from(sel.options).some(o => o.value === prev) ? prev : 'todos';
+            };
+            llenar('rsvUnidad', [...new Set(base.map(d => d.Cliente))].sort((a, b) => a.localeCompare(b, 'es')).map(u => [u, u]), 'Todas las unidades');
+            llenar('rsvAnio', aniosDisponibles(base).filter(a => a !== 'sin año').map(a => [a, a]), 'Todos los años');
+            llenar('rsvMes', MESES_ES.map((m, i) => [String(i), m.charAt(0).toUpperCase() + m.slice(1)]), 'Todos los meses');
+        }
+
+        function rutinasFiltradas() {
+            const unidad = document.getElementById('rsvUnidad').value;
+            const tipo = document.getElementById('rsvTipo').value;
+            const anio = document.getElementById('rsvAnio').value;
+            const mes = document.getElementById('rsvMes').value;
+            const palabras = normalizar(document.getElementById('rsvBuscar').value.toLowerCase()).trim().split(/\s+/).filter(Boolean);
+            return rutinasDisponibles().filter(d => {
+                if (unidad !== 'todos' && d.Cliente !== unidad) return false;
+                if (tipo === 'prev' && !d.esPreventivo) return false;
+                if (tipo === 'cal' && !d.esCalibracion) return false;
+                if (anio !== 'todos' && (!d.FechaObj || String(d.FechaObj.getUTCFullYear()) !== anio)) return false;
+                if (mes !== 'todos' && (!d.FechaObj || d.FechaObj.getUTCMonth() !== parseInt(mes, 10))) return false;
+                if (palabras.length) {
+                    const blob = normalizar([d.ID, d.Equipo, d.Marca, d.Modelo, d.Serie, d.Inventario, d.Area, d.Cliente, d.Ingeniero, d['Tipo de Servicio']]
+                        .join(' ').toLowerCase());
+                    // todas las palabras deben aparecer, en cualquier orden
+                    if (!palabras.every(p => blob.includes(p))) return false;
+                }
+                return true;
+            }).sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
+        }
+
+        function renderRutinas() {
+            const lista = rutinasFiltradas();
+            const total = rutinasDisponibles().length;
+            const visibles = lista.slice(0, LIMITE_RUTINAS);
+            document.getElementById('rsvContador').innerText = lista.length.toLocaleString('es-MX') + ' de ' + total.toLocaleString('es-MX') + ' rutinas' +
+                (lista.length > LIMITE_RUTINAS ? ' · se muestran las ' + LIMITE_RUTINAS + ' más recientes; usa el buscador para acotar' : '');
+            const cont = document.getElementById('rsvLista');
+            if (!visibles.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic py-10 text-center">' +
+                    (total ? 'Ninguna rutina coincide con la búsqueda.' : 'No hay preventivos ni calibraciones cargados.') + '</p>';
+                return;
+            }
+            const th = 'px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
+                ['Folio', 'Fecha', 'Unidad', 'Equipo', 'Serie / Inventario', 'Área', 'Servicio', 'Ingeniero', ''].map(h => '<th class="' + th + '">' + h + '</th>').join('') +
+                '</tr></thead><tbody class="divide-y divide-slate-100">' +
+                visibles.map(d => '<tr class="hover:bg-slate-50">' +
+                    '<td class="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">' + esc(d.ID) + '</td>' +
+                    '<td class="px-4 py-2.5 text-slate-600 whitespace-nowrap">' + esc(d.FechaEjecucionStr) + '</td>' +
+                    '<td class="px-4 py-2.5 text-slate-700">' + esc(d.Cliente) + '</td>' +
+                    '<td class="px-4 py-2.5"><p class="font-semibold text-slate-800">' + esc(d.Equipo) + '</p>' +
+                        '<p class="text-xs text-slate-500">' + esc(d.Marca + ' / ' + d.Modelo) + '</p></td>' +
+                    '<td class="px-4 py-2.5 text-xs text-slate-600"><p>S/N ' + esc(d.Serie) + '</p>' + (d.Inventario && d.Inventario !== 'N/A' ? '<p>Inv. ' + esc(d.Inventario) + '</p>' : '') + '</td>' +
+                    '<td class="px-4 py-2.5 text-slate-600">' + esc(d.Area) + '</td>' +
+                    '<td class="px-4 py-2.5"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded-full ' +
+                        (d.esCalibracion ? 'bg-purple-100 text-purple-800' : 'bg-brand-100 text-brand-800') + '">' + (d.esCalibracion ? 'Calibración' : 'Preventivo') + '</span></td>' +
+                    '<td class="px-4 py-2.5 text-slate-600">' + esc(d.Ingeniero) + '</td>' +
+                    '<td class="px-4 py-2.5 text-right"><button data-rsv-id="' + esc(d.ID) + '" data-rsv-unidad="' + esc(d.Cliente) + '" ' +
+                        'class="text-brand-600 hover:text-brand-800 hover:bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">Ver rutina</button></td>' +
+                '</tr>').join('') + '</tbody></table>';
+        }
+
+        // Prepara el contexto de la unidad (sin cambiar de pantalla) y abre la rutina
+        function abrirRutinaGlobal(id, unidad) {
+            const dataCliente = datosDetalleOrdenes.filter(d => d.Cliente === unidad);
+            clienteActual = unidad;
+            dataPreventivos = dataCliente.filter(d => d.esPreventivo);
+            dataCalibraciones = dataCliente.filter(d => d.esCalibracion);
+            document.getElementById('clienteDireccion').innerText = mejorValor(dataCliente.map(d => d.Direccion), ['Dirección no registrada']) || 'Dirección no registrada';
+            document.getElementById('clienteTelefono').innerText = mejorValor(dataCliente.map(d => d.Telefono), ['Teléfono no registrado']) || 'Teléfono no registrado';
+            document.getElementById('clienteCorreo').innerText = mejorValor(dataCliente.map(d => d.Correo), ['Correo no registrado']) || 'Correo no registrado';
+            abrirRutina(id);
+            registrarEvento('rutina_desde_buscador', id + ' · ' + unidad);
+        }
+
+        elOpcional('rsvLista').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-rsv-id]');
+            if (b) abrirRutinaGlobal(b.dataset.rsvId, b.dataset.rsvUnidad);
+        });
+        ['rsvUnidad', 'rsvTipo', 'rsvAnio', 'rsvMes'].forEach(id => elOpcional(id).addEventListener('change', renderRutinas));
+        (() => { let t = null;
+            elOpcional('rsvBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(renderRutinas, 180); });
+        })();
 
         function cerrarDiagnostico() {
             const panel = document.getElementById('panelDiagnostico');
@@ -765,6 +1056,7 @@
             const csvTextoPatrones  = rPatrones.status === 'fulfilled' ? rPatrones.value : null;
             const csvTextoPrecios   = rPrecios.status === 'fulfilled' ? rPrecios.value : null;
             const csvTextoRentas    = rRentas.status === 'fulfilled' ? rRentas.value : null;   // v7.5
+            const motivoCorpus = rCorpus.status === 'rejected' ? String((rCorpus.reason && rCorpus.reason.message) || rCorpus.reason || '') : '';   // v8.0
 
             // v3.4: si no hay señal, el service worker sirvió la última copia
             if (!navigator.onLine && csvTextoCorpus) {
@@ -774,7 +1066,9 @@
 
             if (!csvTextoCorpus) {
                 progresoCarga.ocultar();
-                mostrarError("Error de Conexión: no fue posible descargar las órdenes de trabajo. Verifica que la hoja siga publicada (o la configuración de Apps Script) y tu conexión a internet.");
+                mostrarError("Error de Conexión: no fue posible descargar las órdenes de trabajo." +
+                             (motivoCorpus ? " Motivo: " + motivoCorpus + "." : "") +
+                             " Usa «Diagnóstico de conexión» para ver qué falla desde este equipo.");
                 return;
             }
 
@@ -833,6 +1127,8 @@
             }
 
             progresoCarga.a(94, 'Armando el panel');
+            elOpcional('ultimaActualizacionSidebar').innerText = 'Actualizado: ' +
+                new Date().toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });   // v8.0
             document.getElementById('ultimaActualizacion').innerText =
                 'Datos actualizados: ' + new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) +
                 (ordenesExcluidasPorMarcador > 0
@@ -856,6 +1152,10 @@
             } else if (visible('proximosContent')) {
                 poblarFiltrosProximos(); renderProximos();
                 if (pestanaGestion === 'correctivos') { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); }   // v6.9
+            } else if (visible('rutinasContent')) {          // v8.0
+                poblarFiltrosRutinas(); renderRutinas();
+            } else if (visible('rentasContent')) {           // v8.0
+                poblarFiltrosRentas(); renderRentas();
             } else if (clienteActual && clientesUnicos.includes(clienteActual)) {
                 mostrarVistaCliente(clienteActual);
             } else {
@@ -1668,7 +1968,7 @@
             // v5.4: se limpian TODOS los botones del menú (antes solo el del
             // dashboard, y el último apartado visitado quedaba resaltado) y se
             // oculta la vista de próximos mantenimientos
-            ['btnDashboard', 'btnProximos', 'btnSatisfaccion', 'btnCotizador', 'btnRentas', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
+            ['btnDashboard', 'btnProximos', 'btnRutinas', 'btnSatisfaccion', 'btnCotizador', 'btnRentas', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
                 const b = document.getElementById(id);
                 if (!b) return;
                 b.classList.remove('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -1681,6 +1981,8 @@
             if (sat) sat.classList.add('hidden');
             const ren = document.getElementById('rentasContent');         // v7.5
             if (ren) ren.classList.add('hidden');
+            const rsv = document.getElementById('rutinasContent');        // v8.0
+            if (rsv) rsv.classList.add('hidden');
 
             const btns = document.getElementById('listaClientesSidebar').querySelectorAll('button');
             btns.forEach(b => {
@@ -4724,6 +5026,7 @@
                 if (vista === 'satisfaccion' && tienePermiso('satisfaccion')) { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
                 if (vista === 'cotizador' && tienePermiso('cotizador')) { mostrarCotizador(); return true; }
                 if (vista === 'rentas' && tienePermiso('rentas')) { mostrarRentas(); return true; }   // v7.5
+                if (vista === 'rutinas' && tienePermiso('proximos')) { mostrarRutinas(); return true; }   // v8.0
                 if (vista === 'catalogos' && tienePermiso('catalogos')) {
                     mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
                     return true;
@@ -4763,6 +5066,7 @@
             envolver('mostrarSatisfaccion', '#satisfaccion');
             envolver('mostrarCotizador', '#cotizador');
             envolver('mostrarRentas', '#rentas');   // v7.5
+            envolver('mostrarRutinas', '#rutinas');   // v8.0
             envolver('mostrarCatalogos', '#catalogos');
             envolver('mostrarAuditoria', '#auditoria');
             envolver('mostrarAdminUsuarios', '#usuarios');
@@ -9026,6 +9330,8 @@
         }
 
         function cerrarRutina() {
+            // v8.0: abierta desde Rutinas de servicio, no se queda "dentro" de la unidad
+            if (!document.getElementById('rutinasContent').classList.contains('hidden')) clienteActual = '';
             secuenciaRutina++;   // v5.8: descarta revisiones o gráficas pendientes
             document.body.classList.remove('printing-modal');
             document.getElementById('modalRutina').classList.add('hidden');
@@ -10331,6 +10637,10 @@
                 const vista = document.getElementById(ap.vista);
                 if (!ok && vista) vista.classList.add('hidden');
             });
+            // v8.0: Rutinas de servicio va con el permiso de Gestión de mantenimiento
+            const okRut = tienePermiso('proximos');
+            elOpcional('btnRutinas').classList.toggle('hidden', !okRut);
+            if (!okRut) elOpcional('rutinasContent').classList.add('hidden');
         }
 
         function mensajeUsuariosUI(texto, tipo) {
@@ -11532,9 +11842,16 @@
         /* ============================================================
            v2.6 — ATAJOS Y ARRANQUE
            ============================================================ */
-        document.getElementById('btnRefrescar').addEventListener('click', () => {
+        document.getElementById('btnRefrescar').addEventListener('click', async () => {
+            // v8.0: vive en el menú lateral; se bloquea mientras actualiza
+            const btn = document.getElementById('btnRefrescar');
+            if (btn.disabled) return;
+            btn.disabled = true;
+            elOpcional('btnRefrescarTexto').innerText = 'Actualizando…';
+            cerrarSidebarMovil();
             registrarEvento('actualizar_datos');
-            cargarDatos(true);   // v2.7: ignora la caché de sesión y la del servidor
+            try { await cargarDatos(true); }   // v2.7: ignora la caché de sesión y la del servidor
+            finally { btn.disabled = false; elOpcional('btnRefrescarTexto').innerText = 'Actualizar datos'; }
         });
 
         // Escape cierra la rutina o el modal de oportunidades (nunca el de acceso)
