@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.0';
+        const VERSION_APP = '8.1';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1436,6 +1436,12 @@
                                        (tipoNorm.includes('correctivo') || tipoNorm.includes('asistencia'));
                 obj['esPreventivo']  = !obj['esCalibracion'] && !obj['esEntrega'] && !obj['esCorrectivo'] &&
                                        tipoNorm.includes('preventivo');
+
+                /* v8.1: un «Preventivo con calibración» se cuenta como
+                   calibración (una sola pestaña), pero para el programa de
+                   próximos mantenimientos también cumple el preventivo. */
+                obj['incluyePreventivo'] = obj['esPreventivo'] ||
+                                           (obj['esCalibracion'] && tipoNorm.includes('preventivo'));
 
                 // Compatibilidad con el resto del código (KPIs, oportunidades)
                 obj['esPrev'] = obj['esPreventivo'] || obj['esCalibracion'];
@@ -2833,21 +2839,73 @@
             return 'e:' + [d.Equipo, d.Marca, d.Modelo, d.Area].map(x => normalizar(String(x || '').toLowerCase()).trim()).join('|');
         }
 
+        /* v8.1 — ÚLTIMO SERVICIO POR EQUIPO, TOLERANTE A CAPTURAS DISTINTAS
+           Antes la llave del equipo era rígida (serie, si no inventario, si
+           no la descripción). Si una orden registraba la serie y la siguiente
+           solo el inventario —o la serie con guiones/espacios distintos—, el
+           servicio nuevo quedaba como otro equipo y el anterior seguía
+           marcado como VENCIDO para siempre. Ahora dos órdenes de la misma
+           unidad son el mismo equipo si comparten serie O inventario
+           (comparados sin acentos, espacios ni signos). */
+        const IDS_VACIOS = ['', 'na', 'sn', 'nd', 'sinserie', 'sinnumerodeserie', 'sininventario', 'sinnumero',
+                            'noaplica', 'notiene', 'si', 'sinid', 'ilegible', 'nolegible', 'noviable', 'x', 'xx', 'xxx', '0', '00', '000'];
+        function idEquipoLimpio(v) {
+            const t = normalizar(String(v || '').toLowerCase()).replace(/[^a-z0-9]/g, '');
+            if (IDS_VACIOS.indexOf(t) > -1 || /^0+$/.test(t) || t.length < 3) return '';
+            return t;
+        }
+        function unidadLimpia(u) {
+            return normalizar(String(u || '').toLowerCase()).replace(/\s+/g, ' ').trim();
+        }
+
+        /* entradas: [{ tipo, orden }] → [{ tipo, orden }] con la orden más
+           reciente de cada equipo (por unidad y tipo de servicio). */
+        function ultimoServicioPorEquipo(entradas) {
+            const padre = [];
+            const raiz = (i) => { while (padre[i] !== i) { padre[i] = padre[padre[i]]; i = padre[i]; } return i; };
+            const unir = (a, b) => { a = raiz(a); b = raiz(b); if (a !== b) padre[b] = a; };
+            const porId = new Map();
+            entradas.forEach((e, i) => {
+                padre[i] = i;
+                const d = e.orden;
+                const base = unidadLimpia(d.Cliente) + '#' + e.tipo + '#';
+                const serie = idEquipoLimpio(d.Serie), inv = idEquipoLimpio(d.Inventario);
+                const ids = [];
+                if (serie) ids.push(base + 's:' + serie);
+                if (inv) ids.push(base + 'i:' + inv);
+                if (!ids.length) ids.push(base + 'e:' + [d.Equipo, d.Marca, d.Modelo, d.Area]
+                    .map(x => normalizar(String(x || '').toLowerCase()).trim()).join('|'));
+                ids.forEach(id => {
+                    if (porId.has(id)) unir(porId.get(id), i); else porId.set(id, i);
+                });
+            });
+            const ultimos = new Map();
+            entradas.forEach((e, i) => {
+                const r = raiz(i);
+                const previo = ultimos.get(r);
+                if (!previo || e.orden.FechaObj > previo.orden.FechaObj) ultimos.set(r, e);
+            });
+            return Array.from(ultimos.values());
+        }
+
+        // Tipos de programa que cumple una orden (preventivo y/o calibración)
+        function tiposProgramaDeOrden(d) {
+            const t = [];
+            if (d.incluyePreventivo || d.esPreventivo) t.push('Preventivo');
+            if (d.esCalibracion) t.push('Calibración');
+            return t;
+        }
+
         // Último servicio de cada equipo, por tipo
         function ultimosServiciosPorEquipo() {
             const tipo = document.getElementById('expTipo').value;
-            const fuentes = [];
-            if (tipo === 'prev' || tipo === 'ambos') fuentes.push({ tipo: 'Preventivo', datos: dataPreventivos });
-            if (tipo === 'cal' || tipo === 'ambos')  fuentes.push({ tipo: 'Calibración', datos: dataCalibraciones });
-
-            const ultimos = new Map();
-            fuentes.forEach(f => f.datos.forEach(d => {
+            const quiere = { 'Preventivo': tipo === 'prev' || tipo === 'ambos', 'Calibración': tipo === 'cal' || tipo === 'ambos' };
+            const entradas = [];
+            dataPreventivos.concat(dataCalibraciones).forEach(d => {
                 if (!d.FechaObj) return;
-                const llave = f.tipo + '#' + llaveEquipoCal(d);
-                const previo = ultimos.get(llave);
-                if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: f.tipo, orden: d });
-            }));
-            return Array.from(ultimos.values());
+                tiposProgramaDeOrden(d).forEach(t => { if (quiere[t]) entradas.push({ tipo: t, orden: d }); });
+            });
+            return ultimoServicioPorEquipo(entradas);
         }
 
         function construirCalendario() {
@@ -3547,17 +3605,14 @@
         }
 
         function calcularProximosGlobal() {
-            const ultimos = new Map();
+            const entradas = [];
             datosDetalleOrdenes.forEach(d => {
-                if (!d.FechaObj || !(d.esPreventivo || d.esCalibracion)) return;
-                const tipo = d.esCalibracion ? 'Calibración' : 'Preventivo';
-                const llave = d.Cliente + '#' + tipo + '#' + llaveEquipoCal(d);
-                const previo = ultimos.get(llave);
-                if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: tipo, orden: d });
+                if (!d.FechaObj) return;
+                tiposProgramaDeOrden(d).forEach(t => entradas.push({ tipo: t, orden: d }));
             });
             const hoy = hoyUTC();
             const lista = [];
-            ultimos.forEach(({ tipo, orden: d }) => {
+            ultimoServicioPorEquipo(entradas).forEach(({ tipo, orden: d }) => {
                 const frec = frecuenciaParaEquipo(d.Equipo);
                 if (!(frec > 0)) return;
                 const fecha = sumarMesesUTC(d.FechaObj, frec);
