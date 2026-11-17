@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.1';
+        const VERSION_APP = '8.1.1';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -2940,7 +2940,7 @@
                 if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: f.tipo, orden: d });
             }));
             // v8.1: "preventivo con calibración" también atiende el preventivo del equipo
-            if (tipo === 'prev' || tipo === 'ambos') actualizarConCombinados(ultimos, dataCalibraciones, '');
+            actualizarCruzados(ultimos, dataPreventivos.concat(dataCalibraciones), false);   // v8.1.1
             return Array.from(ultimos.values());
         }
 
@@ -3640,17 +3640,26 @@
             return new Date(Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()));
         }
 
-        /* v8.1: una orden de calibración cuyo tipo menciona "preventivo"
-           también cuenta como el último preventivo del equipo, si el equipo
-           ya lleva preventivos (no crea un renglón de preventivo nuevo). */
-        function actualizarConCombinados(ultimos, calibraciones, prefijo) {
-            calibraciones.forEach(d => {
-                if (!d.FechaObj || !d.esCalibracion || !d.incluyePreventivo) return;
-                const llave = (prefijo ? d.Cliente + '#' : '') + 'Preventivo#' + llaveEquipoCal(d);
-                const previo = ultimos.get(llave);
-                if (previo && d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: 'Preventivo', orden: d });
+        /* v8.1.1 — PREVENTIVOS Y CALIBRACIONES SE ATIENDEN ENTRE SÍ
+           Un equipo puede llevar seguimiento de preventivo, de calibración o
+           de ambos. Si después de su último servicio de un tipo llega una orden
+           del OTRO tipo (por ejemplo, la calibración se registró como
+           preventivo), esa orden también cuenta como atendido: el equipo deja
+           de salir vencido. No se crean seguimientos nuevos; solo se actualizan
+           los que el equipo ya tenía. */
+        function actualizarCruzados(ultimos, ordenes, conUnidad) {
+            ordenes.forEach(d => {
+                if (!d.FechaObj || !(d.esPreventivo || d.esCalibracion)) return;
+                ['Preventivo', 'Calibración'].forEach(t => {
+                    const llave = (conUnidad ? d.Cliente + '#' : '') + t + '#' + llaveEquipoCal(d);
+                    const previo = ultimos.get(llave);
+                    if (previo && d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: t, orden: d });
+                });
             });
         }
+
+        // Tipo con que quedó registrada la orden ("Preventivo" / "Calibración")
+        function tipoRegistrado(d) { return d.esCalibracion ? 'Calibración' : 'Preventivo'; }
 
         function calcularProximosGlobal() {
             const ultimos = new Map();
@@ -3661,7 +3670,7 @@
                 const previo = ultimos.get(llave);
                 if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: tipo, orden: d });
             });
-            actualizarConCombinados(ultimos, datosDetalleOrdenes, 'unidad');   // v8.1
+            actualizarCruzados(ultimos, datosDetalleOrdenes, true);   // v8.1.1
             const hoy = hoyUTC();
             const lista = [];
             ultimos.forEach(({ tipo, orden: d }) => {
@@ -3781,7 +3790,8 @@
                         (detalle ? '<p class="text-xs text-slate-500 mt-0.5">' + detalle.split('<br>').map(esc).join('<br>') + '</p>' : '') + '</td>' +
                     '<td class="px-4 py-3 text-sm text-slate-600">' + esc(x.area) + '</td>' +
                     '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + esc(fechaCortaCal(x.ultimaFecha)) +
-                        (x.ultimaOrden ? '<p class="text-xs text-slate-500">Orden ' + esc(x.ultimaOrden) + '</p>' : '') + '</td>' +
+                        (x.ultimaOrden ? '<p class="text-xs text-slate-500">Orden ' + esc(x.ultimaOrden) + '</p>' : '') +
+                        (tipoRegistrado(x.orden) !== x.tipo ? '<p class="text-xs text-amber-700 font-semibold">registrada como ' + esc(tipoRegistrado(x.orden).toLowerCase()) + '</p>' : '') + '</td>' +
                     '<td class="px-4 py-3 text-sm text-slate-600">' + esc(x.ingeniero) + '</td>' +
                     '<td class="px-4 py-3 text-sm">' + celdaAsignacion(asg) + '</td>' +
                 '</tr>';
@@ -8123,9 +8133,9 @@
                "Atendido" con la fecha del servicio posterior. */
             const siguienteDe = new Map();
             if (c.conProximo) {
-                const tipoTab = clave === 'cal' ? 'cal' : 'prev';
+                // v8.1.1: un preventivo posterior atiende una calibración y viceversa
                 const delEquipo = datosDetalleOrdenes.filter(x => x.Cliente === clienteActual && x.FechaObj &&
-                    (tipoTab === 'cal' ? x.esCalibracion : (x.esPreventivo || (x.esCalibracion && x.incluyePreventivo))));
+                    (x.esPreventivo || x.esCalibracion));
                 const ultimo = new Map();
                 delEquipo.forEach(x => {
                     const k = llaveEquipoCal(x);
@@ -8151,7 +8161,8 @@
                     const posterior = siguienteDe.get(d);   // v8.1
                     const vencido = !posterior && d.ProximoMantDate && d.ProximoMantDate < hoy;
                     const badge = posterior
-                        ? '<span class="ml-2 inline-block whitespace-nowrap bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full" title="Orden ' + esc(posterior.ID) + '">✓ Atendido ' + esc(posterior.FechaEjecucionStr) + '</span>'
+                        ? '<span class="ml-2 inline-block whitespace-nowrap bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full" title="Orden ' + esc(posterior.ID) + ' · ' + esc(tipoRegistrado(posterior)) + '">✓ Atendido ' + esc(posterior.FechaEjecucionStr) +
+                              (tipoRegistrado(posterior) !== tipoRegistrado(d) ? ' (' + esc(tipoRegistrado(posterior).toLowerCase()) + ')' : '') + '</span>'
                         : vencido
                         ? '<span class="ml-2 inline-block whitespace-nowrap bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full uppercase">⚠ Vencido</span>'
                         : '';
