@@ -830,12 +830,13 @@
            Lista única de las órdenes que generan rutina (preventivos y
            calibraciones) de todos los hospitales, con buscador y filtros.
            «Ver rutina» la abre igual que desde la unidad, sin salir de aquí.
-           Se muestra a quien tiene el apartado Gestión de mantenimiento.
+           v8.1: permiso propio («rutinas»), que el administrador da o quita
+           en Usuarios como cualquier otro apartado.
            ============================================================ */
         const LIMITE_RUTINAS = 300;
 
         function mostrarRutinas() {
-            if (!tienePermiso('proximos')) { sinPermiso('proximos'); return; }
+            if (!tienePermiso('rutinas')) { sinPermiso('rutinas'); return; }   // v8.1: permiso propio
             resetSidebarStyles();
             const btn = document.getElementById('btnRutinas');
             btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -1329,6 +1330,9 @@
             const cArea   = buscarColumna(llaves, ['area o ubicacion:', 'area o ubicacion', 'area', 'departamento', 'ubicacion']);
             const cFecha  = buscarColumna(llaves, ['fecha de inicio:', 'fecha de inicio', 'marca temporal', 'timestamp', 'fecha']);
             const cFechaFin = buscarColumna(llaves, ['fecha de fin:', 'fecha de fin', 'fecha fin']);
+            // v8.1: fecha en que Jotform recibió la orden (siempre AAAA-MM-DD);
+            // desempata fechas como 05/11/2026 que pueden leerse 5 nov o 11 may
+            const cEnvio  = buscarColumna(llaves, ['submission date', 'fecha de envio', 'fecha de creacion']);
 
             const cDir    = buscarColumna(llaves, ['domicilio:', 'domicilio', 'direccion', 'calle']);
             const cTel    = buscarColumna(llaves, ['telefono:', 'telefono', 'tel', 'celular']);
@@ -1437,17 +1441,14 @@
                 obj['esPreventivo']  = !obj['esCalibracion'] && !obj['esEntrega'] && !obj['esCorrectivo'] &&
                                        tipoNorm.includes('preventivo');
 
-                /* v8.1: un «Preventivo con calibración» se cuenta como
-                   calibración (una sola pestaña), pero para el programa de
-                   próximos mantenimientos también cumple el preventivo. */
-                obj['incluyePreventivo'] = obj['esPreventivo'] ||
-                                           (obj['esCalibracion'] && tipoNorm.includes('preventivo'));
-
                 // Compatibilidad con el resto del código (KPIs, oportunidades)
                 obj['esPrev'] = obj['esPreventivo'] || obj['esCalibracion'];
                 obj['esCorr'] = obj['esCorrectivo'] || obj['esEntrega'];
 
-                const dateObj = parsearFechaMantenimiento(obj['FechaEjecucion']);
+                // v8.1: una orden "preventivo con calibración" también cuenta como preventivo
+                obj['incluyePreventivo'] = tipoNorm.includes('preventivo');
+                obj['FechaEnvio'] = cEnvio ? parsearFechaMantenimiento(row[cEnvio]) : null;
+                const dateObj = fechaConReferencia(obj['FechaEjecucion'], obj['FechaEnvio']);
                 obj['FechaObj'] = dateObj;
                 if (dateObj) {
                     obj['FechaEjecucionStr'] = dateObj.toLocaleDateString('es-MX', { timeZone: 'UTC' });
@@ -1501,6 +1502,86 @@
             });
 
             clientesUnicos = Array.from(clientesSet).sort();
+            agruparEquipos();   // v8.1
+        }
+
+        /* v8.1 — FECHAS AMBIGUAS
+           "05/11/2026" puede ser 5 de noviembre (día-mes) u 11 de mayo
+           (mes-día). Si la orden trae la fecha de envío de Jotform, se elige
+           la lectura más cercana a ese día: el servicio se captura el mismo
+           día o pocos días después. Sin fecha de envío, se usa FORMATO_FECHA. */
+        function fechaConReferencia(texto, ref) {
+            const base = parsearFechaMantenimiento(texto);
+            if (!base || !ref) return base;
+            const t = String(texto || '').trim().split(' ')[0];
+            const p = t.split(/[-\/]/);
+            if (p.length < 3 || p[0].length === 4) return base;
+            const a = parseInt(p[0], 10), b = parseInt(p[1], 10);
+            if (!(a <= 12 && b <= 12 && a !== b)) return base;
+            const alterna = parsearFechaMantenimiento(texto, FORMATO_FECHA === 'MDY' ? 'DMY' : 'MDY');
+            if (!alterna) return base;
+            return Math.abs(alterna - ref) < Math.abs(base - ref) ? alterna : base;
+        }
+
+        /* v8.1 — IDENTIDAD DEL EQUIPO
+           Antes cada equipo se reconocía solo por su número de serie escrito
+           igual. Si una orden traía la serie con guiones, espacios o "SN"
+           delante, o solo el inventario, el sistema creía que era otro equipo
+           y el original quedaba "vencido" aunque ya se hubiera atendido.
+           Ahora, dentro de cada unidad, las órdenes se agrupan por serie
+           (comparada sin guiones, espacios ni prefijos) y por inventario: dos
+           órdenes con la misma serie o el mismo inventario son el mismo equipo.
+           Un inventario que aparece con series distintas no se usa para unir. */
+        function serieComparable(v) {
+            let t = normalizar(String(v || '').toLowerCase()).replace(/[^a-z0-9]/g, '');
+            t = t.replace(/^(numerodeserie|noserie|serie|ns|sn)(?=[a-z0-9]{4,})/, '');
+            return (t.length < 2 || /^(na|nd|sn|sinserie|sinnumero|noaplica|sindato|0+)$/.test(t)) ? '' : t;
+        }
+        function inventarioComparable(v) {
+            const t = normalizar(String(v || '').toLowerCase()).replace(/[^a-z0-9]/g, '');
+            return (t.length < 3 || /^(na|nd|sin|no|pend|0+$)/.test(t)) ? '' : t;
+        }
+
+        function agruparEquipos() {
+            const padre = new Map();
+            const raiz = (x) => { while (padre.get(x) !== x) { padre.set(x, padre.get(padre.get(x))); x = padre.get(x); } return x; };
+            const nodo = (x) => { if (!padre.has(x)) padre.set(x, x); return x; };
+            const unir = (a, b) => { const ra = raiz(a), rb = raiz(b); if (ra !== rb) padre.set(rb, ra); };
+
+            // Inventarios que aparecen con más de una serie: no sirven para unir
+            const seriesPorInv = new Map();
+            datosDetalleOrdenes.forEach(d => {
+                const inv = inventarioComparable(d.Inventario), ser = serieComparable(d.Serie);
+                if (!inv || !ser) return;
+                const k = d.Cliente + '#' + inv;
+                if (!seriesPorInv.has(k)) seriesPorInv.set(k, new Set());
+                seriesPorInv.get(k).add(ser);
+            });
+
+            datosDetalleOrdenes.forEach(d => {
+                const ser = serieComparable(d.Serie), inv = inventarioComparable(d.Inventario);
+                const ks = ser ? nodo(d.Cliente + '#s:' + ser) : null;
+                const invUtil = inv && !((seriesPorInv.get(d.Cliente + '#' + inv) || new Set()).size > 1);
+                const ki = invUtil ? nodo(d.Cliente + '#i:' + inv) : null;
+                if (ks && ki) unir(ks, ki);
+                d._nodoEq = ks || ki || null;
+            });
+
+            // Llave estable por grupo: la de la orden más antigua (con serie, si hay)
+            const rep = new Map();
+            datosDetalleOrdenes.slice()
+                .sort((a, b) => (a.FechaObj ? a.FechaObj.getTime() : 9e15) - (b.FechaObj ? b.FechaObj.getTime() : 9e15))
+                .forEach(d => {
+                    if (!d._nodoEq) return;
+                    const r = raiz(d._nodoEq);
+                    const actual = rep.get(r);
+                    const conSerie = !!serieComparable(d.Serie);
+                    if (!actual || (conSerie && !actual.conSerie)) rep.set(r, { llave: llaveEquipoBase(d), conSerie: conSerie });
+                });
+            datosDetalleOrdenes.forEach(d => {
+                d._llaveEq = d._nodoEq ? rep.get(raiz(d._nodoEq)).llave : null;
+                delete d._nodoEq;
+            });
         }
 
 
@@ -2828,7 +2909,12 @@
             return d ? d.toLocaleDateString('es-MX', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
         }
 
+        // v8.1: si el equipo ya se agrupó (agruparEquipos), se usa la llave del grupo
         function llaveEquipoCal(d) {
+            return (d && d._llaveEq) || llaveEquipoBase(d);
+        }
+
+        function llaveEquipoBase(d) {
             const limpio = (v) => {
                 const t = normalizar(String(v || '').toLowerCase()).replace(/\s+/g, '').trim();
                 return ['', 'n/a', 'na', 's/n', 'sn', 'sinserie', 'nd', 'n/d', '-', '0'].indexOf(t) > -1 ? '' : t;
@@ -2839,73 +2925,23 @@
             return 'e:' + [d.Equipo, d.Marca, d.Modelo, d.Area].map(x => normalizar(String(x || '').toLowerCase()).trim()).join('|');
         }
 
-        /* v8.1 — ÚLTIMO SERVICIO POR EQUIPO, TOLERANTE A CAPTURAS DISTINTAS
-           Antes la llave del equipo era rígida (serie, si no inventario, si
-           no la descripción). Si una orden registraba la serie y la siguiente
-           solo el inventario —o la serie con guiones/espacios distintos—, el
-           servicio nuevo quedaba como otro equipo y el anterior seguía
-           marcado como VENCIDO para siempre. Ahora dos órdenes de la misma
-           unidad son el mismo equipo si comparten serie O inventario
-           (comparados sin acentos, espacios ni signos). */
-        const IDS_VACIOS = ['', 'na', 'sn', 'nd', 'sinserie', 'sinnumerodeserie', 'sininventario', 'sinnumero',
-                            'noaplica', 'notiene', 'si', 'sinid', 'ilegible', 'nolegible', 'noviable', 'x', 'xx', 'xxx', '0', '00', '000'];
-        function idEquipoLimpio(v) {
-            const t = normalizar(String(v || '').toLowerCase()).replace(/[^a-z0-9]/g, '');
-            if (IDS_VACIOS.indexOf(t) > -1 || /^0+$/.test(t) || t.length < 3) return '';
-            return t;
-        }
-        function unidadLimpia(u) {
-            return normalizar(String(u || '').toLowerCase()).replace(/\s+/g, ' ').trim();
-        }
-
-        /* entradas: [{ tipo, orden }] → [{ tipo, orden }] con la orden más
-           reciente de cada equipo (por unidad y tipo de servicio). */
-        function ultimoServicioPorEquipo(entradas) {
-            const padre = [];
-            const raiz = (i) => { while (padre[i] !== i) { padre[i] = padre[padre[i]]; i = padre[i]; } return i; };
-            const unir = (a, b) => { a = raiz(a); b = raiz(b); if (a !== b) padre[b] = a; };
-            const porId = new Map();
-            entradas.forEach((e, i) => {
-                padre[i] = i;
-                const d = e.orden;
-                const base = unidadLimpia(d.Cliente) + '#' + e.tipo + '#';
-                const serie = idEquipoLimpio(d.Serie), inv = idEquipoLimpio(d.Inventario);
-                const ids = [];
-                if (serie) ids.push(base + 's:' + serie);
-                if (inv) ids.push(base + 'i:' + inv);
-                if (!ids.length) ids.push(base + 'e:' + [d.Equipo, d.Marca, d.Modelo, d.Area]
-                    .map(x => normalizar(String(x || '').toLowerCase()).trim()).join('|'));
-                ids.forEach(id => {
-                    if (porId.has(id)) unir(porId.get(id), i); else porId.set(id, i);
-                });
-            });
-            const ultimos = new Map();
-            entradas.forEach((e, i) => {
-                const r = raiz(i);
-                const previo = ultimos.get(r);
-                if (!previo || e.orden.FechaObj > previo.orden.FechaObj) ultimos.set(r, e);
-            });
-            return Array.from(ultimos.values());
-        }
-
-        // Tipos de programa que cumple una orden (preventivo y/o calibración)
-        function tiposProgramaDeOrden(d) {
-            const t = [];
-            if (d.incluyePreventivo || d.esPreventivo) t.push('Preventivo');
-            if (d.esCalibracion) t.push('Calibración');
-            return t;
-        }
-
         // Último servicio de cada equipo, por tipo
         function ultimosServiciosPorEquipo() {
             const tipo = document.getElementById('expTipo').value;
-            const quiere = { 'Preventivo': tipo === 'prev' || tipo === 'ambos', 'Calibración': tipo === 'cal' || tipo === 'ambos' };
-            const entradas = [];
-            dataPreventivos.concat(dataCalibraciones).forEach(d => {
+            const fuentes = [];
+            if (tipo === 'prev' || tipo === 'ambos') fuentes.push({ tipo: 'Preventivo', datos: dataPreventivos });
+            if (tipo === 'cal' || tipo === 'ambos')  fuentes.push({ tipo: 'Calibración', datos: dataCalibraciones });
+
+            const ultimos = new Map();
+            fuentes.forEach(f => f.datos.forEach(d => {
                 if (!d.FechaObj) return;
-                tiposProgramaDeOrden(d).forEach(t => { if (quiere[t]) entradas.push({ tipo: t, orden: d }); });
-            });
-            return ultimoServicioPorEquipo(entradas);
+                const llave = f.tipo + '#' + llaveEquipoCal(d);
+                const previo = ultimos.get(llave);
+                if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: f.tipo, orden: d });
+            }));
+            // v8.1: "preventivo con calibración" también atiende el preventivo del equipo
+            if (tipo === 'prev' || tipo === 'ambos') actualizarConCombinados(ultimos, dataCalibraciones, '');
+            return Array.from(ultimos.values());
         }
 
         function construirCalendario() {
@@ -3604,15 +3640,31 @@
             return new Date(Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()));
         }
 
-        function calcularProximosGlobal() {
-            const entradas = [];
-            datosDetalleOrdenes.forEach(d => {
-                if (!d.FechaObj) return;
-                tiposProgramaDeOrden(d).forEach(t => entradas.push({ tipo: t, orden: d }));
+        /* v8.1: una orden de calibración cuyo tipo menciona "preventivo"
+           también cuenta como el último preventivo del equipo, si el equipo
+           ya lleva preventivos (no crea un renglón de preventivo nuevo). */
+        function actualizarConCombinados(ultimos, calibraciones, prefijo) {
+            calibraciones.forEach(d => {
+                if (!d.FechaObj || !d.esCalibracion || !d.incluyePreventivo) return;
+                const llave = (prefijo ? d.Cliente + '#' : '') + 'Preventivo#' + llaveEquipoCal(d);
+                const previo = ultimos.get(llave);
+                if (previo && d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: 'Preventivo', orden: d });
             });
+        }
+
+        function calcularProximosGlobal() {
+            const ultimos = new Map();
+            datosDetalleOrdenes.forEach(d => {
+                if (!d.FechaObj || !(d.esPreventivo || d.esCalibracion)) return;
+                const tipo = d.esCalibracion ? 'Calibración' : 'Preventivo';
+                const llave = d.Cliente + '#' + tipo + '#' + llaveEquipoCal(d);
+                const previo = ultimos.get(llave);
+                if (!previo || d.FechaObj > previo.orden.FechaObj) ultimos.set(llave, { tipo: tipo, orden: d });
+            });
+            actualizarConCombinados(ultimos, datosDetalleOrdenes, 'unidad');   // v8.1
             const hoy = hoyUTC();
             const lista = [];
-            ultimoServicioPorEquipo(entradas).forEach(({ tipo, orden: d }) => {
+            ultimos.forEach(({ tipo, orden: d }) => {
                 const frec = frecuenciaParaEquipo(d.Equipo);
                 if (!(frec > 0)) return;
                 const fecha = sumarMesesUTC(d.FechaObj, frec);
@@ -5087,7 +5139,7 @@
                 if (vista === 'satisfaccion' && tienePermiso('satisfaccion')) { mostrarSatisfaccion(partes[1] ? decodeURIComponent(partes[1]) : ''); return true; }
                 if (vista === 'cotizador' && tienePermiso('cotizador')) { mostrarCotizador(); return true; }
                 if (vista === 'rentas' && tienePermiso('rentas')) { mostrarRentas(); return true; }   // v7.5
-                if (vista === 'rutinas' && tienePermiso('proximos')) { mostrarRutinas(); return true; }   // v8.0
+                if (vista === 'rutinas' && tienePermiso('rutinas')) { mostrarRutinas(); return true; }   // v8.0 · v8.1
                 if (vista === 'catalogos' && tienePermiso('catalogos')) {
                     mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
                     return true;
@@ -8066,6 +8118,26 @@
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
 
+            /* v8.1: el "Vencido" solo aplica al ÚLTIMO servicio del equipo. Una
+               orden vieja de un equipo que ya se volvió a atender muestra
+               "Atendido" con la fecha del servicio posterior. */
+            const siguienteDe = new Map();
+            if (c.conProximo) {
+                const tipoTab = clave === 'cal' ? 'cal' : 'prev';
+                const delEquipo = datosDetalleOrdenes.filter(x => x.Cliente === clienteActual && x.FechaObj &&
+                    (tipoTab === 'cal' ? x.esCalibracion : (x.esPreventivo || (x.esCalibracion && x.incluyePreventivo))));
+                const ultimo = new Map();
+                delEquipo.forEach(x => {
+                    const k = llaveEquipoCal(x);
+                    const u = ultimo.get(k);
+                    if (!u || x.FechaObj > u.FechaObj) ultimo.set(k, x);
+                });
+                c.datos().forEach(x => {
+                    const u = ultimo.get(llaveEquipoCal(x));
+                    if (u && x.FechaObj && u.FechaObj > x.FechaObj) siguienteDe.set(x, u);
+                });
+            }
+
             filtrados.forEach(d => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors';
@@ -8076,8 +8148,11 @@
                 if (c.esRenta) {
                     tr.innerHTML = celdaChk + filaRentaHTML(d) + celdaFactura;   // v7.5
                 } else if (c.conProximo) {
-                    const vencido = d.ProximoMantDate && d.ProximoMantDate < hoy;
-                    const badge = vencido
+                    const posterior = siguienteDe.get(d);   // v8.1
+                    const vencido = !posterior && d.ProximoMantDate && d.ProximoMantDate < hoy;
+                    const badge = posterior
+                        ? '<span class="ml-2 inline-block whitespace-nowrap bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full" title="Orden ' + esc(posterior.ID) + '">✓ Atendido ' + esc(posterior.FechaEjecucionStr) + '</span>'
+                        : vencido
                         ? '<span class="ml-2 inline-block whitespace-nowrap bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full uppercase">⚠ Vencido</span>'
                         : '';
                     tr.innerHTML = celdaChk + `
@@ -8092,7 +8167,7 @@
                         </td>
                         <td class="px-4 py-3 text-slate-600">${esc(d.Area)}</td>
                         <td class="px-4 py-3 text-slate-600">${esc(d.FechaEjecucionStr)}</td>
-                        <td class="px-4 py-3 font-bold ${vencido ? 'text-red-600' : 'text-brand-600'}">${esc(d.ProximoMantStr)}${badge}</td>
+                        <td class="px-4 py-3 font-bold ${posterior ? 'text-slate-400' : vencido ? 'text-red-600' : 'text-brand-600'}">${esc(d.ProximoMantStr)}${badge}</td>
                         ` + celdaFactura + `
                         <td class="px-4 py-3 text-right no-print">
                             <button data-id="${esc(d.ID)}" class="btn-rutina text-brand-600 hover:text-brand-800 hover:bg-brand-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors border border-transparent hover:border-brand-200 shadow-sm bg-white">
@@ -10417,12 +10492,13 @@
             { clave: 'proximos',     etiqueta: 'Gestión de mantenimiento', btn: 'btnProximos',      vista: 'proximosContent' },
             { clave: 'satisfaccion', etiqueta: 'Satisfacción de clientes', btn: 'btnSatisfaccion', vista: 'satisfaccionContent' },
             { clave: 'cotizador',    etiqueta: 'Cotizador',               btn: 'btnCotizador',     vista: 'cotizadorContent' },
+            { clave: 'rutinas',      etiqueta: 'Rutinas de servicio',     btn: 'btnRutinas',       vista: 'rutinasContent' },  // v8.1
             { clave: 'rentas',       etiqueta: 'Rentas',                  btn: 'btnRentas',        vista: 'rentasContent' },   // v7.5
             { clave: 'catalogos',    etiqueta: 'Catálogos',               btn: 'btnCatalogos',     vista: 'catalogosContent' },
             { clave: 'auditoria',    etiqueta: 'Auditoría financiera',    btn: 'btnAuditoria',     vista: 'auditoriaContent' },
             { clave: 'usuarios',     etiqueta: 'Usuarios',                btn: 'btnAdminUsuarios', vista: 'adminUsuariosContent' }
         ];
-        const PERMISOS_BASE_USUARIO = ['proximos', 'satisfaccion', 'cotizador', 'rentas'];   // v7.5: + rentas
+        const PERMISOS_BASE_USUARIO = ['proximos', 'satisfaccion', 'cotizador', 'rentas', 'rutinas'];   // v7.5: + rentas · v8.1: + rutinas
 
         function permisosSesion() {
             const s = sesionActual();
@@ -10698,10 +10774,6 @@
                 const vista = document.getElementById(ap.vista);
                 if (!ok && vista) vista.classList.add('hidden');
             });
-            // v8.0: Rutinas de servicio va con el permiso de Gestión de mantenimiento
-            const okRut = tienePermiso('proximos');
-            elOpcional('btnRutinas').classList.toggle('hidden', !okRut);
-            if (!okRut) elOpcional('rutinasContent').classList.add('hidden');
         }
 
         function mensajeUsuariosUI(texto, tipo) {
