@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.1.1';
+        const VERSION_APP = '8.2';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1159,6 +1159,8 @@
             } else if (visible('proximosContent')) {
                 poblarFiltrosProximos(); renderProximos();
                 if (pestanaGestion === 'correctivos') { poblarFiltrosCorrectivos(); renderCorrectivosIngeniero(); }   // v6.9
+            } else if (visible('contratosContent')) {        // v8.2
+                renderContrato();
             } else if (visible('rutinasContent')) {          // v8.0
                 poblarFiltrosRutinas(); renderRutinas();
             } else if (visible('rentasContent')) {           // v8.0
@@ -2061,7 +2063,7 @@
             // v5.4: se limpian TODOS los botones del menú (antes solo el del
             // dashboard, y el último apartado visitado quedaba resaltado) y se
             // oculta la vista de próximos mantenimientos
-            ['btnDashboard', 'btnProximos', 'btnRutinas', 'btnSatisfaccion', 'btnCotizador', 'btnRentas', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
+            ['btnDashboard', 'btnProximos', 'btnRutinas', 'btnSatisfaccion', 'btnCotizador', 'btnRentas', 'btnContratos', 'btnCatalogos', 'btnAuditoria', 'btnAdminUsuarios'].forEach(id => {
                 const b = document.getElementById(id);
                 if (!b) return;
                 b.classList.remove('border-brand-500', 'bg-slate-800/50', 'text-white');
@@ -2076,6 +2078,8 @@
             if (ren) ren.classList.add('hidden');
             const rsv = document.getElementById('rutinasContent');        // v8.0
             if (rsv) rsv.classList.add('hidden');
+            const cto = document.getElementById('contratosContent');      // v8.2
+            if (cto) cto.classList.add('hidden');
 
             const btns = document.getElementById('listaClientesSidebar').querySelectorAll('button');
             btns.forEach(b => {
@@ -5150,6 +5154,7 @@
                 if (vista === 'cotizador' && tienePermiso('cotizador')) { mostrarCotizador(); return true; }
                 if (vista === 'rentas' && tienePermiso('rentas')) { mostrarRentas(); return true; }   // v7.5
                 if (vista === 'rutinas' && tienePermiso('rutinas')) { mostrarRutinas(); return true; }   // v8.0 · v8.1
+                if (vista === 'contratos' && tienePermiso('contratos')) { mostrarContratos(); return true; }   // v8.2
                 if (vista === 'catalogos' && tienePermiso('catalogos')) {
                     mostrarCatalogos().then(() => { if (partes[1]) cambiarPestanaCatalogo(partes[1]); });
                     return true;
@@ -5190,6 +5195,7 @@
             envolver('mostrarCotizador', '#cotizador');
             envolver('mostrarRentas', '#rentas');   // v7.5
             envolver('mostrarRutinas', '#rutinas');   // v8.0
+            envolver('mostrarContratos', '#contratos');   // v8.2
             envolver('mostrarCatalogos', '#catalogos');
             envolver('mostrarAuditoria', '#auditoria');
             envolver('mostrarAdminUsuarios', '#usuarios');
@@ -10505,6 +10511,7 @@
             { clave: 'cotizador',    etiqueta: 'Cotizador',               btn: 'btnCotizador',     vista: 'cotizadorContent' },
             { clave: 'rutinas',      etiqueta: 'Rutinas de servicio',     btn: 'btnRutinas',       vista: 'rutinasContent' },  // v8.1
             { clave: 'rentas',       etiqueta: 'Rentas',                  btn: 'btnRentas',        vista: 'rentasContent' },   // v7.5
+            { clave: 'contratos',    etiqueta: 'Contratos',               btn: 'btnContratos',     vista: 'contratosContent' },   // v8.2
             { clave: 'catalogos',    etiqueta: 'Catálogos',               btn: 'btnCatalogos',     vista: 'catalogosContent' },
             { clave: 'auditoria',    etiqueta: 'Auditoría financiera',    btn: 'btnAuditoria',     vista: 'auditoriaContent' },
             { clave: 'usuarios',     etiqueta: 'Usuarios',                btn: 'btnAdminUsuarios', vista: 'adminUsuariosContent' }
@@ -12515,6 +12522,718 @@
             document.getElementById('dashRenDias').innerText = Math.round(k.dias).toLocaleString('es-MX');
             document.getElementById('dashRenImporte').innerText = fmtMoneda(k.importe, 'MXN');
         }
+
+
+        /* ============================================================
+           v8.2 — CONTRATOS DE MANTENIMIENTO
+           Por unidad, uno o varios contratos con vigencia y nivel de precio.
+           Cada contrato tiene su lista de equipos (cargada desde Excel) y,
+           por equipo, los MESES del año en que le toca mantenimiento.
+             · Importe: tarifa de preventivo del nivel del contrato × visitas.
+             · Cotización del contrato completo o de los equipos marcados,
+               con partidas por tipo de equipo (o una por equipo), que se
+               abre en el cotizador para revisarla y guardarla.
+           Los datos viven en las pestañas Contratos y Contratos_Equipos.
+           ============================================================ */
+        const MESES_INI = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+        let contratosData = { contratos: [], equipos: [] };
+        let contratoSel = '';
+        const seleccionContrato = new Set();
+        const mesesBarraSel = new Set();
+        const cambiosContrato = new Map();     // id equipo → meses (pendientes de guardar)
+        let relojGuardadoContrato = null;
+        let cargaContratoPendiente = null;
+
+        async function apiContrato(accion, datos) {
+            const r = await fetch(URL_APPS_SCRIPT, {
+                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(Object.assign({ accion: accion, token: tokenSesion() }, datos || {}))
+            });
+            const j = await r.json().catch(() => null);
+            if (!j || !j.ok) throw new Error((j && j.error) || 'El servidor respondió de forma inesperada.');
+            return j;
+        }
+
+        function mensajeContratoUI(texto, tipo) {
+            const el = document.getElementById('ctMensaje');
+            const cls = { error: 'bg-red-50 text-red-700 border border-red-200', ok: 'bg-green-50 text-green-700 border border-green-200',
+                          info: 'bg-slate-100 text-slate-700 border border-slate-200' };
+            el.className = 'mb-4 text-sm rounded-lg px-4 py-3 ' + (cls[tipo] || cls.info);
+            el.innerText = texto || '';
+            el.classList.toggle('hidden', !texto);
+        }
+
+        async function mostrarContratos() {
+            if (!tienePermiso('contratos')) { sinPermiso('contratos'); return; }
+            resetSidebarStyles();
+            const btn = document.getElementById('btnContratos');
+            btn.classList.add('border-brand-500', 'bg-slate-800/50', 'text-white');
+            btn.classList.remove('text-slate-400');
+            document.getElementById('dashboardContent').style.display = 'none';
+            document.getElementById('clienteContent').style.display = 'none';
+            ['adminUsuariosContent', 'auditoriaContent', 'cotizadorContent', 'catalogosContent', 'proximosContent',
+             'satisfaccionContent', 'rentasContent', 'rutinasContent'].forEach(id => elOpcional(id).classList.add('hidden'));
+            document.getElementById('contratosContent').classList.remove('hidden');
+            clienteActual = '';
+            cerrarSidebarMovil();
+            registrarEvento('ver_contratos');
+            if (!catalogoClientes.length) cargarCatalogoClientes();   // para sugerir el nivel del contrato
+            await recargarContratos();
+        }
+
+        async function recargarContratos() {
+            mensajeContratoUI('', 'info');
+            if (!hayBackend()) { mensajeContratoUI('Contratos requiere el servidor de Apps Script.', 'error'); return; }
+            document.getElementById('ctVacio').classList.remove('hidden');
+            document.getElementById('ctVacio').innerText = 'Cargando contratos…';
+            document.getElementById('ctDetalle').classList.add('hidden');
+            try {
+                const j = await apiContrato('listarContratos');
+                contratosData = { contratos: j.contratos || [], equipos: j.equipos || [] };
+            } catch (err) {
+                mensajeContratoUI('No se pudieron leer los contratos: ' + err.message, 'error');
+            }
+            poblarSelectoresContrato();
+            renderContrato();
+        }
+
+        function contratoActual() { return contratosData.contratos.find(c => c.id === contratoSel) || null; }
+        function equiposDelContrato(id) { return contratosData.equipos.filter(e => e.contratoId === (id || contratoSel)); }
+
+        function poblarSelectoresContrato() {
+            const selU = document.getElementById('ctUnidad');
+            const prevU = selU.value;
+            const unidades = [...new Set(contratosData.contratos.map(c => c.unidad))].sort((a, b) => a.localeCompare(b, 'es'));
+            selU.innerHTML = '<option value="">Todas las unidades con contrato</option>' +
+                unidades.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+            selU.value = unidades.includes(prevU) ? prevU : '';
+            poblarSelectorContratos();
+        }
+
+        function poblarSelectorContratos() {
+            const u = document.getElementById('ctUnidad').value;
+            const lista = contratosData.contratos.filter(c => !u || c.unidad === u)
+                .sort((a, b) => String(b.inicio).localeCompare(String(a.inicio)) || a.nombre.localeCompare(b.nombre, 'es'));
+            const sel = document.getElementById('ctContrato');
+            const hoy = isoLocal();
+            sel.innerHTML = lista.length
+                ? lista.map(c => {
+                    const estado = (c.inicio && c.inicio > hoy) ? ' · por iniciar' : (c.fin && c.fin < hoy) ? ' · vencido' : '';
+                    return '<option value="' + esc(c.id) + '">' + esc((u ? '' : c.unidad + ' · ') + c.nombre +
+                        (c.inicio || c.fin ? ' (' + (c.inicio || '…') + ' a ' + (c.fin || '…') + ')' : '') + estado) + '</option>';
+                  }).join('')
+                : '<option value="">Sin contratos</option>';
+            if (!lista.some(c => c.id === contratoSel)) contratoSel = lista.length ? lista[0].id : '';
+            sel.value = contratoSel;
+        }
+
+        /* Último preventivo o calibración del equipo en las órdenes de la unidad
+           (por serie o inventario, comparados sin guiones ni espacios). */
+        function indiceServiciosUnidad(unidad) {
+            const idx = new Map();
+            datosDetalleOrdenes.forEach(d => {
+                if (d.Cliente !== unidad || !d.FechaObj || !(d.esPreventivo || d.esCalibracion)) return;
+                [['s:', serieComparable(d.Serie)], ['i:', inventarioComparable(d.Inventario)]].forEach(([p, v]) => {
+                    if (!v) return;
+                    const prev = idx.get(p + v);
+                    if (!prev || d.FechaObj > prev.FechaObj) idx.set(p + v, d);
+                });
+            });
+            return idx;
+        }
+        function ultimoServicioDe(e, idx) {
+            const a = idx.get('s:' + serieComparable(e.serie)), b = idx.get('i:' + inventarioComparable(e.inventario));
+            if (a && b) return a.FechaObj >= b.FechaObj ? a : b;
+            return a || b || null;
+        }
+
+        function mesesDe(e) {
+            const v = cambiosContrato.has(e.id) ? cambiosContrato.get(e.id) : e.meses;
+            return String(v || '').split(',').map(Number).filter(n => n >= 1 && n <= 12);
+        }
+
+        function precioContrato(e, nivel) {
+            const t = tarifaDeEquipo(e.equipo, 'Preventivo');
+            const p = t ? t.precios[nivel] : null;
+            return { tarifa: t, precio: (p === null || p === undefined) ? null : Number(p) };
+        }
+
+        function filasContrato() {
+            const c = contratoActual();
+            if (!c) return [];
+            const idx = indiceServiciosUnidad(c.unidad);
+            return equiposDelContrato().map(e => {
+                const meses = mesesDe(e);
+                const pr = precioContrato(e, c.nivel);
+                return { e: e, meses: meses, visitas: meses.length, precio: pr.precio, sinTarifa: pr.precio === null,
+                         importe: pr.precio === null ? null : redondear(pr.precio * meses.length),
+                         ultimo: ultimoServicioDe(e, idx) };
+            });
+        }
+
+        function renderContrato() {
+            const c = contratoActual();
+            const vacio = document.getElementById('ctVacio');
+            document.getElementById('ctBtnEditar').disabled = !c;
+            document.getElementById('ctBtnEliminar').disabled = !c;
+            if (!c) {
+                vacio.classList.remove('hidden');
+                vacio.innerHTML = contratosData.contratos.length
+                    ? 'Elige un contrato.'
+                    : 'Aún no hay contratos. Crea uno con <b>+ Nuevo contrato</b> y después carga su Excel de equipos.';
+                document.getElementById('ctDetalle').classList.add('hidden');
+                return;
+            }
+            vacio.classList.add('hidden');
+            document.getElementById('ctDetalle').classList.remove('hidden');
+
+            const filas = filasContrato();
+            const visitas = filas.reduce((a, f) => a + f.visitas, 0);
+            const sinMeses = filas.filter(f => !f.visitas).length;
+            const sinTarifa = filas.filter(f => f.sinTarifa).length;
+            const importe = redondear(filas.reduce((a, f) => a + (f.importe || 0), 0));
+            const hoy = isoLocal();
+            const estadoCto = (c.inicio && c.inicio > hoy) ? 'por iniciar' : (c.fin && c.fin < hoy) ? 'vencido' : 'vigente';
+            document.getElementById('ctResumen').innerHTML =
+                tarjetaIndicador('Contrato', '<span class="text-lg">' + esc(c.nombre) + '</span>', c.unidad + ' · ' + estadoCto, estadoCto === 'vencido' ? 'text-slate-500' : 'text-slate-900') +
+                tarjetaIndicador('Vigencia', '<span class="text-base">' + esc(c.inicio || '…') + '<br>' + esc(c.fin || '…') + '</span>', 'nivel de precio ' + c.nivel) +
+                tarjetaIndicador('Equipos', filas.length, sinMeses ? sinMeses + ' sin meses programados' : 'todos programados', sinMeses ? 'text-amber-600' : 'text-slate-900') +
+                tarjetaIndicador('Servicios al año', visitas, 'suma de visitas programadas', 'text-brand-600') +
+                tarjetaIndicador('Importe estimado', fmtMoneda(importe, 'MXN'), 'sin IVA · nivel ' + c.nivel, 'text-green-700') +
+                tarjetaIndicador('Sin tarifa', sinTarifa, sinTarifa ? 'agrégalos al tarifario' : 'todos con precio', sinTarifa ? 'text-amber-600' : 'text-slate-900');
+
+            // Distribución por mes
+            const porMes = Array(12).fill(0);
+            filas.forEach(f => f.meses.forEach(m => porMes[m - 1]++));
+            const max = Math.max(1, ...porMes);
+            document.getElementById('ctPorMes').innerHTML = porMes.map((n, i) =>
+                '<div class="text-center rounded-lg border border-slate-200 py-2" style="background:rgba(0,93,161,' + (n ? 0.08 + 0.5 * n / max : 0) + ')">' +
+                    '<p class="text-xs font-bold ' + (n / max > 0.6 ? 'text-white' : 'text-slate-500') + '">' + MESES_CORTOS[i] + '</p>' +
+                    '<p class="text-lg font-bold ' + (n / max > 0.6 ? 'text-white' : 'text-slate-800') + '">' + n + '</p></div>').join('');
+
+            renderTablaContrato(filas);
+            pintarBarraSeleccionContrato();
+        }
+
+        function renderTablaContrato(filas) {
+            filas = filas || filasContrato();
+            const q = normalizar(document.getElementById('ctBuscar').value.toLowerCase()).trim().split(/\s+/).filter(Boolean);
+            const filtro = document.getElementById('ctFiltro').value;
+            const lista = filas.filter(f => {
+                if (filtro === 'sinmeses' && f.visitas) return false;
+                if (filtro === 'sintarifa' && !f.sinTarifa) return false;
+                if (!q.length) return true;
+                const blob = normalizar([f.e.equipo, f.e.marca, f.e.modelo, f.e.serie, f.e.inventario, f.e.area].join(' ').toLowerCase());
+                return q.every(p => blob.includes(p));
+            });
+            document.getElementById('ctContador').innerText = lista.length + ' de ' + filas.length + ' equipos';
+            const cont = document.getElementById('ctTabla');
+            if (!filas.length) {
+                cont.innerHTML = '<p class="text-sm text-slate-500 italic py-10 text-center">Este contrato aún no tiene equipos. Usa <b>Cargar Excel de equipos</b> (puedes partir de la plantilla).</p>';
+                return;
+            }
+            const th = 'px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
+            const todos = lista.length && lista.every(f => seleccionContrato.has(f.e.id));
+            cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
+                '<th class="px-3 py-2"><input type="checkbox" data-ct-todos ' + (todos ? 'checked' : '') + ' class="rounded border-slate-300" title="Seleccionar lo visible"></th>' +
+                '<th class="' + th + '">Equipo</th><th class="' + th + '">Serie / Inventario</th><th class="' + th + '">Área</th>' +
+                MESES_INI.map((m, i) => '<th class="px-0.5 py-2 text-center text-xs font-bold text-slate-500" title="' + MESES_ES[i] + '">' + m + '</th>').join('') +
+                '<th class="' + th + ' text-right">Visitas</th><th class="' + th + ' text-right">Tarifa</th><th class="' + th + ' text-right">Importe</th>' +
+                '<th class="' + th + '">Último servicio</th></tr></thead><tbody class="divide-y divide-slate-100">' +
+                lista.map(f => {
+                    const e = f.e;
+                    const sel = seleccionContrato.has(e.id);
+                    return '<tr class="' + (sel ? 'bg-brand-50' : 'hover:bg-slate-50') + '">' +
+                        '<td class="px-3 py-2"><input type="checkbox" data-ct-sel="' + esc(e.id) + '" ' + (sel ? 'checked' : '') + ' class="rounded border-slate-300"></td>' +
+                        '<td class="px-3 py-2"><p class="font-semibold text-slate-800">' + esc(e.equipo) + '</p>' +
+                            '<p class="text-xs text-slate-500">' + esc([e.marca, e.modelo].filter(Boolean).join(' · ')) + '</p></td>' +
+                        '<td class="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">' + (e.serie ? 'S/N ' + esc(e.serie) : '—') +
+                            (e.inventario ? '<br>Inv. ' + esc(e.inventario) : '') + '</td>' +
+                        '<td class="px-3 py-2 text-xs text-slate-600">' + esc(e.area) + '</td>' +
+                        MESES_INI.map((m, i) => {
+                            const on = f.meses.includes(i + 1);
+                            return '<td class="px-0.5 py-2 text-center"><button data-ct-mes="' + esc(e.id) + '" data-mes="' + (i + 1) + '" ' +
+                                'title="' + MESES_ES[i] + (on ? ': programado' : '') + '" aria-pressed="' + on + '" ' +
+                                'class="w-6 h-6 rounded text-[11px] font-bold transition-colors ' +
+                                (on ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-slate-100 text-slate-400 hover:bg-brand-100 hover:text-brand-700') + '">' + m + '</button></td>';
+                        }).join('') +
+                        '<td class="px-3 py-2 text-right font-semibold ' + (f.visitas ? 'text-slate-800' : 'text-amber-600') + '">' + f.visitas + '</td>' +
+                        '<td class="px-3 py-2 text-right font-mono text-xs ' + (f.sinTarifa ? 'text-amber-600' : 'text-slate-600') + '">' + (f.sinTarifa ? 'sin tarifa' : fmtMoneda(f.precio, 'MXN')) + '</td>' +
+                        '<td class="px-3 py-2 text-right font-mono text-xs font-semibold text-slate-800">' + (f.importe === null ? '—' : fmtMoneda(f.importe, 'MXN')) + '</td>' +
+                        '<td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">' + (f.ultimo ? esc(f.ultimo.FechaEjecucionStr) + '<br>' + esc(f.ultimo.ID) : '—') + '</td>' +
+                    '</tr>';
+                }).join('') + '</tbody></table>';
+        }
+
+        function pintarBarraSeleccionContrato() {
+            const n = [...seleccionContrato].filter(id => equiposDelContrato().some(e => e.id === id)).length;
+            document.getElementById('ctBarraSel').classList.toggle('hidden', !n);
+            document.getElementById('ctConteoSel').innerText = n + ' equipo(s) seleccionado(s) · meses:';
+            const b = document.getElementById('ctBtnCotSel');
+            b.disabled = !n;
+            b.innerText = 'Cotizar seleccionados' + (n ? ' (' + n + ')' : '');
+            document.getElementById('ctMesesSel').innerHTML = MESES_CORTOS.map((m, i) =>
+                '<button data-ct-barra="' + (i + 1) + '" class="px-2 py-1 rounded text-xs font-bold ' +
+                (mesesBarraSel.has(i + 1) ? 'bg-brand-600 text-white' : 'bg-white border border-brand-200 text-brand-700 hover:bg-brand-100') + '">' + m + '</button>').join('');
+        }
+
+        // ---- cambios de meses: se guardan solos un momento después ----
+        function programarGuardadoContrato() {
+            document.getElementById('ctGuardado').innerText = 'Cambios sin guardar…';
+            clearTimeout(relojGuardadoContrato);
+            relojGuardadoContrato = setTimeout(guardarCambiosContrato, 1200);
+        }
+
+        async function guardarCambiosContrato() {
+            if (!cambiosContrato.size) return;
+            const id = contratoSel;
+            const cambios = [...cambiosContrato.entries()].map(([eid, meses]) => ({ id: eid, meses: meses }));
+            const ind = document.getElementById('ctGuardado');
+            ind.innerText = 'Guardando…';
+            try {
+                await apiContrato('actualizarEquiposContrato', { contratoId: id, cambios: cambios });
+                cambios.forEach(x => {
+                    const e = contratosData.equipos.find(y => y.id === x.id);
+                    if (e) e.meses = x.meses;
+                    if (cambiosContrato.get(x.id) === x.meses) cambiosContrato.delete(x.id);
+                });
+                ind.innerText = 'Cambios guardados ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                if (cambiosContrato.size) programarGuardadoContrato();
+            } catch (err) {
+                ind.innerText = '';
+                mensajeContratoUI('No se guardaron los meses: ' + err.message + '. Vuelve a intentar.', 'error');
+            }
+        }
+
+        function fijarMeses(e, meses) {
+            const v = [...new Set(meses)].filter(m => m >= 1 && m <= 12).sort((a, b) => a - b).join(',');
+            if (v === (e.meses || '') ) cambiosContrato.delete(e.id); else cambiosContrato.set(e.id, v);
+        }
+
+        function alternarMes(id, mes) {
+            const e = contratosData.equipos.find(x => x.id === id);
+            if (!e) return;
+            const m = mesesDe(e);
+            fijarMeses(e, m.includes(mes) ? m.filter(x => x !== mes) : m.concat(mes));
+            programarGuardadoContrato();
+            renderContrato();
+        }
+
+        function aplicarMesesSeleccion(modo) {
+            const ids = [...seleccionContrato];
+            if (modo === 'poner' && !mesesBarraSel.size) { mensajeContratoUI('Marca primero los meses en la barra azul.', 'info'); return; }
+            ids.forEach(id => {
+                const e = contratosData.equipos.find(x => x.id === id && x.contratoId === contratoSel);
+                if (e) fijarMeses(e, modo === 'poner' ? [...mesesBarraSel] : []);
+            });
+            programarGuardadoContrato();
+            renderContrato();
+        }
+
+        /* Sugerencia: frecuencia del tipo de equipo; el primer mes es el que
+           sigue a su último servicio registrado o, sin él, el del inicio del
+           contrato. Solo a los seleccionados o, sin selección, a los que no
+           tienen meses. */
+        function sugerirMesesContrato() {
+            const c = contratoActual();
+            if (!c) return;
+            const idx = indiceServiciosUnidad(c.unidad);
+            const inicioMes = c.inicio ? parseInt(c.inicio.slice(5, 7), 10) : 1;
+            const objetivo = seleccionContrato.size
+                ? equiposDelContrato().filter(e => seleccionContrato.has(e.id))
+                : equiposDelContrato().filter(e => !mesesDe(e).length);
+            if (!objetivo.length) { mensajeContratoUI('Todos los equipos ya tienen meses. Selecciona los que quieras recalcular.', 'info'); return; }
+            let n = 0;
+            objetivo.forEach(e => {
+                const frec = Math.max(1, Math.min(12, frecuenciaParaEquipo(e.equipo) || 12));
+                const ult = ultimoServicioDe(e, idx);
+                let base = ult ? ((ult.FechaObj.getUTCMonth() + frec) % 12) + 1 : inicioMes;
+                const meses = [];
+                for (let k = 0; k < 12 / frec; k++) meses.push(((base - 1 + k * frec) % 12) + 1);
+                fijarMeses(e, meses);
+                n++;
+            });
+            programarGuardadoContrato();
+            renderContrato();
+            mensajeContratoUI('Se propusieron meses para ' + n + ' equipo(s) según su frecuencia' +
+                              ' y su último servicio. Revísalos: puedes cambiarlos con un clic.', 'ok');
+        }
+
+        async function quitarEquiposSeleccion() {
+            const ids = [...seleccionContrato].filter(id => equiposDelContrato().some(e => e.id === id));
+            if (!ids.length) return;
+            if (!(await confirmar('¿Quitar ' + ids.length + ' equipo(s) de este contrato?', { textoSi: 'Quitar', peligro: true }))) return;
+            try {
+                await guardarCambiosContrato();
+                await apiContrato('actualizarEquiposContrato', { contratoId: contratoSel, cambios: [], quitar: ids });
+                contratosData.equipos = contratosData.equipos.filter(e => !(e.contratoId === contratoSel && ids.includes(e.id)));
+                ids.forEach(id => { seleccionContrato.delete(id); cambiosContrato.delete(id); });
+                renderContrato();
+                mensajeContratoUI(ids.length + ' equipo(s) quitado(s) del contrato.', 'ok');
+            } catch (err) { mensajeContratoUI(err.message, 'error'); }
+        }
+
+        function limpiarSeleccionContrato() { seleccionContrato.clear(); renderContrato(); }
+
+        // ---- alta / edición / baja de contrato ----
+        function abrirFormContrato(c) {
+            document.getElementById('ctFormTitulo').innerText = c ? 'Editar contrato' : 'Nuevo contrato';
+            const unidades = [...new Set(clientesUnicos.concat(contratosData.contratos.map(x => x.unidad)))].sort((a, b) => a.localeCompare(b, 'es'));
+            document.getElementById('ctfUnidades').innerHTML = unidades.map(u => '<option value="' + esc(u) + '">').join('');
+            document.getElementById('ctfUnidad').value = c ? c.unidad : (document.getElementById('ctUnidad').value || '');
+            document.getElementById('ctfNombre').value = c ? c.nombre : '';
+            const anio = new Date().getFullYear();
+            document.getElementById('ctfInicio').value = c ? c.inicio : '';
+            document.getElementById('ctfFin').value = c ? c.fin : '';
+            document.getElementById('ctfNivel').value = c ? c.nivel : 'I';
+            document.getElementById('ctfNotas').value = c ? c.notas : '';
+            document.getElementById('ctfMensaje').classList.add('hidden');
+            document.getElementById('modalContrato').dataset.id = c ? c.id : '';
+            if (!c) { document.getElementById('ctfInicio').value = anio + '-01-01'; document.getElementById('ctfFin').value = anio + '-12-31'; }
+            const m = document.getElementById('modalContrato'); m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function cerrarFormContrato() { const m = document.getElementById('modalContrato'); m.classList.add('hidden'); m.classList.remove('flex'); }
+        function editarContratoActual() { const c = contratoActual(); if (c) abrirFormContrato(c); }
+
+        // El nivel del contrato se sugiere con el del cliente en el catálogo
+        elOpcional('ctfUnidad').addEventListener('change', () => {
+            if (document.getElementById('modalContrato').dataset.id) return;
+            const u = normalizar(document.getElementById('ctfUnidad').value.toLowerCase()).trim();
+            const cli = (catalogoClientes || []).find(x => x.nivel && normalizar(String(x.unidad || '').toLowerCase()).trim() === u);
+            if (cli) document.getElementById('ctfNivel').value = cli.nivel;
+        });
+
+        async function guardarFormContrato() {
+            const msg = document.getElementById('ctfMensaje');
+            const datos = {
+                id: document.getElementById('modalContrato').dataset.id || '',
+                unidad: document.getElementById('ctfUnidad').value.trim(),
+                nombre: document.getElementById('ctfNombre').value.trim(),
+                inicio: document.getElementById('ctfInicio').value, fin: document.getElementById('ctfFin').value,
+                nivel: document.getElementById('ctfNivel').value, notas: document.getElementById('ctfNotas').value.trim()
+            };
+            if (!datos.unidad || !datos.nombre) { msg.innerText = 'Escribe la unidad y el nombre del contrato.'; msg.classList.remove('hidden'); return; }
+            const btn = document.getElementById('ctfGuardar');
+            btn.disabled = true;
+            try {
+                const j = await apiContrato('guardarContrato', { contrato: datos });
+                registrarEvento(j.nuevo ? 'contrato_alta' : 'contrato_editado', datos.nombre + ' · ' + datos.unidad);
+                cerrarFormContrato();
+                contratoSel = j.id;
+                await recargarContratos();
+                document.getElementById('ctUnidad').value = datos.unidad;
+                poblarSelectorContratos();
+                renderContrato();
+                mensajeContratoUI(j.nuevo ? 'Contrato creado. Ahora carga su Excel de equipos.' : 'Contrato actualizado.', 'ok');
+            } catch (err) { msg.innerText = err.message; msg.classList.remove('hidden'); }
+            finally { btn.disabled = false; }
+        }
+
+        async function eliminarContratoActual() {
+            const c = contratoActual();
+            if (!c) return;
+            const n = equiposDelContrato().length;
+            if (!(await confirmar('¿Eliminar el contrato «' + c.nombre + '» de ' + c.unidad + (n ? ' y sus ' + n + ' equipo(s)' : '') + '? No se puede deshacer.',
+                                  { titulo: 'Eliminar contrato', textoSi: 'Eliminar', peligro: true }))) return;
+            try {
+                await apiContrato('eliminarContrato', { id: c.id });
+                registrarEvento('contrato_eliminado', c.nombre + ' · ' + c.unidad);
+                contratoSel = '';
+                await recargarContratos();
+                mensajeContratoUI('Contrato eliminado.', 'ok');
+            } catch (err) { mensajeContratoUI(err.message, 'error'); }
+        }
+
+        // ---- Excel: plantilla, lectura y carga ----
+        const COLUMNAS_EXCEL_CONTRATO = {
+            equipo: ['equipo', 'nombre del equipo', 'nombre', 'descripcion', 'tipo de equipo'],
+            marca: ['marca', 'fabricante'],
+            modelo: ['modelo'],
+            serie: ['numero de serie', 'no de serie', 'no. de serie', 'num de serie', 'serie', 'n/s', 's/n', 'ns'],
+            inventario: ['numero de inventario', 'no de inventario', 'no. de inventario', 'inventario', 'activo', 'activo fijo'],
+            area: ['area', 'ubicacion', 'area o ubicacion', 'servicio', 'departamento'],
+            meses: ['meses', 'mes', 'meses de mantenimiento', 'mes de mantenimiento', 'programacion'],
+            notas: ['notas', 'observaciones']
+        };
+
+        function columnaExcelContrato(titulo) {
+            const t = normalizar(String(titulo || '').toLowerCase()).replace(/[:.]/g, '').replace(/\s+/g, ' ').trim();
+            if (!t) return null;
+            for (const [k, alias] of Object.entries(COLUMNAS_EXCEL_CONTRATO)) {
+                if (alias.some(a => t === a.replace(/\./g, ''))) return k;
+            }
+            for (const [k, alias] of Object.entries(COLUMNAS_EXCEL_CONTRATO)) {
+                if (alias.some(a => a.length > 3 && t.includes(a.replace(/\./g, '')))) return k;
+            }
+            return null;
+        }
+
+        // "3,9" · "marzo y septiembre" · "Mar/Sep" → [3, 9]
+        function mesesDeTexto(v) {
+            const t = normalizar(String(v === undefined || v === null ? '' : v).toLowerCase());
+            const out = new Set();
+            const nombres = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            t.split(/[^a-z0-9]+/).filter(Boolean).forEach(p => {
+                const n = parseInt(p, 10);
+                if (String(n) === p && n >= 1 && n <= 12) { out.add(n); return; }
+                const i = nombres.findIndex(x => p.startsWith(x) || (x === 'sep' && p.startsWith('set')));
+                if (i > -1) out.add(i + 1);
+            });
+            return [...out].sort((a, b) => a - b).join(',');
+        }
+
+        async function leerExcelContrato(archivo) {
+            await cargarSheetJS();
+            const buf = await archivo.arrayBuffer();
+            const libro = XLSX.read(buf, { type: 'array' });
+            const hoja = libro.Sheets[libro.SheetNames[0]];
+            const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+            // Renglón de encabezados: el primero (de los 15 iniciales) que tenga "equipo" y otra columna conocida
+            let ih = -1, mapa = null;
+            for (let i = 0; i < Math.min(15, filas.length); i++) {
+                const m = filas[i].map(columnaExcelContrato);
+                if (m.includes('equipo') && m.filter(Boolean).length >= 2) { ih = i; mapa = m; break; }
+            }
+            const supuesto = ih === -1;
+            if (supuesto) { mapa = ['equipo', 'marca', 'modelo', 'serie', 'inventario', 'area', 'meses']; }
+            const equipos = [];
+            filas.slice(ih + 1).forEach(f => {
+                const x = {};
+                mapa.forEach((k, j) => { if (k && x[k] === undefined) x[k] = String(f[j] === undefined ? '' : f[j]).trim(); });
+                if (!x.equipo) return;
+                if (x.meses !== undefined) x.meses = mesesDeTexto(x.meses);
+                equipos.push(x);
+            });
+            return { equipos: equipos, columnas: [...new Set(mapa.filter(Boolean))], supuesto: supuesto, hoja: libro.SheetNames[0] };
+        }
+
+        elOpcional('ctArchivo').addEventListener('change', async (ev) => {
+            const archivo = ev.target.files && ev.target.files[0];
+            ev.target.value = '';
+            if (!archivo || !contratoActual()) return;
+            try {
+                const r = await leerExcelContrato(archivo);
+                abrirCargaContrato(archivo.name, r);
+            } catch (err) { mensajeContratoUI('No se pudo leer el archivo: ' + err.message, 'error'); }
+        });
+
+        function abrirCargaContrato(nombre, r) {
+            cargaContratoPendiente = r;
+            const nombresCol = { equipo: 'Equipo', marca: 'Marca', modelo: 'Modelo', serie: 'Serie', inventario: 'Inventario', area: 'Área', meses: 'Meses', notas: 'Notas' };
+            document.getElementById('ccArchivo').innerText = nombre + ' · hoja «' + r.hoja + '»';
+            // Repetidos por serie (o inventario)
+            const vistos = new Map(); let repetidos = 0;
+            r.equipos.forEach(e => {
+                const k = serieComparable(e.serie) ? 's:' + serieComparable(e.serie) : (inventarioComparable(e.inventario) ? 'i:' + inventarioComparable(e.inventario) : '');
+                if (!k) return;
+                if (vistos.has(k)) repetidos++; else vistos.set(k, true);
+            });
+            const sinSerie = r.equipos.filter(e => !serieComparable(e.serie) && !inventarioComparable(e.inventario)).length;
+            const conMeses = r.equipos.filter(e => e.meses).length;
+            const yaTiene = equiposDelContrato().length;
+            document.getElementById('ccResumen').innerHTML =
+                '<p><b>' + r.equipos.length + '</b> equipo(s) encontrados. Columnas reconocidas: ' +
+                    r.columnas.map(k => '<span class="inline-block bg-brand-50 text-brand-800 text-xs font-semibold px-2 py-0.5 rounded mr-1">' + nombresCol[k] + '</span>').join('') + '</p>' +
+                (r.supuesto ? '<p class="text-amber-700 mt-1">No se encontró un renglón de encabezados: se tomó el orden Equipo, Marca, Modelo, Serie, Inventario. Revisa la vista previa.</p>' : '') +
+                (repetidos ? '<p class="text-amber-700 mt-1">' + repetidos + ' renglón(es) repiten una serie o inventario de otro renglón.</p>' : '') +
+                (sinSerie ? '<p class="text-slate-500 mt-1">' + sinSerie + ' equipo(s) sin serie ni inventario.</p>' : '') +
+                (conMeses ? '<p class="text-slate-500 mt-1">' + conMeses + ' equipo(s) traen sus meses desde el archivo.</p>' : '') +
+                (yaTiene ? '<p class="text-slate-500 mt-1">El contrato ya tiene ' + yaTiene + ' equipo(s).</p>' : '');
+            const th = 'px-2 py-1.5 text-left text-xs font-bold text-slate-500 uppercase';
+            const cols = r.columnas;
+            document.getElementById('ccVista').innerHTML = '<table class="min-w-full text-xs"><thead class="bg-slate-50"><tr>' +
+                cols.map(k => '<th class="' + th + '">' + nombresCol[k] + '</th>').join('') + '</tr></thead><tbody class="divide-y divide-slate-100">' +
+                r.equipos.slice(0, 8).map(e => '<tr>' + cols.map(k => '<td class="px-2 py-1.5 text-slate-700">' +
+                    esc(k === 'meses' ? (e.meses ? e.meses.split(',').map(m => MESES_CORTOS[m - 1]).join(', ') : '') : (e[k] || '')) + '</td>').join('') + '</tr>').join('') +
+                (r.equipos.length > 8 ? '<tr><td colspan="' + cols.length + '" class="px-2 py-1.5 text-slate-400 italic">… y ' + (r.equipos.length - 8) + ' más</td></tr>' : '') +
+                '</tbody></table>';
+            document.querySelector('input[name="ccModo"][value="' + (yaTiene ? 'agregar' : 'reemplazar') + '"]').checked = true;
+            document.getElementById('ccMensaje').classList.add('hidden');
+            document.getElementById('ccConfirmar').disabled = !r.equipos.length;
+            const m = document.getElementById('modalCargaContrato'); m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function cerrarCargaContrato() { const m = document.getElementById('modalCargaContrato'); m.classList.add('hidden'); m.classList.remove('flex'); cargaContratoPendiente = null; }
+
+        async function confirmarCargaContrato() {
+            const r = cargaContratoPendiente;
+            if (!r) return;
+            const modo = document.querySelector('input[name="ccModo"]:checked').value;
+            const btn = document.getElementById('ccConfirmar');
+            const msg = document.getElementById('ccMensaje');
+            btn.disabled = true; btn.innerText = 'Cargando…';
+            try {
+                await guardarCambiosContrato();
+                const j = await apiContrato('cargarEquiposContrato', { contratoId: contratoSel, modo: modo, equipos: r.equipos });
+                registrarEvento('contrato_carga_excel', (contratoActual() || {}).nombre + ' · ' + j.cargados + ' equipo(s) · ' + modo);
+                cerrarCargaContrato();
+                seleccionContrato.clear(); cambiosContrato.clear();
+                await recargarContratos();
+                mensajeContratoUI(j.cargados + ' equipo(s) cargados; el contrato tiene ' + j.total + '. ' +
+                    'Programa sus meses con un clic o con «Sugerir meses».', 'ok');
+            } catch (err) {
+                msg.className = 'text-sm text-red-600'; msg.innerText = err.message;
+            } finally { btn.disabled = false; btn.innerText = 'Cargar equipos'; }
+        }
+
+        async function descargarPlantillaContrato() {
+            try {
+                await cargarSheetJS();
+                const hoja = XLSX.utils.aoa_to_sheet([
+                    ['Equipo', 'Marca', 'Modelo', 'Número de serie', 'Número de inventario', 'Área', 'Meses']
+                ]);
+                hoja['!cols'] = [34, 18, 18, 20, 20, 22, 18].map(w => ({ wch: w }));
+                const ayuda = XLSX.utils.aoa_to_sheet([
+                    ['Cómo llenar la plantilla'],
+                    ['Un renglón por equipo. Equipo es obligatorio; Marca, Modelo, Número de serie y Número de inventario se recomiendan.'],
+                    ['Área y Meses son opcionales. En Meses escribe los meses del mantenimiento: «3,9» o «marzo, septiembre» o «Mar/Sep».'],
+                    ['Escribe el nombre del equipo como en el tarifario (por ejemplo «Monitor de signos vitales») para que tome su precio.']
+                ]);
+                ayuda['!cols'] = [{ wch: 120 }];
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Equipos');
+                XLSX.utils.book_append_sheet(libro, ayuda, 'Instrucciones');
+                XLSX.writeFile(libro, 'Plantilla_equipos_contrato.xlsx');
+            } catch (err) { mensajeContratoUI(err.message, 'error'); }
+        }
+
+        async function exportarContratoExcel() {
+            const c = contratoActual();
+            if (!c) return;
+            try {
+                await cargarSheetJS();
+                const filas = filasContrato();
+                const enc = ['Equipo', 'Marca', 'Modelo', 'Número de serie', 'Número de inventario', 'Área'].concat(MESES_CORTOS)
+                    .concat(['Visitas', 'Tarifa (nivel ' + c.nivel + ')', 'Importe', 'Último servicio', 'Orden']);
+                const aoa = [['Contrato: ' + c.nombre], [c.unidad + ' · vigencia ' + (c.inicio || '…') + ' a ' + (c.fin || '…') + ' · nivel ' + c.nivel], [], enc];
+                filas.forEach(f => aoa.push([f.e.equipo, f.e.marca, f.e.modelo, f.e.serie, f.e.inventario, f.e.area]
+                    .concat(MESES_CORTOS.map((m, i) => f.meses.includes(i + 1) ? 'X' : ''))
+                    .concat([f.visitas, f.precio === null ? 'sin tarifa' : f.precio, f.importe === null ? '' : f.importe,
+                             f.ultimo ? f.ultimo.FechaEjecucionStr : '', f.ultimo ? f.ultimo.ID : ''])));
+                const porMes = MESES_CORTOS.map((m, i) => filas.filter(f => f.meses.includes(i + 1)).length);
+                aoa.push(['Servicios por mes', '', '', '', '', ''].concat(porMes).concat([filas.reduce((a, f) => a + f.visitas, 0), '',
+                          redondear(filas.reduce((a, f) => a + (f.importe || 0), 0))]));
+                const hoja = XLSX.utils.aoa_to_sheet(aoa);
+                hoja['!cols'] = [30, 16, 16, 18, 18, 18].map(w => ({ wch: w })).concat(MESES_CORTOS.map(() => ({ wch: 5 })))
+                    .concat([8, 14, 14, 14, 12].map(w => ({ wch: w })));
+                hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + filas.length, c: enc.length - 1 } }) };
+                for (let r = 4; r <= 4 + filas.length; r++) [19, 20].forEach(col => {
+                    const cel = hoja[XLSX.utils.encode_cell({ r: r, c: col })];
+                    if (cel && cel.t === 'n') cel.z = '"$"#,##0.00';
+                });
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, 'Contrato');
+                XLSX.writeFile(libro, ('Contrato_' + c.unidad + '_' + c.nombre).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') + '.xlsx');
+                registrarEvento('contrato_exportado', c.nombre + ' · ' + c.unidad);
+            } catch (err) { mensajeContratoUI(err.message, 'error'); }
+        }
+
+        /* ---- Cotización del contrato ----
+           Partidas por tipo de equipo (cantidad = visitas de todos los equipos
+           de ese tipo) o una por equipo. Precio: tarifa de preventivo del
+           nivel del contrato. Se abre en el cotizador para revisar y guardar. */
+        async function cotizarContrato(soloSeleccionados) {
+            const c = contratoActual();
+            if (!c) return;
+            if (!tienePermiso('cotizador')) { sinPermiso('cotizador'); return; }
+            await guardarCambiosContrato();
+            let filas = filasContrato();
+            if (soloSeleccionados) filas = filas.filter(f => seleccionContrato.has(f.e.id));
+            const sinMeses = filas.filter(f => !f.visitas);
+            filas = filas.filter(f => f.visitas);
+            if (!filas.length) {
+                mensajeContratoUI(sinMeses.length ? 'Los equipos elegidos no tienen meses programados: no hay servicios que cotizar.' : 'No hay equipos que cotizar.', 'error');
+                return;
+            }
+            const agrupar = document.getElementById('ctAgrupar').value === 'tipo';
+            const partidas = [];
+            const mesesTxt = (ms) => ms.map(m => MESES_CORTOS[m - 1]).join(', ');
+            if (agrupar) {
+                const grupos = new Map();
+                filas.forEach(f => {
+                    const k = normalizar(f.e.equipo.toLowerCase()).trim();
+                    if (!grupos.has(k)) grupos.set(k, { equipo: f.e.equipo, filas: [] });
+                    grupos.get(k).filas.push(f);
+                });
+                grupos.forEach(g => {
+                    const visitas = g.filas.reduce((a, f) => a + f.visitas, 0);
+                    const f0 = g.filas[0];
+                    partidas.push({ base: f0, cantidad: visitas,
+                        descripcion: 'Mantenimiento preventivo a ' + g.equipo + ' · ' + g.filas.length + ' equipo(s), ' + visitas + ' servicio(s) en el contrato' });
+                });
+            } else {
+                filas.forEach(f => {
+                    const e = f.e;
+                    partidas.push({ base: f, cantidad: f.visitas,
+                        descripcion: 'Mantenimiento preventivo a ' + e.equipo + [e.marca, e.modelo].filter(Boolean).map(x => ' · ' + x).join('') +
+                                     (e.serie ? ' · S/N ' + e.serie : '') + (e.inventario ? ' · Inv. ' + e.inventario : '') + ' · Meses: ' + mesesTxt(f.meses) });
+                });
+            }
+
+            await mostrarCotizador();
+            // Partida enlazada al concepto del catálogo para que se reprecie si cambia el nivel
+            const partidasCot = partidas.map(p => {
+                const t = p.base.sinTarifa ? null : tarifaDeEquipo(p.base.e.equipo, 'Preventivo');
+                const iCat = t && t.clave ? catalogoCotizacion.findIndex(x => x.clave === t.clave) : -1;
+                return { descripcion: p.descripcion, unidad: 'Servicio', cantidad: p.cantidad,
+                         precio: p.base.precio === null ? 0 : p.base.precio,
+                         origen: iCat > -1 ? String(iCat) : null, clave: t ? (t.clave || '') : '', tocado: iCat === -1 };
+            });
+            const u = normalizar(c.unidad.toLowerCase()).trim();
+            const cli = (catalogoClientes || []).find(x => normalizar(String(x.unidad || '').toLowerCase()).trim() === u) ||
+                        (catalogoClientes || []).find(x => normalizar(String(x.razonSocial || '').toLowerCase()).trim() === u);
+            const visitas = filas.reduce((a, f) => a + f.visitas, 0);
+            const porMes = MESES_CORTOS.map((m, i) => [m, filas.filter(f => f.meses.includes(i + 1)).length]).filter(x => x[1]);
+            const nota = 'Contrato «' + c.nombre + '»' + (c.inicio || c.fin ? ', vigencia ' + (c.inicio || '…') + ' a ' + (c.fin || '…') : '') +
+                '. ' + filas.length + ' equipo(s), ' + visitas + ' servicio(s) de mantenimiento preventivo. Calendario: ' +
+                porMes.map(x => x[0] + ' (' + x[1] + ')').join(', ') + '.';
+            abrirFormulario({
+                folio: '', nivel: c.nivel, clienteId: cli ? cli.id : '',
+                razonSocial: cli ? cli.razonSocial : c.unidad, direccion: cli ? cli.direccion : '', rfc: cli ? cli.rfc : '',
+                atencion: cli ? cli.atencion : '', condiciones: 'CRÉDITO',
+                observaciones: nota + '\n' + valorConfig('Observaciones'),
+                partidas: partidasCot
+            }, true);
+            document.getElementById('cotTituloForm').innerText = 'Nueva cotización · contrato ' + c.nombre;
+            const sinTarifa = filas.filter(f => f.sinTarifa).length;
+            mensajeCotUI('Cotización armada desde el contrato: ' + partidasCot.length + ' partida(s), ' + visitas + ' servicio(s).' +
+                (sinTarifa ? ' ' + sinTarifa + ' equipo(s) sin tarifa quedaron con precio 0: captúralo.' : '') +
+                (sinMeses.length ? ' ' + sinMeses.length + ' equipo(s) sin meses no se incluyeron.' : '') +
+                (cli ? '' : ' La unidad no está en el catálogo de clientes: completa los datos fiscales.'), sinTarifa || !cli ? 'error' : 'info');
+            registrarEvento('contrato_cotizado', c.nombre + ' · ' + (soloSeleccionados ? 'seleccionados' : 'completo') + ' · ' + filas.length + ' equipo(s)');
+        }
+
+        // ---- eventos ----
+        elOpcional('ctUnidad').addEventListener('change', () => { poblarSelectorContratos(); seleccionContrato.clear(); renderContrato(); });
+        elOpcional('ctContrato').addEventListener('change', async (e) => {
+            await guardarCambiosContrato();
+            contratoSel = e.target.value; seleccionContrato.clear(); renderContrato();
+        });
+        elOpcional('ctFiltro').addEventListener('change', () => renderTablaContrato());
+        (() => { let t = null;
+            elOpcional('ctBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => renderTablaContrato(), 150); });
+        })();
+        elOpcional('ctTabla').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-ct-mes]');
+            if (b) { alternarMes(b.dataset.ctMes, parseInt(b.dataset.mes, 10)); return; }
+        });
+        elOpcional('ctTabla').addEventListener('change', (e) => {
+            const chk = e.target.closest('[data-ct-sel]');
+            if (chk) { if (chk.checked) seleccionContrato.add(chk.dataset.ctSel); else seleccionContrato.delete(chk.dataset.ctSel); renderContrato(); return; }
+            if (e.target.closest('[data-ct-todos]')) {
+                const marcar = e.target.checked;
+                document.querySelectorAll('#ctTabla [data-ct-sel]').forEach(x => { if (marcar) seleccionContrato.add(x.dataset.ctSel); else seleccionContrato.delete(x.dataset.ctSel); });
+                renderContrato();
+            }
+        });
+        elOpcional('ctMesesSel').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-ct-barra]');
+            if (!b) return;
+            const m = parseInt(b.dataset.ctBarra, 10);
+            if (mesesBarraSel.has(m)) mesesBarraSel.delete(m); else mesesBarraSel.add(m);
+            pintarBarraSeleccionContrato();
+        });
+        // No perder meses pendientes al salir de la página
+        window.addEventListener('beforeunload', (e) => { if (cambiosContrato.size) { guardarCambiosContrato(); e.preventDefault(); e.returnValue = ''; } });
 
 
         function iniciarAplicacion() {
