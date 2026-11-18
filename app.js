@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.2';
+        const VERSION_APP = '8.3';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -12535,12 +12535,15 @@
                abre en el cotizador para revisarla y guardarla.
            Los datos viven en las pestañas Contratos y Contratos_Equipos.
            ============================================================ */
-        const MESES_INI = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+        /* v8.3: cada equipo lleva PERIODICIDAD (semestral por omisión) y PRIMER
+           MES; los meses del año se calculan de ahí. Un equipo cargado con
+           meses sueltos que no siguen una periodicidad queda «Personalizada». */
+        const PERIODICIDADES_CT = [[1, 'Mensual'], [2, 'Bimestral'], [3, 'Trimestral'], [4, 'Cuatrimestral'], [6, 'Semestral'], [12, 'Anual']];
+        const PERIODICIDAD_CT_DEFECTO = 6;
         let contratosData = { contratos: [], equipos: [] };
         let contratoSel = '';
         const seleccionContrato = new Set();
-        const mesesBarraSel = new Set();
-        const cambiosContrato = new Map();     // id equipo → meses (pendientes de guardar)
+        const cambiosContrato = new Map();     // id equipo → { periodicidad, primerMes, meses } pendientes de guardar
         let relojGuardadoContrato = null;
         let cargaContratoPendiente = null;
 
@@ -12647,10 +12650,28 @@
             return a || b || null;
         }
 
-        function mesesDe(e) {
-            const v = cambiosContrato.has(e.id) ? cambiosContrato.get(e.id) : e.meses;
-            return String(v || '').split(',').map(Number).filter(n => n >= 1 && n <= 12);
+        function mesesCalculados(per, primer) {
+            per = parseInt(per, 10); primer = parseInt(primer, 10);
+            if (!(per >= 1 && 12 % per === 0) || !(primer >= 1 && primer <= 12)) return [];
+            const out = [];
+            for (let k = 0; k < 12 / per; k++) out.push(((primer - 1 + k * per) % 12) + 1);
+            return out.sort((a, b) => a - b);
         }
+
+        // Programación vigente del equipo (con lo pendiente de guardar)
+        function programaDe(e) {
+            const c = cambiosContrato.get(e.id) || {};
+            const per = c.periodicidad !== undefined ? c.periodicidad
+                      : (e.periodicidad === undefined || e.periodicidad === '' ? PERIODICIDAD_CT_DEFECTO : Number(e.periodicidad));
+            const primer = c.primerMes !== undefined ? c.primerMes : (e.primerMes || '');
+            const sueltos = String(c.meses !== undefined ? c.meses : (e.meses || '')).split(',').map(Number).filter(n => n >= 1 && n <= 12);
+            // Meses cargados a mano sin primer mes: se respetan como «personalizada»
+            const personalizada = per === 0 || (!primer && sueltos.length > 0);
+            const meses = personalizada ? sueltos : mesesCalculados(per, primer);
+            return { periodicidad: personalizada ? 0 : per, primerMes: personalizada ? '' : primer, meses: meses };
+        }
+
+        function mesesDe(e) { return programaDe(e).meses; }
 
         function precioContrato(e, nivel) {
             const t = tarifaDeEquipo(e.equipo, 'Preventivo');
@@ -12665,7 +12686,7 @@
             return equiposDelContrato().map(e => {
                 const meses = mesesDe(e);
                 const pr = precioContrato(e, c.nivel);
-                return { e: e, meses: meses, visitas: meses.length, precio: pr.precio, sinTarifa: pr.precio === null,
+                return { e: e, prog: programaDe(e), meses: meses, visitas: meses.length, precio: pr.precio, sinTarifa: pr.precio === null,
                          importe: pr.precio === null ? null : redondear(pr.precio * meses.length),
                          ultimo: ultimoServicioDe(e, idx) };
             });
@@ -12737,7 +12758,7 @@
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
                 '<th class="px-3 py-2"><input type="checkbox" data-ct-todos ' + (todos ? 'checked' : '') + ' class="rounded border-slate-300" title="Seleccionar lo visible"></th>' +
                 '<th class="' + th + '">Equipo</th><th class="' + th + '">Serie / Inventario</th><th class="' + th + '">Área</th>' +
-                MESES_INI.map((m, i) => '<th class="px-0.5 py-2 text-center text-xs font-bold text-slate-500" title="' + MESES_ES[i] + '">' + m + '</th>').join('') +
+                '<th class="' + th + '">Periodicidad</th><th class="' + th + '">Primer mes</th><th class="' + th + '">Meses de servicio</th>' +
                 '<th class="' + th + ' text-right">Visitas</th><th class="' + th + ' text-right">Tarifa</th><th class="' + th + ' text-right">Importe</th>' +
                 '<th class="' + th + '">Último servicio</th></tr></thead><tbody class="divide-y divide-slate-100">' +
                 lista.map(f => {
@@ -12750,13 +12771,11 @@
                         '<td class="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">' + (e.serie ? 'S/N ' + esc(e.serie) : '—') +
                             (e.inventario ? '<br>Inv. ' + esc(e.inventario) : '') + '</td>' +
                         '<td class="px-3 py-2 text-xs text-slate-600">' + esc(e.area) + '</td>' +
-                        MESES_INI.map((m, i) => {
-                            const on = f.meses.includes(i + 1);
-                            return '<td class="px-0.5 py-2 text-center"><button data-ct-mes="' + esc(e.id) + '" data-mes="' + (i + 1) + '" ' +
-                                'title="' + MESES_ES[i] + (on ? ': programado' : '') + '" aria-pressed="' + on + '" ' +
-                                'class="w-6 h-6 rounded text-[11px] font-bold transition-colors ' +
-                                (on ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-slate-100 text-slate-400 hover:bg-brand-100 hover:text-brand-700') + '">' + m + '</button></td>';
-                        }).join('') +
+                        '<td class="px-3 py-2">' + selectPeriodicidad('data-ct-per="' + esc(e.id) + '"', f.prog.periodicidad) + '</td>' +
+                        '<td class="px-3 py-2">' + selectPrimerMes('data-ct-primer="' + esc(e.id) + '"', f.prog.primerMes, f.prog.periodicidad === 0) + '</td>' +
+                        '<td class="px-3 py-2 text-xs whitespace-nowrap ' + (f.meses.length ? 'text-slate-700' : 'text-amber-600') + '">' +
+                            (f.meses.length ? f.meses.slice().sort((x, y) => ((x - (f.prog.primerMes || 1) + 12) % 12) - ((y - (f.prog.primerMes || 1) + 12) % 12))
+                                .map(m => MESES_CORTOS[m - 1]).join(' · ') : 'elige el primer mes') + '</td>' +
                         '<td class="px-3 py-2 text-right font-semibold ' + (f.visitas ? 'text-slate-800' : 'text-amber-600') + '">' + f.visitas + '</td>' +
                         '<td class="px-3 py-2 text-right font-mono text-xs ' + (f.sinTarifa ? 'text-amber-600' : 'text-slate-600') + '">' + (f.sinTarifa ? 'sin tarifa' : fmtMoneda(f.precio, 'MXN')) + '</td>' +
                         '<td class="px-3 py-2 text-right font-mono text-xs font-semibold text-slate-800">' + (f.importe === null ? '—' : fmtMoneda(f.importe, 'MXN')) + '</td>' +
@@ -12765,16 +12784,26 @@
                 }).join('') + '</tbody></table>';
         }
 
+        function selectPeriodicidad(attr, valor) {
+            return '<select ' + attr + ' class="p-1.5 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:border-brand-500">' +
+                PERIODICIDADES_CT.map(([n, t]) => '<option value="' + n + '"' + (Number(valor) === n ? ' selected' : '') + '>' + t + '</option>').join('') +
+                (Number(valor) === 0 ? '<option value="0" selected>Personalizada</option>' : '') + '</select>';
+        }
+        function selectPrimerMes(attr, valor, personalizada) {
+            return '<select ' + attr + ' class="p-1.5 border rounded-lg text-xs bg-white outline-none focus:border-brand-500 ' +
+                (valor || personalizada ? 'border-slate-300' : 'border-amber-400') + '">' +
+                '<option value="">' + (personalizada ? 'Personalizado' : 'Elegir…') + '</option>' +
+                MESES_ES.map((m, i) => '<option value="' + (i + 1) + '"' + (Number(valor) === i + 1 ? ' selected' : '') + '>' +
+                    m.charAt(0).toUpperCase() + m.slice(1) + '</option>').join('') + '</select>';
+        }
+
         function pintarBarraSeleccionContrato() {
             const n = [...seleccionContrato].filter(id => equiposDelContrato().some(e => e.id === id)).length;
             document.getElementById('ctBarraSel').classList.toggle('hidden', !n);
-            document.getElementById('ctConteoSel').innerText = n + ' equipo(s) seleccionado(s) · meses:';
+            document.getElementById('ctConteoSel').innerText = n + ' equipo(s) seleccionado(s):';
             const b = document.getElementById('ctBtnCotSel');
             b.disabled = !n;
             b.innerText = 'Cotizar seleccionados' + (n ? ' (' + n + ')' : '');
-            document.getElementById('ctMesesSel').innerHTML = MESES_CORTOS.map((m, i) =>
-                '<button data-ct-barra="' + (i + 1) + '" class="px-2 py-1 rounded text-xs font-bold ' +
-                (mesesBarraSel.has(i + 1) ? 'bg-brand-600 text-white' : 'bg-white border border-brand-200 text-brand-700 hover:bg-brand-100') + '">' + m + '</button>').join('');
         }
 
         // ---- cambios de meses: se guardan solos un momento después ----
@@ -12787,15 +12816,16 @@
         async function guardarCambiosContrato() {
             if (!cambiosContrato.size) return;
             const id = contratoSel;
-            const cambios = [...cambiosContrato.entries()].map(([eid, meses]) => ({ id: eid, meses: meses }));
+            const cambios = [...cambiosContrato.entries()].map(([eid, c]) => ({ id: eid, periodicidad: c.periodicidad, primerMes: c.primerMes, meses: c.meses }));
             const ind = document.getElementById('ctGuardado');
             ind.innerText = 'Guardando…';
             try {
                 await apiContrato('actualizarEquiposContrato', { contratoId: id, cambios: cambios });
                 cambios.forEach(x => {
                     const e = contratosData.equipos.find(y => y.id === x.id);
-                    if (e) e.meses = x.meses;
-                    if (cambiosContrato.get(x.id) === x.meses) cambiosContrato.delete(x.id);
+                    if (e) { e.meses = x.meses; e.periodicidad = x.periodicidad; e.primerMes = x.primerMes; }
+                    const p = cambiosContrato.get(x.id);
+                    if (p && p.meses === x.meses && p.periodicidad === x.periodicidad && p.primerMes === x.primerMes) cambiosContrato.delete(x.id);
                 });
                 ind.innerText = 'Cambios guardados ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
                 if (cambiosContrato.size) programarGuardadoContrato();
@@ -12805,35 +12835,32 @@
             }
         }
 
-        function fijarMeses(e, meses) {
-            const v = [...new Set(meses)].filter(m => m >= 1 && m <= 12).sort((a, b) => a - b).join(',');
-            if (v === (e.meses || '') ) cambiosContrato.delete(e.id); else cambiosContrato.set(e.id, v);
+        // Cambia periodicidad y/o primer mes; los meses se recalculan
+        function fijarPrograma(e, per, primer) {
+            const actual = programaDe(e);
+            const p = per === undefined ? (actual.periodicidad || PERIODICIDAD_CT_DEFECTO) : Number(per);
+            const m = primer === undefined ? actual.primerMes : (primer ? Number(primer) : '');
+            cambiosContrato.set(e.id, { periodicidad: p, primerMes: m, meses: mesesCalculados(p, m).join(',') });
         }
 
-        function alternarMes(id, mes) {
-            const e = contratosData.equipos.find(x => x.id === id);
-            if (!e) return;
-            const m = mesesDe(e);
-            fijarMeses(e, m.includes(mes) ? m.filter(x => x !== mes) : m.concat(mes));
-            programarGuardadoContrato();
-            renderContrato();
-        }
-
-        function aplicarMesesSeleccion(modo) {
+        function aplicarProgramaSeleccion(modo) {
+            const per = document.getElementById('ctPerSel').value;
+            const primer = document.getElementById('ctPrimerSel').value;
             const ids = [...seleccionContrato];
-            if (modo === 'poner' && !mesesBarraSel.size) { mensajeContratoUI('Marca primero los meses en la barra azul.', 'info'); return; }
             ids.forEach(id => {
                 const e = contratosData.equipos.find(x => x.id === id && x.contratoId === contratoSel);
-                if (e) fijarMeses(e, modo === 'poner' ? [...mesesBarraSel] : []);
+                if (!e) return;
+                if (modo === 'limpiar') fijarPrograma(e, programaDe(e).periodicidad || PERIODICIDAD_CT_DEFECTO, '');
+                else fijarPrograma(e, per, primer === '' ? undefined : primer);
             });
             programarGuardadoContrato();
             renderContrato();
         }
 
-        /* Sugerencia: frecuencia del tipo de equipo; el primer mes es el que
-           sigue a su último servicio registrado o, sin él, el del inicio del
-           contrato. Solo a los seleccionados o, sin selección, a los que no
-           tienen meses. */
+        /* Sugerencia (v8.3): con la periodicidad de cada equipo, el primer mes
+           es el que toca después de su último servicio registrado o, sin él,
+           el de inicio del contrato. Solo a los seleccionados o, sin
+           selección, a los que aún no tienen primer mes. */
         function sugerirMesesContrato() {
             const c = contratoActual();
             if (!c) return;
@@ -12841,22 +12868,20 @@
             const inicioMes = c.inicio ? parseInt(c.inicio.slice(5, 7), 10) : 1;
             const objetivo = seleccionContrato.size
                 ? equiposDelContrato().filter(e => seleccionContrato.has(e.id))
-                : equiposDelContrato().filter(e => !mesesDe(e).length);
-            if (!objetivo.length) { mensajeContratoUI('Todos los equipos ya tienen meses. Selecciona los que quieras recalcular.', 'info'); return; }
+                : equiposDelContrato().filter(e => !programaDe(e).primerMes && !mesesDe(e).length);
+            if (!objetivo.length) { mensajeContratoUI('Todos los equipos ya tienen su primer mes. Selecciona los que quieras recalcular.', 'info'); return; }
             let n = 0;
             objetivo.forEach(e => {
-                const frec = Math.max(1, Math.min(12, frecuenciaParaEquipo(e.equipo) || 12));
+                const per = programaDe(e).periodicidad || PERIODICIDAD_CT_DEFECTO;
                 const ult = ultimoServicioDe(e, idx);
-                let base = ult ? ((ult.FechaObj.getUTCMonth() + frec) % 12) + 1 : inicioMes;
-                const meses = [];
-                for (let k = 0; k < 12 / frec; k++) meses.push(((base - 1 + k * frec) % 12) + 1);
-                fijarMeses(e, meses);
+                const primer = ult ? ((ult.FechaObj.getUTCMonth() + per) % 12) + 1 : inicioMes;
+                fijarPrograma(e, per, primer);
                 n++;
             });
             programarGuardadoContrato();
             renderContrato();
-            mensajeContratoUI('Se propusieron meses para ' + n + ' equipo(s) según su frecuencia' +
-                              ' y su último servicio. Revísalos: puedes cambiarlos con un clic.', 'ok');
+            mensajeContratoUI('Se propuso el primer mes de ' + n + ' equipo(s) con su periodicidad y su último servicio. ' +
+                              'Revísalos: puedes cambiar la periodicidad o el primer mes de cada uno.', 'ok');
         }
 
         async function quitarEquiposSeleccion() {
@@ -12952,6 +12977,8 @@
             serie: ['numero de serie', 'no de serie', 'no. de serie', 'num de serie', 'serie', 'n/s', 's/n', 'ns'],
             inventario: ['numero de inventario', 'no de inventario', 'no. de inventario', 'inventario', 'activo', 'activo fijo'],
             area: ['area', 'ubicacion', 'area o ubicacion', 'servicio', 'departamento'],
+            periodicidad: ['periodicidad', 'frecuencia'],
+            primerMes: ['primer mes', 'mes de inicio', 'primer mantenimiento'],
             meses: ['meses', 'mes', 'meses de mantenimiento', 'mes de mantenimiento', 'programacion'],
             notas: ['notas', 'observaciones']
         };
@@ -12966,6 +12993,15 @@
                 if (alias.some(a => a.length > 3 && t.includes(a.replace(/\./g, '')))) return k;
             }
             return null;
+        }
+
+        function periodicidadDeTexto(v) {
+            const t = normalizar(String(v === undefined || v === null ? '' : v).toLowerCase()).trim();
+            if (!t) return '';
+            const nombres = { mensual: 1, bimestral: 2, trimestral: 3, cuatrimestral: 4, semestral: 6, anual: 12 };
+            for (const k in nombres) if (t.startsWith(k)) return nombres[k];
+            const n = parseInt(t, 10);
+            return [1, 2, 3, 4, 6, 12].includes(n) ? n : '';
         }
 
         // "3,9" · "marzo y septiembre" · "Mar/Sep" → [3, 9]
@@ -13002,6 +13038,17 @@
                 mapa.forEach((k, j) => { if (k && x[k] === undefined) x[k] = String(f[j] === undefined ? '' : f[j]).trim(); });
                 if (!x.equipo) return;
                 if (x.meses !== undefined) x.meses = mesesDeTexto(x.meses);
+                // v8.3: periodicidad por nombre o número de meses; primer mes por nombre o número
+                if (x.periodicidad !== undefined) x.periodicidad = periodicidadDeTexto(x.periodicidad);
+                if (x.primerMes !== undefined) x.primerMes = (mesesDeTexto(x.primerMes).split(',')[0] || '');
+                if (x.periodicidad === undefined || x.periodicidad === '') {
+                    // Meses sueltos que sí siguen una periodicidad se convierten en periodicidad + primer mes
+                    const ms = (x.meses || '').split(',').map(Number).filter(Boolean);
+                    const p = ms.length ? 12 / ms.length : 0;
+                    if (ms.length && Number.isInteger(p) && mesesCalculados(p, ms[0]).join(',') === ms.join(',')) { x.periodicidad = p; x.primerMes = ms[0]; }
+                    else x.periodicidad = ms.length ? 0 : PERIODICIDAD_CT_DEFECTO;
+                }
+                if (x.primerMes) x.meses = mesesCalculados(x.periodicidad || PERIODICIDAD_CT_DEFECTO, x.primerMes).join(',') || x.meses;
                 equipos.push(x);
             });
             return { equipos: equipos, columnas: [...new Set(mapa.filter(Boolean))], supuesto: supuesto, hoja: libro.SheetNames[0] };
@@ -13019,7 +13066,9 @@
 
         function abrirCargaContrato(nombre, r) {
             cargaContratoPendiente = r;
-            const nombresCol = { equipo: 'Equipo', marca: 'Marca', modelo: 'Modelo', serie: 'Serie', inventario: 'Inventario', area: 'Área', meses: 'Meses', notas: 'Notas' };
+            const nombresCol = { equipo: 'Equipo', marca: 'Marca', modelo: 'Modelo', serie: 'Serie', inventario: 'Inventario', area: 'Área',
+                                 periodicidad: 'Periodicidad', primerMes: 'Primer mes', meses: 'Meses', notas: 'Notas' };
+            const nombrePer = (n) => n === 0 ? 'Personalizada' : ((PERIODICIDADES_CT.find(x => x[0] === Number(n)) || [0, ''])[1]);
             document.getElementById('ccArchivo').innerText = nombre + ' · hoja «' + r.hoja + '»';
             // Repetidos por serie (o inventario)
             const vistos = new Map(); let repetidos = 0;
@@ -13030,6 +13079,7 @@
             });
             const sinSerie = r.equipos.filter(e => !serieComparable(e.serie) && !inventarioComparable(e.inventario)).length;
             const conMeses = r.equipos.filter(e => e.meses).length;
+            if (!r.columnas.includes('periodicidad')) r.columnas.push('periodicidad');
             const yaTiene = equiposDelContrato().length;
             document.getElementById('ccResumen').innerHTML =
                 '<p><b>' + r.equipos.length + '</b> equipo(s) encontrados. Columnas reconocidas: ' +
@@ -13038,13 +13088,15 @@
                 (repetidos ? '<p class="text-amber-700 mt-1">' + repetidos + ' renglón(es) repiten una serie o inventario de otro renglón.</p>' : '') +
                 (sinSerie ? '<p class="text-slate-500 mt-1">' + sinSerie + ' equipo(s) sin serie ni inventario.</p>' : '') +
                 (conMeses ? '<p class="text-slate-500 mt-1">' + conMeses + ' equipo(s) traen sus meses desde el archivo.</p>' : '') +
+                '<p class="text-slate-500 mt-1">Los equipos sin periodicidad en el archivo entran como <b>semestrales</b>; después eliges su primer mes o usas «Sugerir meses».</p>' +
                 (yaTiene ? '<p class="text-slate-500 mt-1">El contrato ya tiene ' + yaTiene + ' equipo(s).</p>' : '');
             const th = 'px-2 py-1.5 text-left text-xs font-bold text-slate-500 uppercase';
             const cols = r.columnas;
             document.getElementById('ccVista').innerHTML = '<table class="min-w-full text-xs"><thead class="bg-slate-50"><tr>' +
                 cols.map(k => '<th class="' + th + '">' + nombresCol[k] + '</th>').join('') + '</tr></thead><tbody class="divide-y divide-slate-100">' +
                 r.equipos.slice(0, 8).map(e => '<tr>' + cols.map(k => '<td class="px-2 py-1.5 text-slate-700">' +
-                    esc(k === 'meses' ? (e.meses ? e.meses.split(',').map(m => MESES_CORTOS[m - 1]).join(', ') : '') : (e[k] || '')) + '</td>').join('') + '</tr>').join('') +
+                    esc(k === 'meses' ? (e.meses ? e.meses.split(',').map(m => MESES_CORTOS[m - 1]).join(', ') : '') :
+                        k === 'periodicidad' ? nombrePer(e.periodicidad) : k === 'primerMes' ? (e.primerMes ? MESES_CORTOS[e.primerMes - 1] : '') : (e[k] || '')) + '</td>').join('') + '</tr>').join('') +
                 (r.equipos.length > 8 ? '<tr><td colspan="' + cols.length + '" class="px-2 py-1.5 text-slate-400 italic">… y ' + (r.equipos.length - 8) + ' más</td></tr>' : '') +
                 '</tbody></table>';
             document.querySelector('input[name="ccModo"][value="' + (yaTiene ? 'agregar' : 'reemplazar') + '"]').checked = true;
@@ -13079,13 +13131,14 @@
             try {
                 await cargarSheetJS();
                 const hoja = XLSX.utils.aoa_to_sheet([
-                    ['Equipo', 'Marca', 'Modelo', 'Número de serie', 'Número de inventario', 'Área', 'Meses']
+                    ['Equipo', 'Marca', 'Modelo', 'Número de serie', 'Número de inventario', 'Área', 'Periodicidad', 'Primer mes']
                 ]);
-                hoja['!cols'] = [34, 18, 18, 20, 20, 22, 18].map(w => ({ wch: w }));
+                hoja['!cols'] = [34, 18, 18, 20, 20, 22, 16, 14].map(w => ({ wch: w }));
                 const ayuda = XLSX.utils.aoa_to_sheet([
                     ['Cómo llenar la plantilla'],
                     ['Un renglón por equipo. Equipo es obligatorio; Marca, Modelo, Número de serie y Número de inventario se recomiendan.'],
-                    ['Área y Meses son opcionales. En Meses escribe los meses del mantenimiento: «3,9» o «marzo, septiembre» o «Mar/Sep».'],
+                    ['Área, Periodicidad y Primer mes son opcionales. Periodicidad: Mensual, Bimestral, Trimestral, Cuatrimestral, Semestral o Anual (si se deja vacía, Semestral).'],
+                    ['Primer mes: el mes del primer mantenimiento («marzo» o «3»); los siguientes se calculan con la periodicidad.'],
                     ['Escribe el nombre del equipo como en el tarifario (por ejemplo «Monitor de signos vitales») para que tome su precio.']
                 ]);
                 ayuda['!cols'] = [{ wch: 120 }];
@@ -13102,21 +13155,23 @@
             try {
                 await cargarSheetJS();
                 const filas = filasContrato();
-                const enc = ['Equipo', 'Marca', 'Modelo', 'Número de serie', 'Número de inventario', 'Área'].concat(MESES_CORTOS)
+                const enc = ['Equipo', 'Marca', 'Modelo', 'Número de serie', 'Número de inventario', 'Área', 'Periodicidad', 'Primer mes'].concat(MESES_CORTOS)
                     .concat(['Visitas', 'Tarifa (nivel ' + c.nivel + ')', 'Importe', 'Último servicio', 'Orden']);
                 const aoa = [['Contrato: ' + c.nombre], [c.unidad + ' · vigencia ' + (c.inicio || '…') + ' a ' + (c.fin || '…') + ' · nivel ' + c.nivel], [], enc];
-                filas.forEach(f => aoa.push([f.e.equipo, f.e.marca, f.e.modelo, f.e.serie, f.e.inventario, f.e.area]
+                const nomPer = (n) => n === 0 ? 'Personalizada' : ((PERIODICIDADES_CT.find(x => x[0] === Number(n)) || [0, ''])[1]);
+                filas.forEach(f => aoa.push([f.e.equipo, f.e.marca, f.e.modelo, f.e.serie, f.e.inventario, f.e.area,
+                                             nomPer(f.prog.periodicidad), f.prog.primerMes ? MESES_ES[f.prog.primerMes - 1] : '']
                     .concat(MESES_CORTOS.map((m, i) => f.meses.includes(i + 1) ? 'X' : ''))
                     .concat([f.visitas, f.precio === null ? 'sin tarifa' : f.precio, f.importe === null ? '' : f.importe,
                              f.ultimo ? f.ultimo.FechaEjecucionStr : '', f.ultimo ? f.ultimo.ID : ''])));
                 const porMes = MESES_CORTOS.map((m, i) => filas.filter(f => f.meses.includes(i + 1)).length);
-                aoa.push(['Servicios por mes', '', '', '', '', ''].concat(porMes).concat([filas.reduce((a, f) => a + f.visitas, 0), '',
+                aoa.push(['Servicios por mes', '', '', '', '', '', '', ''].concat(porMes).concat([filas.reduce((a, f) => a + f.visitas, 0), '',
                           redondear(filas.reduce((a, f) => a + (f.importe || 0), 0))]));
                 const hoja = XLSX.utils.aoa_to_sheet(aoa);
-                hoja['!cols'] = [30, 16, 16, 18, 18, 18].map(w => ({ wch: w })).concat(MESES_CORTOS.map(() => ({ wch: 5 })))
+                hoja['!cols'] = [30, 16, 16, 18, 18, 18, 14, 12].map(w => ({ wch: w })).concat(MESES_CORTOS.map(() => ({ wch: 5 })))
                     .concat([8, 14, 14, 14, 12].map(w => ({ wch: w })));
                 hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3 + filas.length, c: enc.length - 1 } }) };
-                for (let r = 4; r <= 4 + filas.length; r++) [19, 20].forEach(col => {
+                for (let r = 4; r <= 4 + filas.length; r++) [21, 22].forEach(col => {
                     const cel = hoja[XLSX.utils.encode_cell({ r: r, c: col })];
                     if (cel && cel.t === 'n') cel.z = '"$"#,##0.00';
                 });
@@ -13212,11 +13267,16 @@
         (() => { let t = null;
             elOpcional('ctBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => renderTablaContrato(), 150); });
         })();
-        elOpcional('ctTabla').addEventListener('click', (e) => {
-            const b = e.target.closest('[data-ct-mes]');
-            if (b) { alternarMes(b.dataset.ctMes, parseInt(b.dataset.mes, 10)); return; }
-        });
         elOpcional('ctTabla').addEventListener('change', (e) => {
+            const per = e.target.closest('[data-ct-per]'), pri = e.target.closest('[data-ct-primer]');
+            if (per || pri) {
+                const eq = contratosData.equipos.find(x => x.id === (per ? per.dataset.ctPer : pri.dataset.ctPrimer));
+                if (!eq) return;
+                if (per) fijarPrograma(eq, per.value, undefined); else fijarPrograma(eq, undefined, pri.value);
+                programarGuardadoContrato();
+                renderContrato();
+                return;
+            }
             const chk = e.target.closest('[data-ct-sel]');
             if (chk) { if (chk.checked) seleccionContrato.add(chk.dataset.ctSel); else seleccionContrato.delete(chk.dataset.ctSel); renderContrato(); return; }
             if (e.target.closest('[data-ct-todos]')) {
@@ -13224,13 +13284,6 @@
                 document.querySelectorAll('#ctTabla [data-ct-sel]').forEach(x => { if (marcar) seleccionContrato.add(x.dataset.ctSel); else seleccionContrato.delete(x.dataset.ctSel); });
                 renderContrato();
             }
-        });
-        elOpcional('ctMesesSel').addEventListener('click', (e) => {
-            const b = e.target.closest('[data-ct-barra]');
-            if (!b) return;
-            const m = parseInt(b.dataset.ctBarra, 10);
-            if (mesesBarraSel.has(m)) mesesBarraSel.delete(m); else mesesBarraSel.add(m);
-            pintarBarraSeleccionContrato();
         });
         // No perder meses pendientes al salir de la página
         window.addEventListener('beforeunload', (e) => { if (cambiosContrato.size) { guardarCambiosContrato(); e.preventDefault(); e.returnValue = ''; } });

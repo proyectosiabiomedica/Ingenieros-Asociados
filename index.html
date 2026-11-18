@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=8.2">
+    <link rel="stylesheet" href="estilos.css?v=8.3">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -898,7 +898,7 @@
                         <input id="ctArchivo" type="file" accept=".xlsx,.xls,.csv" class="hidden">
                     </label>
                     <button onclick="descargarPlantillaContrato()" class="bg-white border border-slate-300 hover:border-brand-500 hover:text-brand-700 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg transition-colors">Descargar plantilla</button>
-                    <button onclick="sugerirMesesContrato()" class="bg-white border border-slate-300 hover:border-brand-500 hover:text-brand-700 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg transition-colors" title="Propone los meses según la frecuencia de cada equipo y su último servicio">Sugerir meses</button>
+                    <button onclick="sugerirMesesContrato()" class="bg-white border border-slate-300 hover:border-brand-500 hover:text-brand-700 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg transition-colors" title="Propone el primer mes de cada equipo según su periodicidad y su último servicio">Sugerir meses</button>
                     <button onclick="exportarContratoExcel()" class="bg-white border border-slate-300 hover:border-brand-500 hover:text-brand-700 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg transition-colors">Exportar a Excel</button>
                     <span class="flex-1"></span>
                     <select id="ctAgrupar" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500" title="Cómo se acomodan las partidas de la cotización">
@@ -919,9 +919,18 @@
 
                 <div id="ctBarraSel" class="hidden mb-3 flex flex-wrap items-center gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5">
                     <span id="ctConteoSel" class="text-xs font-semibold text-brand-800"></span>
-                    <div id="ctMesesSel" class="flex flex-wrap gap-1"></div>
-                    <button onclick="aplicarMesesSeleccion('poner')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Programar estos meses</button>
-                    <button onclick="aplicarMesesSeleccion('limpiar')" class="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2">Quitar meses</button>
+                    <select id="ctPerSel" class="p-1.5 border border-brand-200 rounded-lg text-xs bg-white outline-none focus:border-brand-500" title="Periodicidad">
+                        <option value="1">Mensual</option><option value="2">Bimestral</option><option value="3">Trimestral</option>
+                        <option value="4">Cuatrimestral</option><option value="6" selected>Semestral</option><option value="12">Anual</option>
+                    </select>
+                    <select id="ctPrimerSel" class="p-1.5 border border-brand-200 rounded-lg text-xs bg-white outline-none focus:border-brand-500" title="Primer mes">
+                        <option value="">Primer mes: sin cambio</option>
+                        <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option>
+                        <option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option>
+                        <option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                    </select>
+                    <button onclick="aplicarProgramaSeleccion('poner')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Aplicar a seleccionados</button>
+                    <button onclick="aplicarProgramaSeleccion('limpiar')" class="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2">Quitar primer mes</button>
                     <button onclick="quitarEquiposSeleccion()" class="text-xs font-semibold text-red-600 hover:text-red-800 px-2">Quitar del contrato</button>
                     <button onclick="limpiarSeleccionContrato()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
                 </div>
@@ -936,7 +945,7 @@
                     <span id="ctContador" class="text-xs font-semibold text-slate-400"></span>
                 </div>
                 <div id="ctTabla" class="bg-white rounded-xl border border-slate-200 overflow-x-auto"></div>
-                <p class="text-xs text-slate-400 mt-2">Haz clic en un mes para programarlo o quitarlo. El importe es la tarifa de mantenimiento preventivo del nivel del contrato por el número de visitas.</p>
+                <p class="text-xs text-slate-400 mt-2">Elige la periodicidad (semestral por omisión) y el mes del primer mantenimiento; los meses siguientes se calculan solos. El importe es la tarifa de mantenimiento preventivo del nivel del contrato por el número de visitas.</p>
             </div>
         </div>
 
@@ -2655,6 +2664,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=8.2"></script>
+    <script src="app.js?v=8.3"></script>
 </body>
 </html>
