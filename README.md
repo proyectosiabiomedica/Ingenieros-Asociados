@@ -1415,6 +1415,14 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 - **Revisar Drive** recorre las subcarpetas de la carpeta de rutinas y agrega las que se subieron a mano (*Drive*). Una carpeta cuenta para un folio si se llama igual o si su nombre contiene el folio («12345 - Hospital»), y si tiene un PDF cuyo nombre incluya «rutina». El recorrido va en tandas de ~4 minutos; la app repite la llamada hasta terminar y, si se interrumpe, se reanuda donde quedó. Al completar, se quitan del índice las filas de Drive que ya no aparecieron.
 - Acciones nuevas del servidor: `rutinasGuardadas` y `reconstruirIndiceRutinas` (permiso *rutinas*).
 
+## 4.39 Firma digital de cada usuario (v8.5)
+
+- Botón **Firma digital** en el menú lateral, debajo de *Cambiar mi PIN*. Lleva un punto ámbar mientras el usuario no tenga firma.
+- La firma se **sube** (foto o imagen PNG/JPG de la firma en papel blanco) o se **dibuja** con el dedo, la pluma o el mouse. El navegador la recorta, vuelve transparente el fondo y la reduce (20–60 KB).
+- Al generar una rutina, el bloque **VIII. Autorización** trae por omisión el **nombre** y la **firma** de quien inició sesión, en la impresión y en el PDF que se guarda en Drive. La casilla *Incluir mi firma digital* (no se imprime) permite quitarla en esa rutina; el nombre sigue siendo editable. Sin firma, sale el espacio en blanco para firmar a mano.
+- Cada usuario solo ve y cambia **su** firma: el servidor la identifica por la sesión. Se guarda en la pestaña oculta **Firmas_Usuarios** (clave, nombre, fecha y la imagen en trozos). Hay una copia en el equipo para usarla sin señal, y se borra al cerrar sesión.
+- Acciones nuevas del servidor: `miFirma` y `guardarMiFirma`.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1497,6 +1505,7 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 8.5 | **Firma digital.** Botón *Firma digital* en el menú lateral para subir o dibujar la firma de cada usuario; las rutinas salen por omisión con el nombre y la firma de quien inició sesión (se puede quitar en cada rutina). Requiere publicar `Code.gs` |
 | 8.4 | **Correos sin borradores y marcas de rutina.** Los correos se envían o se cancelan (se quitó «Guardar borrador en Gmail»). En *Rutinas de servicio*, cada orden muestra si ya tiene su rutina en Drive, hay indicadores de con/sin rutina y avance, filtro con/sin rutina y el botón **Revisar Drive** para indexar las rutinas subidas a mano. Requiere publicar `Code.gs` |
 | 8.3 | **Contratos: periodicidad y primer mes.** En lugar de marcar meses sueltos, cada equipo tiene un selector de **periodicidad** (mensual a anual; **semestral por omisión**) y otro del **primer mes**; los meses siguientes se calculan solos. *Sugerir meses* propone el primer mes con la periodicidad del equipo y su último servicio. La selección múltiple aplica periodicidad y primer mes en bloque. El Excel acepta columnas Periodicidad y Primer mes. Requiere publicar `Code.gs` |
 | 8.2 | **Contratos.** Apartado nuevo: contratos por hospital con vigencia y nivel, carga de equipos desde Excel (con plantilla y vista previa), meses de mantenimiento por equipo con un clic o sugeridos por frecuencia, importe estimado y cotización del contrato completo o de los equipos seleccionados. Permiso `contratos` (ver 4.37) |

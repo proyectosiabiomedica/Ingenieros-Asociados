@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.4';
+        const VERSION_APP = '8.5';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1108,6 +1108,238 @@
         (() => { let t = null;
             elOpcional('rsvBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(renderRutinas, 180); });
         })();
+
+        /* ============================================================
+           v8.5 — FIRMA DIGITAL DE CADA USUARIO
+           Cada quien sube o dibuja su firma en «Firma digital» (menú lateral).
+           Al generar una rutina, el bloque «Autorizo» trae por omisión el
+           nombre y la firma de quien inició sesión; se puede quitar para esa
+           rutina con la casilla «Incluir mi firma digital» (no se imprime).
+           La firma vive en el servidor (cada usuario solo ve la suya) y se
+           guarda también en este equipo para usarla sin señal; al cerrar
+           sesión se borra del equipo.
+           ============================================================ */
+        let miFirmaDigital = { firma: '', actualizada: '', cargada: false };
+        let firmaPendiente = '';            // imagen preparada que aún no se guarda
+        let modoFirma = 'subir';
+        let lienzoFirmaTrazado = false;
+
+        const llaveFirmaLocal = () => 'ia_firma_' + String(nombreUsuario() || '').trim().toLowerCase();
+
+        function leerFirmaLocal() {
+            try { const v = JSON.parse(localStorage.getItem(llaveFirmaLocal()) || 'null'); return v && typeof v.firma === 'string' ? v : null; } catch (_) { return null; }
+        }
+        function guardarFirmaLocal() {
+            try {
+                if (miFirmaDigital.firma) localStorage.setItem(llaveFirmaLocal(), JSON.stringify({ firma: miFirmaDigital.firma, actualizada: miFirmaDigital.actualizada }));
+                else localStorage.removeItem(llaveFirmaLocal());
+            } catch (_) { /* almacenamiento lleno o bloqueado: se usa la del servidor */ }
+        }
+        function olvidarFirmasLocales() {
+            try { Object.keys(localStorage).filter(k => k.indexOf('ia_firma_') === 0).forEach(k => localStorage.removeItem(k)); } catch (_) {}
+        }
+
+        (() => {   // al arrancar: la copia de este equipo, para tenerla sin esperar
+            if (!sesionActual()) return;
+            const local = leerFirmaLocal();
+            if (local) miFirmaDigital = { firma: local.firma, actualizada: local.actualizada || '', cargada: false };
+            actualizarIndicadorFirma();
+        })();
+
+        let promesaFirma = null;
+        function cargarMiFirma() {
+            if (!hayBackend() || !tokenSesion()) return Promise.resolve();
+            if (promesaFirma) return promesaFirma;
+            promesaFirma = (async () => {
+                try {
+                    const ctl = new AbortController();
+                    const t = setTimeout(() => ctl.abort(), 20000);
+                    const r = await fetch(URL_APPS_SCRIPT, {
+                        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+                        body: JSON.stringify({ accion: 'miFirma', token: tokenSesion() })
+                    });
+                    clearTimeout(t);
+                    const j = await r.json().catch(() => null);
+                    if (j && j.ok) {
+                        miFirmaDigital = { firma: j.firma || '', actualizada: j.actualizada || '', cargada: true };
+                        guardarFirmaLocal();
+                    }
+                } catch (_) { /* sin señal: se queda la copia local */ }
+                finally { promesaFirma = null; actualizarIndicadorFirma(); }
+            })();
+            return promesaFirma;
+        }
+
+        function actualizarIndicadorFirma() {
+            const punto = elOpcional('firmaDigitalPunto');
+            punto.classList.toggle('hidden', !!miFirmaDigital.firma || !miFirmaDigital.cargada);
+        }
+
+        function pintarFirmaRutina() {
+            const espacio = elOpcional('rutFirmaEspacio');
+            const incluir = elOpcional('rutFirmaIncluir');
+            const aviso = elOpcional('rutFirmaAviso');
+            const wrap = elOpcional('rutFirmaIncluirWrap');
+            const hay = !!miFirmaDigital.firma;
+            wrap.classList.toggle('hidden', !hay);
+            espacio.innerHTML = (hay && incluir.checked)
+                ? '<img src="' + miFirmaDigital.firma + '" alt="Firma de ' + esc(nombreUsuario()) + '" class="max-h-24 max-w-[80%] object-contain">'
+                : '';
+            aviso.innerText = hay ? '' : (miFirmaDigital.cargada || !hayBackend() ? 'Aún no tienes firma digital: la rutina sale con el espacio para firmar a mano.' : 'Buscando tu firma digital…');
+        }
+        elOpcional('rutFirmaIncluir').addEventListener('change', pintarFirmaRutina);
+
+        function mensajeFirmaDigital(texto, tipo) {
+            const el = elOpcional('fdMensaje');
+            el.innerText = texto || '';
+            el.className = 'text-xs rounded-lg p-3 ' + (tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-50 text-slate-600 border border-slate-200');
+            el.classList.toggle('hidden', !texto);
+        }
+
+        function pintarVistaFirmaDigital() {
+            const vista = elOpcional('fdVista');
+            const img = firmaPendiente || miFirmaDigital.firma;
+            vista.innerHTML = img
+                ? '<img src="' + img + '" alt="Firma" class="max-h-24 max-w-full object-contain">'
+                : (miFirmaDigital.cargada || !hayBackend() ? 'Aún no tienes firma. Sube una imagen o dibújala abajo.' : 'Buscando tu firma…');
+            elOpcional('fdVistaTitulo').innerText = firmaPendiente ? 'Vista previa (sin guardar)' : 'Tu firma';
+            elOpcional('fdFecha').innerText = (!firmaPendiente && miFirmaDigital.actualizada) ? 'Guardada el ' + fechaHoraCorta(miFirmaDigital.actualizada) : '';
+            elOpcional('fdQuitar').classList.toggle('hidden', !miFirmaDigital.firma || !!firmaPendiente);
+            elOpcional('fdGuardar').disabled = !firmaPendiente && !(modoFirma === 'dibujar' && lienzoFirmaTrazado);
+        }
+
+        function cambiarModoFirma(modo) {
+            modoFirma = modo;
+            document.querySelectorAll('[data-fd-modo]').forEach(b => {
+                const activo = b.dataset.fdModo === modo;
+                b.classList.toggle('bg-white', activo); b.classList.toggle('shadow-sm', activo);
+                b.classList.toggle('text-slate-800', activo); b.classList.toggle('text-slate-500', !activo);
+            });
+            elOpcional('fdPanelSubir').classList.toggle('hidden', modo !== 'subir');
+            elOpcional('fdPanelDibujar').classList.toggle('hidden', modo !== 'dibujar');
+            pintarVistaFirmaDigital();
+        }
+
+        function abrirFirmaDigital() {
+            if (!sesionActual()) return;
+            firmaPendiente = '';
+            limpiarLienzoFirma();
+            mensajeFirmaDigital('');
+            elOpcional('fdNombre').innerText = nombreUsuario();
+            cambiarModoFirma('subir');
+            const m = elOpcional('modalFirmaDigital');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            cerrarSidebarMovil();
+            if (!hayBackend()) mensajeFirmaDigital('Sin servidor configurado: la firma no se puede guardar.', 'error');
+            else if (!miFirmaDigital.cargada) cargarMiFirma().then(pintarVistaFirmaDigital);
+        }
+
+        function cerrarFirmaDigital() {
+            const m = elOpcional('modalFirmaDigital');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            firmaPendiente = '';
+        }
+
+        document.querySelectorAll('[data-fd-modo]').forEach(b => b.addEventListener('click', () => cambiarModoFirma(b.dataset.fdModo)));
+
+        elOpcional('fdArchivo').addEventListener('change', async (e) => {
+            const archivo = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (!archivo) return;
+            if (!/^image\/(png|jpeg)$/.test(archivo.type)) { mensajeFirmaDigital('Usa una imagen PNG o JPG.', 'error'); return; }
+            try {
+                mensajeFirmaDigital('Preparando la imagen…');
+                firmaPendiente = await prepararImagenFirma(archivo);
+                mensajeFirmaDigital('Revisa la vista previa y pulsa «Guardar firma».');
+                pintarVistaFirmaDigital();
+            } catch (err) { mensajeFirmaDigital(err.message, 'error'); }
+        });
+
+        // Lienzo para dibujar la firma (mouse, dedo o pluma)
+        (() => {
+            const cv = elOpcional('fdLienzo');
+            if (!cv.getContext) return;
+            const ctx = cv.getContext('2d');
+            let dibujando = false, ultimo = null;
+            const punto = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; };
+            cv.addEventListener('pointerdown', (e) => {
+                dibujando = true; ultimo = punto(e);
+                try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+                ctx.beginPath(); ctx.arc(ultimo.x, ultimo.y, 2.2, 0, Math.PI * 2); ctx.fillStyle = '#0f172a'; ctx.fill();
+                e.preventDefault();
+            });
+            cv.addEventListener('pointermove', (e) => {
+                if (!dibujando) return;
+                const p = punto(e);
+                ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 4.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.moveTo(ultimo.x, ultimo.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+                ultimo = p;
+                if (!lienzoFirmaTrazado) { lienzoFirmaTrazado = true; pintarVistaFirmaDigital(); }
+                e.preventDefault();
+            });
+            const fin = () => { dibujando = false; };
+            cv.addEventListener('pointerup', fin); cv.addEventListener('pointercancel', fin); cv.addEventListener('pointerleave', fin);
+        })();
+
+        function limpiarLienzoFirma() {
+            const cv = elOpcional('fdLienzo');
+            if (cv.getContext) { const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); }
+            lienzoFirmaTrazado = false;
+            if (modoFirma === 'dibujar') pintarVistaFirmaDigital();
+        }
+
+        function blobDeLienzo(cv) {
+            return new Promise((resolve, reject) => {
+                // fondo blanco para que la limpieza de prepararImagenFirma funcione igual que con una foto
+                const c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = cv.height;
+                const x = c2.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c2.width, c2.height); x.drawImage(cv, 0, 0);
+                c2.toBlob(b => b ? resolve(b) : reject(new Error('No se pudo leer el dibujo.')), 'image/png');
+            });
+        }
+
+        async function guardarMiFirmaUI() {
+            const btn = elOpcional('fdGuardar');
+            if (btn.disabled) return;
+            if (!hayBackend()) { mensajeFirmaDigital('Sin servidor configurado: la firma no se puede guardar.', 'error'); return; }
+            btn.disabled = true; btn.innerText = 'Guardando…';
+            try {
+                let firma = firmaPendiente;
+                if (modoFirma === 'dibujar' && lienzoFirmaTrazado) firma = await prepararImagenFirma(await blobDeLienzo(elOpcional('fdLienzo')));
+                if (!firma) throw new Error('Primero sube una imagen o dibuja tu firma.');
+                if (firma.length > 550000) throw new Error('La firma resultó demasiado grande. Prueba con una imagen más sencilla.');
+                await peticionAdmin('guardarMiFirma', { firma: firma });
+                miFirmaDigital = { firma: firma, actualizada: new Date().toISOString(), cargada: true };
+                guardarFirmaLocal();
+                firmaPendiente = '';
+                limpiarLienzoFirma();
+                actualizarIndicadorFirma();
+                pintarVistaFirmaDigital();
+                if (!elOpcional('modalRutina').classList.contains('hidden')) { elOpcional('rutFirmaIncluir').checked = true; pintarFirmaRutina(); }
+                mensajeFirmaDigital('Firma guardada. Ya sale en tus rutinas.', 'ok');
+                registrarEvento('firma_digital', 'Firma actualizada');
+            } catch (err) {
+                mensajeFirmaDigital(err.message || 'No se pudo guardar la firma.', 'error');
+            } finally {
+                btn.innerText = 'Guardar firma';
+                pintarVistaFirmaDigital();
+            }
+        }
+
+        async function quitarMiFirma() {
+            if (!(await confirmar('¿Quitar tu firma digital? Tus rutinas volverán a salir con el espacio en blanco para firmar a mano.',
+                                  { titulo: 'Quitar firma', textoSi: 'Quitar', peligro: true }))) return;
+            try {
+                await peticionAdmin('guardarMiFirma', { firma: '' });
+                miFirmaDigital = { firma: '', actualizada: '', cargada: true };
+                guardarFirmaLocal();
+                actualizarIndicadorFirma();
+                pintarVistaFirmaDigital();
+                if (!elOpcional('modalRutina').classList.contains('hidden')) pintarFirmaRutina();
+                mensajeFirmaDigital('Firma quitada.', 'ok');
+                registrarEvento('firma_digital', 'Firma quitada');
+            } catch (err) { mensajeFirmaDigital(err.message, 'error'); }
+        }
 
         function cerrarDiagnostico() {
             const panel = document.getElementById('panelDiagnostico');
@@ -9255,6 +9487,10 @@
             // antes de imprimir; se limpia al abrir cada rutina nueva.
             // v5.8: se llena con el usuario que generó la rutina (sigue siendo editable)
             document.getElementById('rutNombreAutorizado').innerText = nombreUsuario();
+            // v8.5: y con su firma digital, si ya la subió
+            document.getElementById('rutFirmaIncluir').checked = true;
+            pintarFirmaRutina();
+            if (!miFirmaDigital.cargada) cargarMiFirma().then(pintarFirmaRutina);
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -10712,6 +10948,7 @@
                 s.rol = j.rol; s.permisos = j.permisos;
                 localStorage.setItem('ia_sesion', JSON.stringify(s));
                 mostrarUsuarioSidebar();
+                cargarMiFirma();   // v8.5
                 aplicarPermisosInterfaz();
                 // Si la vista abierta dejó de estar permitida, se regresa al dashboard
                 const abierta = APARTADOS_MENU.find(a => { const v = document.getElementById(a.vista); return v && !v.classList.contains('hidden'); });
@@ -10929,6 +11166,7 @@
                       'y se enviarán la próxima vez que alguien entre con conexión.');
             }
             localStorage.removeItem('ia_sesion');
+            olvidarFirmasLocales();   // v8.5: la firma no se queda en un equipo compartido
             olvidarCredencialAdmin();
             location.reload();
         });
