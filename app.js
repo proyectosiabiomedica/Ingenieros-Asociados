@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.6';
+        const VERSION_APP = '8.7';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -916,7 +916,7 @@
             }
             const th = 'px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
-                ['Folio', 'Rutina', 'Fecha', 'Unidad', 'Equipo', 'Serie / Inventario', 'Área', 'Servicio', 'Ingeniero', ''].map(h => '<th class="' + th + '">' + h + '</th>').join('') +
+                ['Folio', 'Rutina', 'Fecha', 'Unidad', 'Equipo', 'Serie / Inventario', 'Servicio', ''].map(h => '<th class="' + th + '">' + h + '</th>').join('') +
                 '</tr></thead><tbody class="divide-y divide-slate-100">' +
                 visibles.map(d => '<tr class="hover:bg-slate-50">' +
                     '<td class="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">' + esc(d.ID) + '</td>' +
@@ -926,10 +926,8 @@
                     '<td class="px-4 py-2.5"><p class="font-semibold text-slate-800">' + esc(d.Equipo) + '</p>' +
                         '<p class="text-xs text-slate-500">' + esc(d.Marca + ' / ' + d.Modelo) + '</p></td>' +
                     '<td class="px-4 py-2.5 text-xs text-slate-600"><p>S/N ' + esc(d.Serie) + '</p>' + (d.Inventario && d.Inventario !== 'N/A' ? '<p>Inv. ' + esc(d.Inventario) + '</p>' : '') + '</td>' +
-                    '<td class="px-4 py-2.5 text-slate-600">' + esc(d.Area) + '</td>' +
                     '<td class="px-4 py-2.5"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded-full ' +
                         (d.esCalibracion ? 'bg-purple-100 text-purple-800' : 'bg-brand-100 text-brand-800') + '">' + (d.esCalibracion ? 'Calibración' : 'Preventivo') + '</span></td>' +
-                    '<td class="px-4 py-2.5 text-slate-600">' + esc(d.Ingeniero) + '</td>' +
                     '<td class="px-4 py-2.5 text-right"><button data-rsv-id="' + esc(d.ID) + '" data-rsv-unidad="' + esc(d.Cliente) + '" ' +
                         'class="text-brand-600 hover:text-brand-800 hover:bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">Ver rutina</button></td>' +
                 '</tr>').join('') + '</tbody></table>';
