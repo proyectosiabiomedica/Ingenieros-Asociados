@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.7';
+        const VERSION_APP = '8.8';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -6772,6 +6772,101 @@
             el.classList.toggle('hidden', !texto);
         }
 
+        /* v8.8 — LIMPIEZA DE LA FIRMA EN FOTO
+           Antes solo se quitaban los pixeles casi blancos (luz > 225): con una
+           foto real (hoja grisácea, sombra del celular, luz dispareja) el fondo
+           se quedaba. Ahora se estima el FONDO LOCAL de cada zona de la hoja y
+           se compara cada pixel contra él, así una sombra o un papel gris
+           cuentan como fondo y solo el trazo queda:
+             1. Luminancia de cada pixel.
+             2. Fondo = cierre morfológico (máximo y luego mínimo en una ventana):
+                borra el trazo delgado pero sigue sombras, bordes de sombra y
+                degradados del papel.
+             3. Tinta = qué tan oscuro es el pixel respecto a SU fondo; el
+                umbral se ajusta al contraste real de la foto.
+             4. Se quitan puntitos sueltos (polvo, grano) y se recorta al trazo.
+             5. El trazo se oscurece conservando su tono (pluma azul o negra). */
+        function limpiarFondoFirma(ctx, w, h) {
+            const datos = ctx.getImageData(0, 0, w, h), p = datos.data, n = w * h;
+            const lum = new Float32Array(n);
+            for (let i = 0; i < n; i++) {
+                const a = p[i * 4 + 3] / 255;   // PNG con transparencia: lo transparente cuenta como blanco
+                lum[i] = (0.299 * p[i * 4] + 0.587 * p[i * 4 + 1] + 0.114 * p[i * 4 + 2]) * a + 255 * (1 - a);
+            }
+            // 2a. máximo separable (radio del grosor de un trazo)
+            const rM = Math.max(4, Math.round(Math.min(w, h) / 30));
+            const maxFila = new Float32Array(n), maxTot = new Float32Array(n);
+            for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+                let m = 0; for (let k = Math.max(0, x - rM), e = Math.min(w - 1, x + rM); k <= e; k++) { const v = lum[y * w + k]; if (v > m) m = v; }
+                maxFila[y * w + x] = m;
+            }
+            for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) {
+                let m = 0; for (let k = Math.max(0, y - rM), e = Math.min(h - 1, y + rM); k <= e; k++) { const v = maxFila[k * w + x]; if (v > m) m = v; }
+                maxTot[y * w + x] = m;
+            }
+            // 2b. mínimo con el mismo radio (cierre morfológico): borra los trazos
+            //     delgados pero respeta el borde de una sombra, que es un escalón
+            const minFila = maxFila;   // se reutiliza el arreglo
+            for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+                let m = 255; for (let k = Math.max(0, x - rM), e = Math.min(w - 1, x + rM); k <= e; k++) { const v = maxTot[y * w + k]; if (v < m) m = v; }
+                minFila[y * w + x] = m;
+            }
+            const fondo = new Float32Array(n);
+            for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) {
+                let m = 255; for (let k = Math.max(0, y - rM), e = Math.min(h - 1, y + rM); k <= e; k++) { const v = minFila[k * w + x]; if (v < m) m = v; }
+                fondo[y * w + x] = Math.max(m, lum[y * w + x]);
+            }
+            // 3. oscuridad relativa al fondo (0 = papel, 1 = negro)
+            const osc = new Float32Array(n);
+            const hist = new Uint32Array(101);
+            for (let i = 0; i < n; i++) { const o = Math.max(0, 1 - lum[i] / Math.max(1, fondo[i])); osc[i] = o; hist[Math.min(100, Math.round(o * 100))]++; }
+            // umbral: el ruido del papel queda por debajo del percentil 90 (la tinta es poca)
+            let acum = 0, p90 = 0;
+            for (let k = 0; k <= 100; k++) { acum += hist[k]; if (acum >= n * 0.90) { p90 = k / 100; break; } }
+            let oMax = 0; for (let i = 0; i < n; i++) if (osc[i] > oMax) oMax = osc[i];
+            if (oMax < 0.12) return false;   // no hay trazo distinguible
+            const bajo = Math.max(0.10, Math.min(p90 + 0.06, oMax * 0.45));   // debajo: fondo
+            const alto = Math.max(bajo + 0.08, Math.min(oMax * 0.75, bajo + 0.25)); // arriba: tinta plena
+            const alfa = new Uint8ClampedArray(n);
+            for (let i = 0; i < n; i++) {
+                const o = osc[i];
+                alfa[i] = o <= bajo ? 0 : o >= alto ? 255 : Math.round(255 * (o - bajo) / (alto - bajo));
+            }
+            // 4. puntitos sueltos: componentes conectados muy pequeños
+            const minimo = Math.max(6, Math.round(n * 0.00015));
+            const visto = new Uint8Array(n), pila = new Int32Array(n);
+            for (let i = 0; i < n; i++) {
+                if (!alfa[i] || visto[i]) continue;
+                let tope = 0, cuenta = 0, orilla = false; const lista = [];
+                pila[tope++] = i; visto[i] = 1;
+                while (tope) {
+                    const j = pila[--tope]; lista.push(j); cuenta++;
+                    const x = j % w, y = (j - x) / w;
+                    if (x === 0 || y === 0 || x === w - 1 || y === h - 1) orilla = true;
+                    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                        const xx = x + dx, yy = y + dy;
+                        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+                        const k = yy * w + xx;
+                        if (alfa[k] && !visto[k]) { visto[k] = 1; pila[tope++] = k; }
+                    }
+                }
+                // también las manchitas pegadas a la orilla de la foto (esquina de sombra, borde de la hoja)
+                if (cuenta < minimo || (orilla && cuenta < n * 0.003)) lista.forEach(j => { alfa[j] = 0; });
+            }
+            // 5. color del trazo: mismo tono, más oscuro y parejo
+            for (let i = 0; i < n; i++) {
+                const q = i * 4;
+                if (!alfa[i]) { p[q + 3] = 0; continue; }
+                const r = p[q], g = p[q + 1], b = p[q + 2];
+                const l = Math.max(1, 0.299 * r + 0.587 * g + 0.114 * b);
+                const f = Math.min(1, 45 / l);
+                p[q] = Math.round(r * f); p[q + 1] = Math.round(g * f); p[q + 2] = Math.round(b * f);
+                p[q + 3] = alfa[i];
+            }
+            ctx.putImageData(datos, 0, 0);
+            return true;
+        }
+
         function prepararImagenFirma(archivo) {
             return new Promise((resolve, reject) => {
                 const lector = new FileReader();
@@ -6780,22 +6875,19 @@
                     const img = new Image();
                     img.onerror = () => reject(new Error('El archivo no es una imagen válida.'));
                     img.onload = () => {
-                        const escala = Math.min(1, 600 / img.width, 240 / img.height);
+                        const escala = Math.min(1, 800 / img.width, 320 / img.height);
                         const w = Math.max(1, Math.round(img.width * escala)), h = Math.max(1, Math.round(img.height * escala));
                         const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-                        const ctx = cv.getContext('2d');
+                        const ctx = cv.getContext('2d', { willReadFrequently: true });
                         ctx.drawImage(img, 0, 0, w, h);
-                        const datos = ctx.getImageData(0, 0, w, h), p = datos.data;
+                        if (!limpiarFondoFirma(ctx, w, h)) { reject(new Error('No se encontró trazo en la imagen. ¿Está en blanco?')); return; }
+                        // recorte al trazo
+                        const p = ctx.getImageData(0, 0, w, h).data;
                         let x0 = w, y0 = h, x1 = -1, y1 = -1;
                         for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-                            const i = (y * w + x) * 4;
-                            const luz = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
-                            if (p[i + 3] < 20 || luz > 225) { p[i + 3] = 0; continue; }          // fondo → transparente
-                            if (luz > 170) p[i + 3] = Math.round(p[i + 3] * (225 - luz) / 55);    // bordes suaves
-                            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+                            if (p[(y * w + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
                         }
                         if (x1 < 0) { reject(new Error('No se encontró trazo en la imagen. ¿Está en blanco?')); return; }
-                        ctx.putImageData(datos, 0, 0);
                         const m = 4;
                         x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(w - 1, x1 + m); y1 = Math.min(h - 1, y1 + m);
                         const out = document.createElement('canvas');

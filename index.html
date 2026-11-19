@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=8.7">
+    <link rel="stylesheet" href="estilos.css?v=8.8">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -2560,7 +2560,7 @@
                 <div id="fdPanelSubir" class="flex flex-col gap-2">
                     <label for="fdArchivo" class="cursor-pointer self-start bg-white border border-brand-300 text-brand-700 hover:bg-brand-50 text-xs font-semibold px-4 py-2 rounded-lg">Elegir imagen (PNG o JPG)</label>
                     <input type="file" id="fdArchivo" accept="image/png,image/jpeg" class="sr-only">
-                    <p class="text-xs text-slate-500 leading-snug">Firma en una hoja blanca con tinta oscura y tómale una foto de cerca. El fondo se vuelve transparente y la imagen se recorta sola.</p>
+                    <p class="text-xs text-slate-500 leading-snug">Firma en una hoja lisa (sin renglones) con pluma negra o azul y tómale una foto de cerca. No importa si la hoja sale gris o con sombra: el fondo se quita, queda solo el trazo y la imagen se recorta sola.</p>
                 </div>
                 <div id="fdPanelDibujar" class="hidden flex flex-col gap-2">
                     <canvas id="fdLienzo" width="900" height="300" class="w-full h-40 border border-slate-300 rounded-lg bg-white touch-none cursor-crosshair"></canvas>
@@ -2716,6 +2716,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=8.7"></script>
+    <script src="app.js?v=8.8"></script>
 </body>
 </html>
