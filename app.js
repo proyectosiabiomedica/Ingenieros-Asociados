@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.5';
+        const VERSION_APP = '8.6';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -1112,9 +1112,8 @@
         /* ============================================================
            v8.5 — FIRMA DIGITAL DE CADA USUARIO
            Cada quien sube o dibuja su firma en «Firma digital» (menú lateral).
-           Al generar una rutina, el bloque «Autorizo» trae por omisión el
-           nombre y la firma de quien inició sesión; se puede quitar para esa
-           rutina con la casilla «Incluir mi firma digital» (no se imprime).
+           Al generar una rutina, el bloque «Autorizo» trae el nombre y la firma
+           de quien inició sesión (v8.6: siempre, con marca de agua).
            La firma vive en el servidor (cada usuario solo ve la suya) y se
            guarda también en este equipo para usarla sin señal; al cerrar
            sesión se borra del equipo.
@@ -1175,19 +1174,59 @@
             punto.classList.toggle('hidden', !!miFirmaDigital.firma || !miFirmaDigital.cargada);
         }
 
-        function pintarFirmaRutina() {
-            const espacio = elOpcional('rutFirmaEspacio');
-            const incluir = elOpcional('rutFirmaIncluir');
-            const aviso = elOpcional('rutFirmaAviso');
-            const wrap = elOpcional('rutFirmaIncluirWrap');
-            const hay = !!miFirmaDigital.firma;
-            wrap.classList.toggle('hidden', !hay);
-            espacio.innerHTML = (hay && incluir.checked)
-                ? '<img src="' + miFirmaDigital.firma + '" alt="Firma de ' + esc(nombreUsuario()) + '" class="max-h-24 max-w-[80%] object-contain">'
-                : '';
-            aviso.innerText = hay ? '' : (miFirmaDigital.cargada || !hayBackend() ? 'Aún no tienes firma digital: la rutina sale con el espacio para firmar a mano.' : 'Buscando tu firma digital…');
+        /* v8.6: la firma siempre se incluye cuando el usuario ya tiene una, y va
+           con marca de agua «Ingenieros Asociados» y la fecha de creación de la
+           rutina, dibujadas DENTRO de la imagen para que salgan iguales en la
+           impresión y en el PDF de Drive y no se puedan separar de la firma. */
+        let secuenciaFirmaRutina = 0;
+
+        function fechaFirmaRutina() {
+            const d = new Date();
+            return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
         }
-        elOpcional('rutFirmaIncluir').addEventListener('change', pintarFirmaRutina);
+
+        function firmaConMarcaDeAgua(firma, fecha) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onerror = () => resolve(firma);
+                img.onload = () => {
+                    const W = 900, H = 300;
+                    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+                    const ctx = cv.getContext('2d');
+                    // firma centrada, sin deformar
+                    const escala = Math.min((W - 40) / img.width, (H - 30) / img.height, 3);
+                    const w = img.width * escala, h = img.height * escala;
+                    ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+                    // marca de agua encima, translúcida y ligeramente inclinada
+                    ctx.save();
+                    ctx.translate(W / 2, H / 2);
+                    ctx.rotate(-8 * Math.PI / 180);
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillStyle = 'rgba(0, 93, 161, 0.30)';
+                    ctx.font = 'bold 58px Inter, Arial, sans-serif';
+                    ctx.fillText('INGENIEROS ASOCIADOS', 0, -22, W - 160);
+                    ctx.font = 'bold 44px Inter, Arial, sans-serif';
+                    ctx.fillText(fecha, 0, 40);
+                    ctx.restore();
+                    resolve(cv.toDataURL('image/png'));
+                };
+                img.src = firma;
+            });
+        }
+
+        async function pintarFirmaRutina() {
+            const espacio = elOpcional('rutFirmaEspacio');
+            const aviso = elOpcional('rutFirmaAviso');
+            const control = elOpcional('rutFirmaControl');
+            const hay = !!miFirmaDigital.firma;
+            const sec = ++secuenciaFirmaRutina;
+            control.classList.toggle('hidden', hay);
+            aviso.innerText = hay ? '' : (miFirmaDigital.cargada || !hayBackend() ? 'Aún no tienes firma digital: la rutina sale con el espacio para firmar a mano.' : 'Buscando tu firma digital…');
+            if (!hay) { espacio.innerHTML = ''; return; }
+            const conMarca = await firmaConMarcaDeAgua(miFirmaDigital.firma, fechaFirmaRutina());
+            if (sec !== secuenciaFirmaRutina) return;
+            espacio.innerHTML = '<img src="' + conMarca + '" alt="Firma de ' + esc(nombreUsuario()) + '" class="max-h-24 max-w-[80%] object-contain">';
+        }
 
         function mensajeFirmaDigital(texto, tipo) {
             const el = elOpcional('fdMensaje');
@@ -1315,7 +1354,7 @@
                 limpiarLienzoFirma();
                 actualizarIndicadorFirma();
                 pintarVistaFirmaDigital();
-                if (!elOpcional('modalRutina').classList.contains('hidden')) { elOpcional('rutFirmaIncluir').checked = true; pintarFirmaRutina(); }
+                if (!elOpcional('modalRutina').classList.contains('hidden')) pintarFirmaRutina();
                 mensajeFirmaDigital('Firma guardada. Ya sale en tus rutinas.', 'ok');
                 registrarEvento('firma_digital', 'Firma actualizada');
             } catch (err) {
@@ -9488,7 +9527,6 @@
             // v5.8: se llena con el usuario que generó la rutina (sigue siendo editable)
             document.getElementById('rutNombreAutorizado').innerText = nombreUsuario();
             // v8.5: y con su firma digital, si ya la subió
-            document.getElementById('rutFirmaIncluir').checked = true;
             pintarFirmaRutina();
             if (!miFirmaDigital.cargada) cargarMiFirma().then(pintarFirmaRutina);
 
