@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.3';
+        const VERSION_APP = '8.4';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -850,6 +850,7 @@
             cerrarSidebarMovil();
             poblarFiltrosRutinas();
             renderRutinas();
+            cargarIndiceRutinas(false);   // v8.4: marca qué órdenes ya tienen rutina en Drive
             if (window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) document.getElementById('rsvBuscar').focus();
             registrarEvento('ver_rutinas');
         }
@@ -872,13 +873,19 @@
             llenar('rsvMes', MESES_ES.map((m, i) => [String(i), m.charAt(0).toUpperCase() + m.slice(1)]), 'Todos los meses');
         }
 
-        function rutinasFiltradas() {
+        function rutinasFiltradas(sinEstado) {
             const unidad = document.getElementById('rsvUnidad').value;
             const tipo = document.getElementById('rsvTipo').value;
             const anio = document.getElementById('rsvAnio').value;
             const mes = document.getElementById('rsvMes').value;
+            const estado = sinEstado ? 'todos' : (elOpcional('rsvEstado').value || 'todos');
             const palabras = normalizar(document.getElementById('rsvBuscar').value.toLowerCase()).trim().split(/\s+/).filter(Boolean);
             return rutinasDisponibles().filter(d => {
+                if (estado !== 'todos' && indiceRutinas) {
+                    const tiene = !!rutinaEnIndice(d.ID);
+                    if (estado === 'con' && !tiene) return false;
+                    if (estado === 'sin' && tiene) return false;
+                }
                 if (unidad !== 'todos' && d.Cliente !== unidad) return false;
                 if (tipo === 'prev' && !d.esPreventivo) return false;
                 if (tipo === 'cal' && !d.esCalibracion) return false;
@@ -895,6 +902,7 @@
         }
 
         function renderRutinas() {
+            pintarIndicadoresRutinas();
             const lista = rutinasFiltradas();
             const total = rutinasDisponibles().length;
             const visibles = lista.slice(0, LIMITE_RUTINAS);
@@ -908,10 +916,11 @@
             }
             const th = 'px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider';
             cont.innerHTML = '<table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr>' +
-                ['Folio', 'Fecha', 'Unidad', 'Equipo', 'Serie / Inventario', 'Área', 'Servicio', 'Ingeniero', ''].map(h => '<th class="' + th + '">' + h + '</th>').join('') +
+                ['Folio', 'Rutina', 'Fecha', 'Unidad', 'Equipo', 'Serie / Inventario', 'Área', 'Servicio', 'Ingeniero', ''].map(h => '<th class="' + th + '">' + h + '</th>').join('') +
                 '</tr></thead><tbody class="divide-y divide-slate-100">' +
                 visibles.map(d => '<tr class="hover:bg-slate-50">' +
                     '<td class="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">' + esc(d.ID) + '</td>' +
+                    '<td class="px-4 py-2.5 whitespace-nowrap">' + marcaRutina(d.ID) + '</td>' +
                     '<td class="px-4 py-2.5 text-slate-600 whitespace-nowrap">' + esc(d.FechaEjecucionStr) + '</td>' +
                     '<td class="px-4 py-2.5 text-slate-700">' + esc(d.Cliente) + '</td>' +
                     '<td class="px-4 py-2.5"><p class="font-semibold text-slate-800">' + esc(d.Equipo) + '</p>' +
@@ -925,6 +934,158 @@
                         'class="text-brand-600 hover:text-brand-800 hover:bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">Ver rutina</button></td>' +
                 '</tr>').join('') + '</tbody></table>';
         }
+
+        /* ============================================================
+           v8.4 — ¿QUÉ ÓRDENES YA TIENEN SU RUTINA EN DRIVE?
+           El servidor lleva un índice (pestaña Rutinas_Indice) con los folios
+           que ya tienen rutina: las guardadas desde la plataforma entran solas
+           y las subidas a mano se agregan con «Revisar Drive».
+           ============================================================ */
+        let indiceRutinas = null;          // { folio: { u: url, f: fecha, n: nombre, o: origen } }
+        let indiceRutinasInfo = { revisadoDrive: '', enCurso: false, error: '', cargando: false, ts: 0 };
+        let revisandoDriveRutinas = false;
+
+        function rutinaEnIndice(folio) {
+            if (!indiceRutinas) return null;
+            const f = String(folio || '').trim();
+            return f ? (indiceRutinas[f] || null) : null;
+        }
+
+        function marcarRutinaLocal(folio, archivo) {
+            const f = String(folio || '').trim();
+            if (!f || !indiceRutinas) return;
+            if (archivo) indiceRutinas[f] = { u: archivo.url || '', f: archivo.fecha || '', n: archivo.nombre || '', o: 'Plataforma' };
+            else delete indiceRutinas[f];
+            if (!document.getElementById('rutinasContent').classList.contains('hidden')) renderRutinas();
+        }
+
+        function marcaRutina(folio) {
+            if (!indiceRutinas) {
+                return '<span class="text-xs text-slate-400">' + (indiceRutinasInfo.cargando ? 'Revisando…' : '—') + '</span>';
+            }
+            const r = rutinaEnIndice(folio);
+            if (!r) return '<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800" title="Aún no hay rutina guardada en Drive">Sin rutina</span>';
+            const titulo = (r.n || 'Rutina en Drive') + (r.f ? ' · ' + fechaHoraCorta(r.f) : '');
+            const insignia = '✓ Con rutina';
+            return r.u
+                ? '<a href="' + esc(r.u) + '" target="_blank" rel="noopener" title="' + esc(titulo) + '" class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 hover:bg-green-200">' + insignia + '</a>'
+                : '<span title="' + esc(titulo) + '" class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">' + insignia + '</span>';
+        }
+
+        function pintarIndicadoresRutinas() {
+            const cont = elOpcional('rsvIndicadores');
+            const base = rutinasFiltradas(true);   // respeta unidad, tipo, año, mes y búsqueda
+            const total = base.length;
+            const fmt = n => n.toLocaleString('es-MX');
+            const aviso = elOpcional('rsvAvisoIndice');
+            const estadoTxt = elOpcional('rsvEstadoIndice');
+            const btn = elOpcional('rsvRevisarDrive');
+            btn.classList.toggle('hidden', !hayBackend());
+            if (!indiceRutinas) {
+                const txt = indiceRutinasInfo.cargando ? 'Revisando…' : '—';
+                cont.innerHTML = tarjetaIndicador('Órdenes de la lista', fmt(total), 'Preventivos y calibraciones del filtro') +
+                    tarjetaIndicador('Con rutina', txt, '', 'text-green-700') +
+                    tarjetaIndicador('Sin rutina', txt, '', 'text-amber-600') +
+                    tarjetaIndicador('Avance', txt, '', 'text-brand-700');
+                estadoTxt.innerText = !hayBackend() ? 'Sin servidor configurado: no se puede consultar Drive.' :
+                    (indiceRutinasInfo.error ? 'No se pudo leer el índice: ' + indiceRutinasInfo.error : '');
+                aviso.classList.add('hidden');
+                return;
+            }
+            const con = base.filter(d => rutinaEnIndice(d.ID)).length;
+            const sin = total - con;
+            const pct = total ? Math.round(con * 100 / total) : 0;
+            const tarjeta = (estado, html) => '<button type="button" data-rsv-estado="' + estado + '" class="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400' +
+                (elOpcional('rsvEstado').value === estado ? ' ring-2 ring-brand-500' : '') + '">' + html + '</button>';
+            cont.innerHTML =
+                tarjeta('todos', tarjetaIndicador('Órdenes de la lista', fmt(total), 'Preventivos y calibraciones del filtro')) +
+                tarjeta('con', tarjetaIndicador('Con rutina', fmt(con), 'Ya guardada en Drive · ver solo estas', 'text-green-700')) +
+                tarjeta('sin', tarjetaIndicador('Sin rutina', fmt(sin), 'Pendientes de guardar · ver solo estas', 'text-amber-600')) +
+                tarjetaIndicador('Avance', pct + '%', fmt(con) + ' de ' + fmt(total) + ' órdenes', 'text-brand-700');
+            const rev = indiceRutinasInfo.revisadoDrive;
+            estadoTxt.innerText = revisandoDriveRutinas ? estadoTxt.innerText :
+                (rev ? 'Drive revisado el ' + fechaHoraCorta(rev) : 'Drive aún no se ha revisado completo');
+            if (!rev && !revisandoDriveRutinas) {
+                aviso.innerText = 'El índice solo conoce las rutinas guardadas desde la plataforma. Para contar también las que se subieron a mano a Drive, usa «Revisar Drive» una vez (puede tardar algunos minutos).';
+                aviso.classList.remove('hidden');
+            } else if (indiceRutinasInfo.enCurso && !revisandoDriveRutinas) {
+                aviso.innerText = 'Una revisión de Drive quedó a medias. Usa «Revisar Drive» para terminarla.';
+                aviso.classList.remove('hidden');
+            } else aviso.classList.add('hidden');
+        }
+
+        async function cargarIndiceRutinas(forzar) {
+            if (!hayBackend()) { renderRutinas(); return; }
+            if (!forzar && indiceRutinas && Date.now() - indiceRutinasInfo.ts < 5 * 60000) { renderRutinas(); return; }
+            indiceRutinasInfo.cargando = true; indiceRutinasInfo.error = '';
+            if (!indiceRutinas) renderRutinas();
+            try {
+                const ctl = new AbortController();
+                const t = setTimeout(() => ctl.abort(), 45000);
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+                    body: JSON.stringify({ accion: 'rutinasGuardadas', token: tokenSesion(), forzar: !!forzar })
+                });
+                clearTimeout(t);
+                const j = await r.json().catch(() => null);
+                if (!j || !j.ok) throw new Error((j && j.error) || 'respuesta inválida');
+                indiceRutinas = j.rutinas || {};
+                indiceRutinasInfo.revisadoDrive = j.revisadoDrive || '';
+                indiceRutinasInfo.enCurso = !!j.enCurso;
+                indiceRutinasInfo.ts = Date.now();
+            } catch (err) {
+                indiceRutinasInfo.error = err.name === 'AbortError' ? 'el servidor tardó demasiado' : (err.message || 'sin conexión');
+            } finally {
+                indiceRutinasInfo.cargando = false;
+                renderRutinas();
+            }
+        }
+
+        async function revisarDriveRutinas() {
+            if (revisandoDriveRutinas || !hayBackend()) return;
+            const ok = await confirmar('Se revisarán todas las carpetas de rutinas en Drive para marcar las órdenes que ya tienen su rutina, incluidas las que se subieron a mano.\n\nPuede tardar algunos minutos; puedes seguir usando la plataforma mientras tanto.',
+                { titulo: 'Revisar Drive', textoSi: 'Revisar' });
+            if (!ok) return;
+            revisandoDriveRutinas = true;
+            const btn = elOpcional('rsvRevisarDrive');
+            const estado = elOpcional('rsvEstadoIndice');
+            btn.disabled = true; btn.innerText = 'Revisando Drive…';
+            let reiniciar = !indiceRutinasInfo.enCurso, vueltas = 0;
+            try {
+                while (vueltas++ < 40) {
+                    estado.innerText = 'Revisando carpetas de Drive…';
+                    const r = await fetch(URL_APPS_SCRIPT, {
+                        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ accion: 'reconstruirIndiceRutinas', token: tokenSesion(), reiniciar: reiniciar })
+                    });
+                    const j = await r.json().catch(() => null);
+                    if (!j || !j.ok) throw new Error((j && j.error) || 'respuesta inválida del servidor');
+                    reiniciar = false;
+                    estado.innerText = j.carpetas.toLocaleString('es-MX') + ' carpetas revisadas' + (j.terminado ? '' : '; continúa…');
+                    if (j.terminado) break;
+                }
+                registrarEvento('rutinas_revisar_drive');
+                revisandoDriveRutinas = false;
+                await cargarIndiceRutinas(true);
+                mostrarAviso('Drive revisado: los indicadores de rutinas están al día.', 5);
+            } catch (err) {
+                revisandoDriveRutinas = false;
+                estado.innerText = 'No se terminó la revisión: ' + (err.message || 'sin conexión');
+                avisar('No se pudo terminar la revisión de Drive: ' + (err.message || 'sin conexión') + '\n\nVuelve a pulsar «Revisar Drive» para continuar donde se quedó.');
+                await cargarIndiceRutinas(true);
+            } finally {
+                revisandoDriveRutinas = false;
+                btn.disabled = false; btn.innerText = 'Revisar Drive';
+            }
+        }
+
+        elOpcional('rsvIndicadores').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-rsv-estado]');
+            if (!b) return;
+            const sel = elOpcional('rsvEstado');
+            sel.value = sel.value === b.dataset.rsvEstado ? 'todos' : b.dataset.rsvEstado;
+            renderRutinas();
+        });
 
         // Prepara el contexto de la unidad (sin cambiar de pantalla) y abre la rutina
         function abrirRutinaGlobal(id, unidad) {
@@ -943,7 +1104,7 @@
             const b = e.target.closest('[data-rsv-id]');
             if (b) abrirRutinaGlobal(b.dataset.rsvId, b.dataset.rsvUnidad);
         });
-        ['rsvUnidad', 'rsvTipo', 'rsvAnio', 'rsvMes'].forEach(id => elOpcional(id).addEventListener('change', renderRutinas));
+        ['rsvUnidad', 'rsvTipo', 'rsvAnio', 'rsvMes', 'rsvEstado'].forEach(id => elOpcional(id).addEventListener('change', renderRutinas));
         (() => { let t = null;
             elOpcional('rsvBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(renderRutinas, 180); });
         })();
@@ -5074,7 +5235,7 @@
             const valido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
             const asunto = document.getElementById('encAsunto').value.trim();
             const cuerpo = document.getElementById('encCuerpo').value;
-            const modo = document.getElementById('encModo').value;
+            const modo = 'enviar'; // v8.4: ya no se guardan borradores
             if (!para.length || !para.every(valido) || !cc.every(valido)) { mensajeEncuestaUI('Revisa los correos: cada dirección debe tener el formato nombre@dominio.', 'error'); return; }
             if (!asunto) { mensajeEncuestaUI('Escribe el asunto del correo.', 'error'); return; }
             const url = urlEncuestaPara(clienteActual);
@@ -7504,7 +7665,7 @@
             const valido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
             const asunto = document.getElementById('ccotAsunto').value.trim();
             const cuerpo = document.getElementById('ccotCuerpo').value;
-            const modo = document.getElementById('ccotModo').value;
+            const modo = 'enviar'; // v8.4: ya no se guardan borradores
 
             if (!para.length || !para.every(valido)) { mensajeCorreoCotUI('Revisa el campo Para: cada dirección debe tener el formato nombre@dominio.', 'error'); return; }
             if (cc.length && !cc.every(valido)) { mensajeCorreoCotUI('Revisa el campo CC: hay una dirección con formato incorrecto.', 'error'); return; }
@@ -9153,6 +9314,7 @@
                 if (!j || !j.ok) { pintarEstadoDriveRutina('No se pudo revisar Drive' + (j && j.error ? ': ' + j.error : '.'), 'error'); return; }
                 if (!j.existe) { pintarEstadoDriveRutina('Esta orden aún no tiene rutina guardada en Drive.', 'info'); return; }
                 rutinaGuardadaInfo = j.archivo;
+                if (!rutinaEnIndice(folio)) marcarRutinaLocal(folio, j.archivo);   // v8.4
                 const cuando = fechaHoraCorta(j.archivo.fecha);
                 pintarEstadoDriveRutina('Ya existe una rutina guardada para la orden ' + folio + ' (' + cuando + ').', 'aviso', j.archivo.url);
                 const verla = await abrirDialogo(
@@ -9440,6 +9602,7 @@
                 }
                 if (!j.ok) throw new Error(j.error || 'No se pudo guardar.');
                 registrarEvento('rutina_drive', 'Orden ' + folio);
+                marcarRutinaLocal(folio, j.archivo);   // v8.4: la lista de Rutinas la muestra con su marca
                 if (secuencia === secuenciaRutina) {
                     rutinaGuardadaInfo = j.archivo;
                     pintarEstadoDriveRutina('Guardada en Drive' + (j.reemplazadas ? ' (reemplazó la anterior)' : '') + ': ' + j.archivo.nombre, 'ok', j.archivo.url);
@@ -11836,7 +11999,7 @@
             const cc = document.getElementById('correoCC').value.split(/[,;]/).map(x => x.trim()).filter(Boolean);
             const asunto = document.getElementById('correoAsunto').value.trim();
             const cuerpo = document.getElementById('correoCuerpo').value;
-            const modo = document.getElementById('correoModo').value;
+            const modo = 'enviar'; // v8.4: ya no se guardan borradores
 
             if (para.length === 0 || !para.every(v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))) {
                 mensajeCorreoUI('Revisa el campo Para: cada dirección debe tener el formato nombre@dominio.', 'error');

@@ -97,7 +97,7 @@ Cada unidad hospitalaria tiene ahora una tercera pestaña para dar seguimiento p
   - Vinculación opcional a una **orden de trabajo real** del cliente (se selecciona de la lista de sus órdenes y se guarda un resumen del equipo).
   - Tipo, **prioridad** (Alta/Media/Baja) y **estatus** (Abierto, En proceso, Esperando refacción, Esperando al cliente, Cotización enviada, Concluido).
   - **Historial de avances**: cada actualización registra fecha, autor (el usuario identificado en la sesión), nuevo estatus y nota. Los concluidos pueden reabrirse.
-  - Botón **"Enviar por correo"** (v2.7): abre un editor con destinatarios tomados de los canales de tipo Email de la unidad, asunto y cuerpo ya redactados a partir del seguimiento (orden, equipo, estatus y último avance), **archivos adjuntos** hasta 10 MB y la opción de anexar la evidencia fotográfica de la orden vinculada. Puede enviarse de inmediato o dejarse como **borrador en Gmail** para revisarlo antes. El envío lo ejecuta Apps Script con `GmailApp`, de modo que el correo sale desde la cuenta institucional y queda en su bandeja de Enviados; cada envío se registra en la pestaña *Correos enviados* de la hoja y como avance en el historial del seguimiento. Sin backend configurado, el botón abre el programa de correo del equipo con el texto ya escrito, pero sin adjuntos (`mailto:` no puede llevar archivos).
+  - Botón **"Enviar por correo"** (v2.7): abre un editor con destinatarios tomados de los canales de tipo Email de la unidad, asunto y cuerpo ya redactados a partir del seguimiento (orden, equipo, estatus y último avance), **archivos adjuntos** hasta 10 MB y la opción de anexar la evidencia fotográfica de la orden vinculada. Se envía de inmediato o se cancela (desde v8.4 ya no se guardan borradores en Gmail). El envío lo ejecuta Apps Script con `GmailApp`, de modo que el correo sale desde la cuenta institucional y queda en su bandeja de Enviados; cada envío se registra en la pestaña *Correos enviados* de la hoja y como avance en el historial del seguimiento. Sin backend configurado, el botón abre el programa de correo del equipo con el texto ya escrito, pero sin adjuntos (`mailto:` no puede llevar archivos).
   - Botón **"Enviar por WhatsApp"**: arma un mensaje con la unidad, la orden, el asunto, el estatus y el último avance, y lo abre en WhatsApp hacia el canal registrado que se elija (o hacia el selector de contactos si no hay canal). Los números mexicanos de 10 dígitos reciben la lada 52 automáticamente.
   - Contador de pendientes abiertos como **badge en la pestaña**, y filtro Abiertos / Todos / Concluidos.
 - **Persistencia y colaboración**: los registros se guardan siempre en el navegador (localStorage). Si el backend de Apps Script está configurado, además se sincronizan a Google Sheets mediante una **cola de cambios con reintentos** (funciona sin conexión y sube los cambios al reconectar); un indicador muestra el estado: *Guardado en este equipo*, *N cambios por enviar*, *Sincronizando…* o *Sincronizado*. La fusión entre dispositivos es "última escritura gana" por registro, y las eliminaciones también se propagan.
@@ -1005,7 +1005,7 @@ Siempre van con copia a **cyciabiomedica@gmail.com** y **maldonadoarturbiomedica
 
 **El PDF** se genera en el navegador con jsPDF + html2canvas, que se descargan la primera vez y quedan guardados por el service worker. Cada hoja es una imagen en carta, con los márgenes de la impresión.
 
-**Envío.** Sale por la acción `correo` del servidor, desde la cuenta institucional. Queda en la bitácora de correos como *Cotización {folio}*. Se puede enviar o dejar como borrador en Gmail. Al enviar, una cotización *Emitida* pasa a **Enviada**, salvo que se desmarque la casilla.
+**Envío.** Sale por la acción `correo` del servidor, desde la cuenta institucional. Queda en la bitácora de correos como *Cotización {folio}*. Se envía o se cancela (sin borradores desde v8.4). Al enviar, una cotización *Emitida* pasa a **Enviada**, salvo que se desmarque la casilla.
 
 ## 4.23 Seguridad: sesión firmada por el servidor (v5.3)
 
@@ -1210,7 +1210,7 @@ Botón **Enviar encuesta de satisfacción** a la derecha del nombre de la unidad
 - **Para:** el correo de la unidad en *Catálogos → Clientes* (se busca por la columna *Unidad*). Si no lo tiene, el de las órdenes de servicio; si tampoco, se escribe a mano.
 - **Asunto y mensaje** vienen prellenados (con el nombre de *Atención* del catálogo) y se pueden editar.
 - El correo lleva un botón **Responder encuesta** que abre el formulario de Jotform con el campo **Empresa ya llenado** con el nombre de la unidad: `https://form.jotform.com/262825907615868?empresa=<unidad>`.
-- Sale por la cuenta institucional (acción `correo`), o se guarda como borrador en Gmail. Queda en la bitácora.
+- Sale por la cuenta institucional (acción `correo`); desde v8.4 no se guardan borradores. Queda en la bitácora.
 - Junto al nombre de la unidad aparece su resumen, por ejemplo *★ Satisfacción 4.6 / 5 · 3 respuestas*. Al tocarlo se abre el panel filtrado.
 
 **Prellenado:** usa el *nombre único* del campo Empresa en Jotform, que por omisión es `empresa`. Si en el formulario es otro (Jotform lo muestra en las propiedades del campo, *Avanzado → Nombre único del campo*), cambiar `CAMPO_EMPRESA_ENCUESTA` en `app.js`.
@@ -1404,6 +1404,17 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 - **Exportar a Excel:** el contrato con los 12 meses marcados, visitas, tarifa, importe y último servicio.
 - `Code.gs`: pestañas **Contratos** y **Contratos_Equipos** (se crean solas) y las acciones `listarContratos`, `guardarContrato`, `eliminarContrato`, `cargarEquiposContrato` y `actualizarEquiposContrato`. Publicar como **Nueva versión**.
 
+## 4.38 Correos sin borradores y marcas de rutina (v8.4)
+
+**Correos.** Los diálogos de *Enviar encuesta*, *Enviar cotización* y *Enviar por correo* ya no tienen el selector «Acción»: el correo **se envía o se cancela**. El servidor rechaza cualquier petición con `modo: 'borrador'`.
+
+**Rutinas de servicio.**
+- Columna **Rutina** en la lista: **✓ Con rutina** (enlace al PDF en Drive) o **Sin rutina**.
+- Indicadores arriba: órdenes de la lista, con rutina, sin rutina y % de avance. Respetan unidad, tipo, año, mes y búsqueda. Al pulsar *Con rutina* o *Sin rutina* se filtra la lista (también con el nuevo selector *Con y sin rutina*).
+- Índice en la pestaña **Rutinas_Indice** (Folio, Archivo, URL, Fecha rutina, Archivo ID, Origen, Revisión, Actualizada). Se llena solo cuando se guarda una rutina desde la plataforma (*Plataforma*) o cuando se abre una orden que ya tenía rutina (*Consulta*).
+- **Revisar Drive** recorre las subcarpetas de la carpeta de rutinas y agrega las que se subieron a mano (*Drive*). Una carpeta cuenta para un folio si se llama igual o si su nombre contiene el folio («12345 - Hospital»), y si tiene un PDF cuyo nombre incluya «rutina». El recorrido va en tandas de ~4 minutos; la app repite la llamada hasta terminar y, si se interrumpe, se reanuda donde quedó. Al completar, se quitan del índice las filas de Drive que ya no aparecieron.
+- Acciones nuevas del servidor: `rutinasGuardadas` y `reconstruirIndiceRutinas` (permiso *rutinas*).
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1468,7 +1479,7 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 | WhatsApp abre sin destinatario | El canal no tiene número válido | Verificar que el número tenga 10 dígitos (o incluya lada internacional) |
 | El correo no se envía y aparece un error de autorización | Falta conceder los permisos de Gmail al script | Abrir Apps Script, ejecutar `autorizarPermisos` una vez, aceptar los permisos y volver a implementar (*Administrar implementaciones → editar → Nueva versión*) |
 | El correo falla por tamaño | Los adjuntos superan 10 MB | Subir el archivo a Drive y compartir el enlace en el cuerpo del mensaje |
-| Se agotó la cuota de correos | Límite diario de la cuenta (~100 en Gmail personal, ~1500 en Workspace) | Esperar al día siguiente o usar el modo *Guardar borrador en Gmail* |
+| Se agotó la cuota de correos | Límite diario de la cuenta (~100 en Gmail personal, ~1500 en Workspace) | Esperar al día siguiente |
 | Los datos no cambian aunque se actualizó la hoja | Caché de sesión o del backend | Usar el botón **Actualizar** (fuerza descarga fresca en ambos niveles) |
 | Una orden con "X" sigue apareciendo | El encabezado cambió de nombre en la hoja (revisar el aviso en la consola del navegador, F12) | Ajustar `COLUMNA_EXCLUSION` al nombre real y usar **Actualizar** para saltar la caché |
 | Desaparecieron órdenes que sí deberían contarse | La celda de `Indicador de Prueba` trae un valor de `MARCAS_EXCLUSION` sin querer | Vaciar la celda en la hoja o ajustar `MARCAS_EXCLUSION` |
@@ -1486,6 +1497,7 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 8.4 | **Correos sin borradores y marcas de rutina.** Los correos se envían o se cancelan (se quitó «Guardar borrador en Gmail»). En *Rutinas de servicio*, cada orden muestra si ya tiene su rutina en Drive, hay indicadores de con/sin rutina y avance, filtro con/sin rutina y el botón **Revisar Drive** para indexar las rutinas subidas a mano. Requiere publicar `Code.gs` |
 | 8.3 | **Contratos: periodicidad y primer mes.** En lugar de marcar meses sueltos, cada equipo tiene un selector de **periodicidad** (mensual a anual; **semestral por omisión**) y otro del **primer mes**; los meses siguientes se calculan solos. *Sugerir meses* propone el primer mes con la periodicidad del equipo y su último servicio. La selección múltiple aplica periodicidad y primer mes en bloque. El Excel acepta columnas Periodicidad y Primer mes. Requiere publicar `Code.gs` |
 | 8.2 | **Contratos.** Apartado nuevo: contratos por hospital con vigencia y nivel, carga de equipos desde Excel (con plantilla y vista previa), meses de mantenimiento por equipo con un clic o sugeridos por frecuencia, importe estimado y cotización del contrato completo o de los equipos seleccionados. Permiso `contratos` (ver 4.37) |
 | 8.1.1 | **Preventivos y calibraciones se atienden entre sí.** Si después del último servicio de un tipo llega una orden del otro tipo para el mismo equipo (por ejemplo, una calibración registrada como preventivo), el equipo ya no sale vencido; en Gestión de mantenimiento se indica «registrada como preventivo/calibración» y en las pestañas «✓ Atendido (preventivo)». No se crean seguimientos nuevos |
