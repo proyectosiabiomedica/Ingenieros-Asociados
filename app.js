@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.9';
+        const VERSION_APP = '9.0';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -262,6 +262,7 @@
         let rentasDetalle = [];
         let dataRentas = [];
         let rentasExcluidasPorMarcador = 0;
+        let rentasNoContadas = [];   // v9.0: las marcadas con X, para poder volver a contarlas
         let chartsRentas = [];
 
         // v2.8: paleta de gráficas derivada del logotipo institucional
@@ -1004,6 +1005,7 @@
             const estadoTxt = elOpcional('rsvEstadoIndice');
             const btn = elOpcional('rsvRevisarDrive');
             btn.classList.toggle('hidden', !hayBackend());
+            elOpcional('rsvModoAuto').classList.toggle('hidden', !hayBackend() || !tienePermiso('rutinas_auto'));   // v9.0
             if (!indiceRutinas) {
                 const txt = indiceRutinasInfo.cargando ? 'Revisando…' : '—';
                 cont.innerHTML = tarjetaIndicador('Órdenes de la lista', fmt(total), 'Preventivos y calibraciones del filtro') +
@@ -1109,6 +1111,204 @@
             sel.value = sel.value === b.dataset.rsvEstado ? 'todos' : b.dataset.rsvEstado;
             renderRutinas();
         });
+
+        /* ============================================================
+           v9.0 — MODO AUTOMÁTICO DE RUTINAS
+           Solo para quien tiene el permiso «Rutinas: modo automático» (lo da
+           el administrador en Usuarios). Genera, una por una, las rutinas que
+           aún no están en Drive de la lista que se ve (respeta los filtros):
+             · abre la rutina de la orden igual que «Ver rutina»,
+             · llena el check list y las observaciones,
+             · la firma va con el nombre y la firma digital de quien la corre,
+             · guarda el PDF en la carpeta de la orden en Drive (no imprime).
+           No reemplaza rutinas que ya estén en Drive y OMITE las órdenes cuyo
+           estatus u observaciones indican una falla o algo pendiente: esas
+           requieren que alguien revise el check list a mano.
+           ============================================================ */
+        let rutinasAutoEnCurso = false, rutinasAutoDetener = false;
+
+        // Las 8 actividades del check list, en el mismo orden que abrirRutina()
+        const IDX_SEGURIDAD_ELECTRICA = 6, IDX_CALIBRACION = 7;
+
+        function motivoRevisionManual(d) {
+            const est = normalizar(String(d.estatus_seguimiento_limpio || '').toLowerCase());
+            if (/requiere|fuera de servicio|no apto|pendiente|baja/.test(est)) return 'Estatus de la orden: ' + d.estatus_seguimiento_limpio.toLowerCase();
+            const txt = normalizar(((d.ObsOrden || '') + ' ' + (d.DetalleOrden || '')).toLowerCase())
+                .replace(/\b(sin|no presenta|no se detect[oa]|ninguna?)\s+(fallas?|danos?|problemas?)\b/g, ' ');
+            const m = txt.match(/no apto|fuera de servicio|no funciona|no enciende|no opera|inoperante|averiad|danad|requiere (cotizacion|refaccion|reparacion|cambio|correctivo)|pendiente|baja definitiva|rechazad|fall[ao]s?\b/);
+            return m ? 'La orden menciona «' + m[0] + '»' : '';
+        }
+
+        function llenarChecklistAuto(d) {
+            const tieneMediciones = !!(rutinaFilasActuales && rutinaFilasActuales.length) || !!(rutinaLecturasActuales && rutinaLecturasActuales.length);
+            for (let i = 0; i < 8; i++) {
+                const radios = document.querySelectorAll('input[name="chk_' + i + '"]');
+                if (radios.length < 3) continue;
+                let col = 0;                                                     // Aprobado
+                if (i === IDX_CALIBRACION && !d.esCalibracion && !tieneMediciones) col = 2;   // N/A
+                radios[col].checked = true;
+            }
+        }
+
+        function textoValido(t) {
+            const v = normalizar(String(t || '').trim().toLowerCase());
+            return v && !/^(n\/?a|na|ninguna?|sin observaciones|-+|\.+|ok)$/.test(v);
+        }
+
+        function observacionesAuto(d) {
+            const eq = [d.Equipo, d.Marca && d.Marca !== 'Sin Marca' ? d.Marca : '', d.Modelo && d.Modelo !== 'N/A' ? d.Modelo : ''].filter(Boolean).join(' ');
+            const ident = [d.Serie && d.Serie !== 'N/A' ? 'serie ' + d.Serie : '', d.Inventario && d.Inventario !== 'N/A' ? 'inventario ' + d.Inventario : ''].filter(Boolean).join(', ');
+            const lugar = d.Area && d.Area !== 'N/A' ? ', ubicado en ' + d.Area : '';
+            const tieneMediciones = !!(rutinaFilasActuales && rutinaFilasActuales.length) || !!(rutinaLecturasActuales && rutinaLecturasActuales.length);
+            let t;
+            if (d.esCalibracion) {
+                t = 'Se realizó la calibración (EMA) del equipo ' + eq + (ident ? ' (' + ident + ')' : '') + lugar +
+                    ', contra el patrón de referencia indicado en la sección de datos del equipo de calibración. ' +
+                    'Se efectuaron limpieza, revisión física, verificación de cables y conectores, pruebas de encendido, alarmas y parámetros funcionales' +
+                    (tieneMediciones ? '; los valores obtenidos se registran en la sección de valores de medición' : '') + '.';
+            } else {
+                t = 'Se realizó el mantenimiento preventivo del equipo ' + eq + (ident ? ' (' + ident + ')' : '') + lugar +
+                    ', conforme al programa de mantenimiento. Se efectuaron limpieza integral, revisión de integridad física y mecánica, ' +
+                    'verificación de cables, conectores y enchufes, pruebas de encendido y autodiagnóstico, comprobación de alarmas, ' +
+                    'verificación de parámetros funcionales y pruebas de seguridad eléctrica' +
+                    (tieneMediciones ? ', así como la verificación contra patrón de referencia cuyos valores se registran en la sección de valores de medición' : '') + '.';
+            }
+            t += ' Al término del servicio el equipo queda en condiciones adecuadas de operación.';
+            const extra = [d.DetalleOrden, d.ObsOrden].filter(textoValido).map(x => String(x).trim());
+            if (extra.length) t += '\n\nObservaciones del ingeniero en la orden: ' + Array.from(new Set(extra)).map(x => /[.!?]$/.test(x) ? x : x + '.').join(' ');
+            return t;
+        }
+
+        const esperarMs = (ms) => new Promise(r => setTimeout(r, ms));
+
+        async function guardarRutinaAuto() {
+            const folio = folioRutinaActual;
+            const idGuardado = 'auto-' + ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+            const pdf = await pdfRutinaBase64();
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 120000);
+            try {
+                const r = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+                    body: JSON.stringify({ accion: 'guardarRutinaDrive', token: tokenSesion(), folio: folio,
+                                           equipo: document.getElementById('rutEq').innerText.trim(),
+                                           pdf: pdf, reemplazar: false, idGuardado: idGuardado })
+                });
+                const j = await r.json().catch(() => null);
+                if (!j) throw new Error('El servidor respondió de forma inesperada.');
+                if (j.codigo === 'SESION') { const e = new Error('La sesión venció.'); e.fatal = true; throw e; }
+                if (!j.ok && j.existe) { marcarRutinaLocal(folio, j.archivo); return 'existe'; }
+                if (!j.ok) throw new Error(j.error || 'No se pudo guardar.');
+                marcarRutinaLocal(folio, j.archivo);
+                return 'guardada';
+            } catch (err) {
+                if (err.name === 'AbortError') throw new Error('El servidor tardó demasiado.');
+                throw err;
+            } finally { clearTimeout(t); }
+        }
+
+        function pintarPanelRutinasAuto(st) {
+            const pct = st.total ? Math.round(st.hechas * 100 / st.total) : 0;
+            elOpcional('raBarra').style.width = pct + '%';
+            elOpcional('raGuardadas').innerText = st.guardadas;
+            elOpcional('raOmitidas').innerText = st.omitidas.length;
+            elOpcional('raErrores').innerText = st.errores.length;
+            const det = st.omitidas.map(x => '<li><b>' + esc(x.folio) + '</b> · ' + esc(x.motivo) + '</li>')
+                .concat(st.errores.map(x => '<li class="text-red-700"><b>' + esc(x.folio) + '</b> · ' + esc(x.motivo) + '</li>'));
+            elOpcional('raDetalle').innerHTML = det.join('');
+            elOpcional('raDetalleCaja').classList.toggle('hidden', !det.length);
+        }
+
+        async function iniciarRutinasAuto() {
+            if (!tienePermiso('rutinas_auto')) { avisar('El modo automático de rutinas lo habilita el administrador en Usuarios.'); return; }
+            if (rutinasAutoEnCurso) return;
+            if (!indiceRutinas) { avisar('Espera a que termine de revisar qué órdenes ya tienen su rutina en Drive.'); return; }
+            if (!miFirmaDigital.firma) {
+                if (await confirmar('Las rutinas automáticas se guardan con tu nombre y tu firma digital, y aún no tienes una.\n\n¿Subirla ahora?', { titulo: 'Falta tu firma', textoSi: 'Subir firma' })) abrirFirmaDigital();
+                return;
+            }
+            const candidatas = rutinasFiltradas(true).filter(d => !rutinaEnIndice(d.ID));
+            const sinFolio = candidatas.filter(d => !d.ID || d.ID === 'S/N');
+            const conFolio = candidatas.filter(d => d.ID && d.ID !== 'S/N');
+            const revisar = conFolio.map(d => ({ d, motivo: motivoRevisionManual(d) })).filter(x => x.motivo);
+            const aptas = conFolio.filter(d => !motivoRevisionManual(d));
+            if (!aptas.length) {
+                avisar(candidatas.length
+                    ? 'Las ' + candidatas.length + ' orden(es) sin rutina de la lista requieren revisión manual (falla, pendiente o sin folio).'
+                    : 'No hay órdenes sin rutina en la lista actual. Revisa los filtros.');
+                return;
+            }
+            const nombre = nombreUsuario();
+            const ok = await confirmar(
+                'Se generarán y guardarán en Drive ' + aptas.length + ' rutina(s) pendiente(s) de la lista actual (respeta los filtros), a nombre de ' + nombre + ' y con tu firma digital.\n\n' +
+                '• Check list: todas las actividades «Aprobado»; la calibración/ajuste va como N/A cuando la orden no es de calibración ni trae mediciones.\n' +
+                '• Observaciones: se redactan con los datos del equipo y lo que el ingeniero anotó en la orden.\n' +
+                '• No se imprime nada ni se reemplazan rutinas que ya estén en Drive.' +
+                (revisar.length || sinFolio.length ? '\n\nSe omitirán ' + (revisar.length + sinFolio.length) + ' orden(es) que indican falla o algo pendiente (o no tienen folio): esas se hacen a mano.' : '') +
+                (!indiceRutinasInfo.revisadoDrive ? '\n\nDrive aún no se ha revisado completo: si alguna rutina se subió a mano, no se duplica (se detecta al guardar).' : '') +
+                '\n\nDeja esta pestaña abierta mientras trabaja; tarda unos segundos por rutina.',
+                { titulo: 'Modo automático', textoSi: 'Generar ' + aptas.length + ' rutina(s)' });
+            if (!ok) return;
+
+            rutinasAutoEnCurso = true; rutinasAutoDetener = false;
+            const st = { total: aptas.length, hechas: 0, guardadas: 0,
+                         omitidas: revisar.map(x => ({ folio: x.d.ID, motivo: x.motivo })).concat(sinFolio.map(() => ({ folio: 'S/N', motivo: 'Sin folio' }))),
+                         errores: [] };
+            const panel = elOpcional('panelRutinasAuto');
+            panel.classList.remove('hidden'); panel.classList.add('flex');
+            elOpcional('raDetener').classList.remove('hidden');
+            elOpcional('raCerrar').classList.add('hidden');
+            elOpcional('raEstado').innerText = 'Generando ' + aptas.length + ' rutina(s) a nombre de ' + nombre + '…';
+            elOpcional('rsvModoAuto').disabled = true;
+            pintarPanelRutinasAuto(st);
+            registrarEvento('rutinas_auto_inicio', aptas.length + ' rutina(s)');
+            try {
+                for (const d of aptas) {
+                    if (rutinasAutoDetener) break;
+                    elOpcional('raActual').innerText = (st.hechas + 1) + ' de ' + st.total + ' · ' + d.ID + ' · ' + d.Equipo + ' · ' + d.Cliente;
+                    try {
+                        abrirRutinaGlobal(d.ID, d.Cliente);
+                        if (folioRutinaActual !== d.ID) throw new Error('No se pudo abrir la rutina.');
+                        await esperarMs(700);                      // gráficas de la sección de mediciones
+                        llenarChecklistAuto(d);
+                        document.getElementById('rutObservaciones').innerText = observacionesAuto(d);
+                        document.getElementById('rutNombreAutorizado').innerText = nombre;
+                        await pintarFirmaRutina();
+                        await esperarMs(150);
+                        const res = await guardarRutinaAuto();
+                        if (res === 'existe') st.omitidas.push({ folio: d.ID, motivo: 'Ya tenía rutina en Drive (no se reemplazó)' });
+                        else st.guardadas++;
+                    } catch (err) {
+                        st.errores.push({ folio: d.ID, motivo: err.message || 'Error' });
+                        if (err.fatal) { rutinasAutoDetener = true; }
+                    }
+                    st.hechas++;
+                    pintarPanelRutinasAuto(st);
+                }
+            } finally {
+                rutinasAutoEnCurso = false;
+                if (!document.getElementById('modalRutina').classList.contains('hidden')) cerrarRutina();
+                elOpcional('rsvModoAuto').disabled = false;
+                elOpcional('raDetener').classList.add('hidden');
+                elOpcional('raCerrar').classList.remove('hidden');
+                elOpcional('raActual').innerText = '';
+                elOpcional('raEstado').innerText = (rutinasAutoDetener ? 'Detenido. ' : 'Terminado. ') +
+                    st.guardadas + ' rutina(s) guardada(s) en Drive' + (st.hechas < st.total ? ' · ' + (st.total - st.hechas) + ' sin procesar' : '') + '.';
+                registrarEvento('rutinas_auto_fin', st.guardadas + ' guardada(s), ' + st.omitidas.length + ' omitida(s), ' + st.errores.length + ' error(es)');
+                renderRutinas();
+            }
+        }
+
+        function detenerRutinasAuto() {
+            rutinasAutoDetener = true;
+            elOpcional('raEstado').innerText = 'Deteniendo al terminar la rutina en curso…';
+        }
+
+        function cerrarPanelRutinasAuto() {
+            if (rutinasAutoEnCurso) return;
+            const p = elOpcional('panelRutinasAuto');
+            p.classList.add('hidden'); p.classList.remove('flex');
+        }
 
         // Prepara el contexto de la unidad (sin cambiar de pantalla) y abre la rutina
         function abrirRutinaGlobal(id, unidad) {
@@ -1947,6 +2147,8 @@
 
                 const textoObs = cObs ? (row[cObs] || '').trim() : '';
                 const textoDet = cDet ? (row[cDet] || '').trim() : '';
+                obj['ObsOrden'] = textoObs;       // v9.0: para el modo automático de rutinas
+                obj['DetalleOrden'] = textoDet;
 
                 if (estatusLimpio.includes('REQUIERE COTIZACION')) {
                     obj['oportunidad'] = true;
@@ -2655,6 +2857,7 @@
             const activasU = dataRentas.filter(r => r.estado === 'En curso').length;
             elOpcional('clienteRentasCount').innerText = dataRentas.length;
             elOpcional('clienteRentasActivas').innerText = activasU ? activasU + ' en curso' : '';
+            pintarRentasNoContadas();   // v9.0
 
             /* v3.7: los recuadros de arriba siguen resumiendo por familia
                —programado contra no programado—, aunque las pestañas de abajo
@@ -4965,7 +5168,7 @@
         function renderOrdenesCorrAsignadas() {
             const cont = document.getElementById('ocLista');
             if (!cont) return;
-            const verCerradas = document.getElementById('ocVerCerradas').checked;
+            const verCerradas = false;   // v9.0: solo las abiertas (se quitó «Mostrar enviadas y canceladas»)
             const unidad = document.getElementById('corrUnidad').value;
             const todas = asignaciones.filter(esAsignacionCorrectiva);
             const lista = todas.filter(a => (verCerradas || ['Asignada', 'Borrador'].indexOf(a.estado) > -1) && (!unidad || a.unidad === unidad))
@@ -5006,7 +5209,7 @@
             elOpcional('ocEquipoBuscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(pintarEquiposOrdenCorr, 150); });
         })();
         elOpcional('ocEquipoSel').addEventListener('change', elegirEquipoOrdenCorr);
-        elOpcional('ocVerCerradas').addEventListener('change', renderOrdenesCorrAsignadas);
+
         document.getElementById('corrUnidad').addEventListener('change', renderOrdenesCorrAsignadas);
         elOpcional('ocLista').addEventListener('click', async (e) => {
             const b = e.target.closest('[data-cancelar-oc]');
@@ -11104,6 +11307,7 @@
             { clave: 'satisfaccion', etiqueta: 'Satisfacción de clientes', btn: 'btnSatisfaccion', vista: 'satisfaccionContent' },
             { clave: 'cotizador',    etiqueta: 'Cotizador',               btn: 'btnCotizador',     vista: 'cotizadorContent' },
             { clave: 'rutinas',      etiqueta: 'Rutinas de servicio',     btn: 'btnRutinas',       vista: 'rutinasContent' },  // v8.1
+            { clave: 'rutinas_auto', etiqueta: 'Rutinas: modo automático', btn: '',                vista: '' },                // v9.0
             { clave: 'rentas',       etiqueta: 'Rentas',                  btn: 'btnRentas',        vista: 'rentasContent' },   // v7.5
             { clave: 'contratos',    etiqueta: 'Contratos',               btn: 'btnContratos',     vista: 'contratosContent' },   // v8.2
             { clave: 'catalogos',    etiqueta: 'Catálogos',               btn: 'btnCatalogos',     vista: 'catalogosContent' },
@@ -12697,6 +12901,7 @@
 
         function procesarRentas(data) {
             rentasDetalle = [];
+            rentasNoContadas = [];
             rentasExcluidasPorMarcador = 0;
             if (!data || !data.length) return;
             const llaves = Object.keys(data[0]);
@@ -12737,7 +12942,7 @@
             const usados = new Set();
 
             data.forEach(row => {
-                if (cExcl && estaMarcadaParaExcluir(row[cExcl])) { rentasExcluidasPorMarcador++; return; }
+                const noContar = !!(cExcl && estaMarcadaParaExcluir(row[cExcl]));   // v9.0: se lee igual, pero aparte
                 const crudo = val(row, cID);
                 const equipo = val(row, cEq);
                 if (!crudo || (!equipo && !val(row, cUni))) return;
@@ -12815,7 +13020,8 @@
                     esPreventivo: false, esCalibracion: false, esCorrectivo: false, esEntrega: false,
                     esPrev: false, esCorr: false, Fotos: []
                 };
-                rentasDetalle.push(obj);
+                if (noContar) { obj.noContar = true; rentasExcluidasPorMarcador++; rentasNoContadas.push(obj); }
+                else rentasDetalle.push(obj);
             });
 
             rentasDetalle.sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
@@ -12868,8 +13074,69 @@
                    '<td class="px-4 py-3 text-slate-600 whitespace-nowrap">' + (d.cantidad !== null ? esc(cantidadRentaTexto(d)) : '<span class="text-slate-300">—</span>') +
                        (d.tiempoTexto && d.cantidad !== null ? '<span class="block text-xs text-slate-400">' + (d.modalidad === 'mes' ? 'cobro por mes' : 'cobro por día') + '</span>' : '') + '</td>' +
                    '<td class="px-4 py-3 text-right whitespace-nowrap">' + celdaImporteRenta(d) + '</td>' +
-                   '<td class="px-4 py-3">' + badgeEstadoRenta(d.estado) + '</td>';
+                   '<td class="px-4 py-3">' + badgeEstadoRenta(d.estado) +
+                       (sesionActual() && sesionActual().rol === 'admin'
+                           ? '<button type="button" data-no-contar="' + esc(d.folioOriginal) + '" data-folio="' + esc(d.ID) + '" class="no-print block mt-1 text-xs font-semibold text-slate-400 hover:text-red-600" title="La renta deja de considerarse en todo el sistema">No contar</button>'
+                           : '') + '</td>';
         }
+
+        /* v9.0 — RENTAS QUE NO SE CUENTAN
+           Como las órdenes de trabajo: la renta marcada con X en «Indicador de
+           Prueba» no entra en ningún conteo, importe ni gráfica. El
+           administrador la marca desde la pestaña Rentas de la unidad y, abajo,
+           puede ver las que no se cuentan y volver a contarlas. */
+        function pintarRentasNoContadas() {
+            const caja = elOpcional('rentasNoContadasCaja');
+            if (!caja.id) return;
+            const lista = rentasNoContadas.filter(r => r.Cliente === clienteActual);
+            caja.classList.toggle('hidden', !lista.length);
+            elOpcional('rentasNoContadasTitulo').innerText = lista.length + ' renta(s) de esta unidad no se cuentan';
+            const admin = sesionActual() && sesionActual().rol === 'admin';
+            elOpcional('rentasNoContadasLista').innerHTML = lista.map(r =>
+                '<li class="flex flex-wrap items-center justify-between gap-2 py-2">' +
+                    '<span class="text-slate-500"><b class="text-slate-600">' + esc(r.ID) + '</b> · ' + esc(r.Equipo) + ' · ' + esc(r.Serie) + ' · ' + esc(r.FechaEjecucionStr) + '</span>' +
+                    (admin ? '<button type="button" data-volver-contar="' + esc(r.folioOriginal) + '" data-folio="' + esc(r.ID) + '" class="text-xs font-semibold text-brand-600 hover:text-brand-800">Volver a contar</button>' : '') +
+                '</li>').join('');
+        }
+
+        async function cambiarConteoRenta(folioOriginal, folio, noContar) {
+            const ok = await confirmar(noContar
+                ? 'La renta ' + folio + ' dejará de considerarse en todo el sistema (conteos, importes, gráficas y exportaciones). Se marca con una X en la columna «Indicador de Prueba» de la hoja de rentas.\n\nPuedes volver a contarla después.'
+                : '¿Volver a contar la renta ' + folio + '? Se quita la X de la hoja de rentas.',
+                { titulo: noContar ? 'No contar renta' : 'Volver a contar', textoSi: noContar ? 'No contar' : 'Volver a contar', peligro: noContar });
+            if (!ok) return;
+            try {
+                await peticionAdmin('marcarRentaNoContar', { folio: folioOriginal, noContar: noContar });
+                // Se actualiza en memoria sin esperar a recargar los datos
+                const origen = noContar ? rentasDetalle : rentasNoContadas;
+                const i = origen.findIndex(r => r.folioOriginal === folioOriginal);
+                if (i > -1) {
+                    const r = origen.splice(i, 1)[0];
+                    r.noContar = noContar;
+                    (noContar ? rentasNoContadas : rentasDetalle).push(r);
+                    rentasDetalle.sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
+                }
+                rentasExcluidasPorMarcador = rentasNoContadas.length;
+                dataRentas = rentasDetalle.filter(r => r.Cliente === clienteActual);
+                const n = elOpcional('cuentaTabRen'); if (n.id) n.innerText = dataRentas.length;
+                const activasU = dataRentas.filter(r => r.estado === 'En curso').length;
+                elOpcional('clienteRentasCount').innerText = dataRentas.length;
+                elOpcional('clienteRentasActivas').innerText = activasU ? activasU + ' en curso' : '';
+                renderTablaServicio('ren');
+                pintarRentasNoContadas();
+                registrarEvento('renta_no_contar', (noContar ? 'No contar ' : 'Volver a contar ') + folio);
+                mostrarAviso(noContar ? 'La renta ' + folio + ' ya no se cuenta.' : 'La renta ' + folio + ' se vuelve a contar.', 4);
+            } catch (err) {
+                avisar(err.message || 'No se pudo cambiar la renta.');
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-no-contar], [data-volver-contar]');
+            if (!b) return;
+            const noContar = b.hasAttribute('data-no-contar');
+            cambiarConteoRenta(noContar ? b.dataset.noContar : b.dataset.volverContar, b.dataset.folio, noContar);
+        });
 
         /* ---------- Apartado Rentas (métricas) ---------- */
         async function mostrarRentas() {

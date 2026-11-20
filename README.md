@@ -1431,6 +1431,20 @@ Las órdenes se clasifican como en la app de Órdenes: **Preventivo, Correctivo,
 - **Gestión de mantenimiento → Correctivos:** el selector de tipo filtra Correctivos, Asistencia Biomédica, Entregas, Instrumental, Otros o todos los no programados. El detalle por ingeniero muestra el tipo y abre la pestaña de ese tipo en la unidad. *Prellenar y asignar* ofrece esos mismos tipos.
 - **Preventivos (próximos) y Rutinas de servicio:** «Calibraciones» pasa a llamarse **Calibración EMA**.
 
+## 4.41 Rentas que no se cuentan, órdenes asignadas y modo automático de rutinas (v9.0)
+
+**Rentas que no se cuentan.** Funciona igual que en las órdenes de trabajo: una **X** en la columna **Indicador de Prueba** de la pestaña *Ordenes de Renta* saca la renta de todo el sistema (conteos, importes, gráficas y exportaciones). El administrador la pone con **No contar**, debajo del estado de cada renta en la pestaña *Rentas* de la unidad. Abajo de la tabla aparece «N renta(s) de esta unidad no se cuentan», con **Volver a contar**. Si la hoja no tiene esa columna, el servidor la agrega al final (acción `marcarRentaNoContar`, solo admin).
+
+**Gestión de mantenimiento → Correctivos.** Se quitó «Mostrar enviadas y canceladas»: la lista de órdenes prellenadas muestra solo las abiertas.
+
+**Modo automático de rutinas.**
+- **Permiso:** *Rutinas: modo automático* (`rutinas_auto`). El administrador lo marca en *Usuarios* y el administrador lo tiene siempre. Quien lo tiene ve **Modo automático** en *Rutinas de servicio*.
+- **Qué genera:** una por una, las rutinas **sin rutina en Drive** de la lista que se ve (respeta unidad, tipo, año, mes y búsqueda). Cada una sale a nombre de quien lo corre, con su firma digital (es obligatorio tenerla), y se guarda en la carpeta de la orden en Drive sin imprimir.
+- **Check list:** todo «Aprobado». La calibración/ajuste va como «N/A» si la orden no es de Calibración EMA ni trae mediciones.
+- **Observaciones:** texto redactado con los datos del equipo y el tipo de servicio, más lo que el ingeniero anotó en la orden (detalle de funcionalidad y observaciones).
+- **Se omiten** las órdenes cuyo estatus dice *requiere…*, *pendiente*, *fuera de servicio* o *no apto*, y las que mencionan falla, que no enciende o similares («sin fallas» no cuenta). También las que no tienen folio. Esas se hacen a mano. Nunca se reemplaza una rutina que ya esté en Drive.
+- **Panel de avance:** muestra guardadas, omitidas (con el motivo) y con error, y tiene botón **Detener**. Inicio y fin quedan en la bitácora.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1513,6 +1527,7 @@ Las órdenes se clasifican como en la app de Órdenes: **Preventivo, Correctivo,
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 9.0 | **Rentas que no se cuentan y modo automático de rutinas.** El administrador marca rentas para no contarlas (X en «Indicador de Prueba»). Se quitó «Mostrar enviadas y canceladas» en Correctivos. Nuevo permiso *Rutinas: modo automático*: genera y guarda en Drive las rutinas pendientes con check list y observaciones, a nombre y con la firma de quien lo corre. Requiere publicar `Code.gs` |
 | 8.9 | **Siete tipos de servicio.** Preventivo, Correctivo, Asistencia Biomédica, Entrega, Calibración EMA, Instrumental y Otro: una pestaña por tipo en el detalle de cada unidad y filtro por tipo en Gestión de mantenimiento → Correctivos. Solo archivos de la página |
 | 8.8 | **Firma en foto sin fondo.** Al subir la firma como imagen, el fondo se quita aunque la hoja salga gris, con luz dispareja o con sombra (se calcula el fondo de cada zona y se compara el trazo contra él); se eliminan puntitos sueltos y se conserva el tono de la pluma. Aplica también a la firma de cotizaciones. Solo archivos de la página |
 | 8.7 | **Rutinas de servicio más compacto.** La lista ya no muestra las columnas Área e Ingeniero (el buscador sigue encontrando por área e ingeniero). Solo archivos de la página |

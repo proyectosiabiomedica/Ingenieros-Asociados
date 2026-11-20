@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=8.9">
+    <link rel="stylesheet" href="estilos.css?v=9.0">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -950,6 +950,11 @@
                                 </tbody>
                             </table>
                         </div>
+                        <!-- v9.0: rentas marcadas para no contarse -->
+                        <details id="rentasNoContadasCaja" class="hidden no-print mt-4 border border-slate-200 rounded-lg bg-slate-50 px-4 py-2 text-sm">
+                            <summary id="rentasNoContadasTitulo" class="cursor-pointer text-xs font-semibold text-slate-500"></summary>
+                            <ul id="rentasNoContadasLista" class="divide-y divide-slate-200 mt-1"></ul>
+                        </details>
                         <p class="text-xs text-slate-400 mt-3">El importe es el tiempo rentado por el precio fijo del catálogo de rentas (por día o por mes, según la orden). Una renta sin término ni tiempo total aparece <b>en curso</b> y sin importe hasta que se cierre.</p>
                     </div>
 
@@ -1146,7 +1151,14 @@
                     <p class="text-sm text-slate-500 mt-1">Todas las rutinas de preventivos y calibraciones, de todas las unidades. Busca por folio, equipo, serie, inventario, área o ingeniero y ábrela sin entrar a cada hospital.</p>
                 </div>
                 <div class="flex flex-col items-start md:items-end gap-1 shrink-0">
-                    <button id="rsvRevisarDrive" onclick="revisarDriveRutinas()" class="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Revisar Drive</button>
+                    <div class="flex flex-wrap gap-2 md:justify-end">
+                        <!-- v9.0: solo para quien tiene el permiso «Rutinas: modo automático» -->
+                        <button id="rsvModoAuto" onclick="iniciarRutinasAuto()" class="hidden bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            Modo automático
+                        </button>
+                        <button id="rsvRevisarDrive" onclick="revisarDriveRutinas()" class="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Revisar Drive</button>
+                    </div>
                     <p id="rsvEstadoIndice" class="text-xs text-slate-500"></p>
                 </div>
             </div>
@@ -1412,7 +1424,6 @@
                         </button>
                     </div>
                     <div class="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center gap-3 text-xs">
-                        <label class="flex items-center gap-1.5 text-slate-600"><input id="ocVerCerradas" type="checkbox" class="rounded border-slate-300"> Mostrar enviadas y canceladas</label>
                         <span id="ocConteo" class="text-slate-400 font-semibold"></span>
                     </div>
                     <div id="ocLista" class="overflow-x-auto"></div>
@@ -2725,6 +2736,36 @@
         </div>
     </div>
 
+    <!-- ============ v9.0: avance del modo automático de rutinas ============ -->
+    <div id="panelRutinasAuto" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[90] bg-slate-900/40 items-end sm:items-center justify-center p-4 no-print">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Modo automático de rutinas
+                </h3>
+                <p id="raEstado" class="text-xs text-slate-500 mt-1"></p>
+            </div>
+            <div class="p-5 flex flex-col gap-3 overflow-y-auto">
+                <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="raBarra" class="h-2 bg-emerald-500 rounded-full transition-all" style="width:0%"></div></div>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-green-50 rounded-lg p-2"><p id="raGuardadas" class="text-xl font-bold text-green-700">0</p><p class="text-xs text-green-800">Guardadas</p></div>
+                    <div class="bg-amber-50 rounded-lg p-2"><p id="raOmitidas" class="text-xl font-bold text-amber-700">0</p><p class="text-xs text-amber-800">Omitidas</p></div>
+                    <div class="bg-red-50 rounded-lg p-2"><p id="raErrores" class="text-xl font-bold text-red-700">0</p><p class="text-xs text-red-800">Con error</p></div>
+                </div>
+                <p id="raActual" class="text-xs text-slate-600"></p>
+                <details id="raDetalleCaja" class="hidden text-xs">
+                    <summary class="cursor-pointer font-semibold text-slate-600">Órdenes omitidas o con error</summary>
+                    <ul id="raDetalle" class="mt-2 space-y-1 text-slate-600"></ul>
+                </details>
+            </div>
+            <div class="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <button id="raDetener" onclick="detenerRutinasAuto()" class="text-xs font-semibold text-red-600 hover:text-red-800 px-4 py-2">Detener</button>
+                <button id="raCerrar" onclick="cerrarPanelRutinasAuto()" class="hidden bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-5 py-2 rounded-lg">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ v8.5: firma digital del usuario ============ -->
     <div id="modalFirmaDigital" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-[85] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 no-print">
         <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
@@ -2906,6 +2947,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=8.9"></script>
+    <script src="app.js?v=9.0"></script>
 </body>
 </html>
