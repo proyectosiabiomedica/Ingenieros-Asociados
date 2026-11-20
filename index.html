@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
-    <link rel="stylesheet" href="estilos.css?v=8.8">
+    <link rel="stylesheet" href="estilos.css?v=8.9">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex">
 
@@ -425,23 +425,32 @@
 
             <!-- Pestañas de Mantenimiento -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-5 flex-wrap no-print">
-                    <button id="tabPrev" onclick="cambiarPestana('prev')" class="py-4 px-2 text-sm focus:outline-none tab-active transition-colors">
-                        Preventivos
+                <div class="border-b border-slate-200 bg-slate-50 px-6 flex gap-x-4 flex-wrap no-print">
+                    <button id="tabPrev" onclick="cambiarPestana('prev')" class="py-4 px-1 text-sm focus:outline-none tab-active transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Preventivos <span id="cuentaTabPrev" class="text-xs font-semibold text-slate-400"></span>
                     </button>
-                    <button id="tabCal" onclick="cambiarPestana('cal')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
-                        Calibraciones
+                    <button id="tabCorr" onclick="cambiarPestana('corr')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Correctivos <span id="cuentaTabCorr" class="text-xs font-semibold text-slate-400"></span>
                     </button>
-                    <button id="tabCorr" onclick="cambiarPestana('corr')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
-                        Correctivos / Asistencias
+                    <button id="tabAsi" onclick="cambiarPestana('asi')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Asistencia Biomédica <span id="cuentaTabAsi" class="text-xs font-semibold text-slate-400"></span>
                     </button>
-                    <button id="tabEnt" onclick="cambiarPestana('ent')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
-                        Entregas / Materiales
+                    <button id="tabEnt" onclick="cambiarPestana('ent')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Entregas <span id="cuentaTabEnt" class="text-xs font-semibold text-slate-400"></span>
                     </button>
-                    <button id="tabRen" onclick="cambiarPestana('ren')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors">
-                        Rentas
+                    <button id="tabCal" onclick="cambiarPestana('cal')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Calibración EMA <span id="cuentaTabCal" class="text-xs font-semibold text-slate-400"></span>
                     </button>
-                    <button id="tabCom" onclick="cambiarPestana('com')" class="py-4 px-2 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2">
+                    <button id="tabIns" onclick="cambiarPestana('ins')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Instrumental <span id="cuentaTabIns" class="text-xs font-semibold text-slate-400"></span>
+                    </button>
+                    <button id="tabOtr" onclick="cambiarPestana('otr')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Otros <span id="cuentaTabOtr" class="text-xs font-semibold text-slate-400"></span>
+                    </button>
+                    <button id="tabRen" onclick="cambiarPestana('ren')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        Rentas <span id="cuentaTabRen" class="text-xs font-semibold text-slate-400"></span>
+                    </button>
+                    <button id="tabCom" onclick="cambiarPestana('com')" class="py-4 px-1 text-sm focus:outline-none tab-inactive transition-colors flex items-center gap-2 whitespace-nowrap">
                         Comunicación y Seguimiento
                         <span id="comBadge" class="hidden bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full" title="Pendientes abiertos">0</span>
                     </button>
@@ -652,7 +661,65 @@
                         </div>
                     </div>
 
-                    <!-- Pestaña Entregas / Materiales -->
+                    <!-- v8.9: Pestaña Asistencia Biomédica -->
+                    <div id="contentAsi" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoAsi" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorAsi" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioAsi" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Ejecución:</label>
+                                    <select id="filtroMesEjecAsi" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos los meses</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('asi')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="abrirModalRealizados('asi')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaAsi" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('asi')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('asi')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="min-w-full divide-y divide-slate-200">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Marca / Modelo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaAsi" class="divide-y divide-slate-100 text-sm bg-white">
+                                    <!-- Inyectado por JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña Entregas -->
                     <div id="contentEnt" style="display:none;">
                         <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
                             <input type="text" id="filtroTextoEnt" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
@@ -704,6 +771,122 @@
                                     </tr>
                                 </thead>
                                 <tbody id="tablaEnt" class="divide-y divide-slate-100 text-sm bg-white">
+                                    <!-- Inyectado por JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- v8.9: Pestaña Instrumental -->
+                    <div id="contentIns" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoIns" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorIns" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioIns" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Ejecución:</label>
+                                    <select id="filtroMesEjecIns" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos los meses</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('ins')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="abrirModalRealizados('ins')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaIns" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('ins')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('ins')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="min-w-full divide-y divide-slate-200">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Marca / Modelo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaIns" class="divide-y divide-slate-100 text-sm bg-white">
+                                    <!-- Inyectado por JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- v8.9: Pestaña Otros -->
+                    <div id="contentOtr" style="display:none;">
+                        <div class="flex flex-col xl:flex-row gap-4 mb-6 justify-between items-center no-print">
+                            <input type="text" id="filtroTextoOtr" placeholder="Buscar equipo, serie..." class="w-full xl:w-1/3 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-brand-500 outline-none">
+                            <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                                <span id="contadorOtr" class="text-xs font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Año:</label>
+                                    <select id="filtroAnioOtr" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Mes Ejecución:</label>
+                                    <select id="filtroMesEjecOtr" class="p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-brand-500 outline-none">
+                                        <option value="todos">Todos los meses</option>
+                                    </select>
+                                </div>
+                                <button onclick="imprimirTablaServicio('otr')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Imprimir Tabla
+                                </button>
+                                <button onclick="abrirModalRealizados('otr')" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm" title="Exportar a Excel o PDF los servicios realizados con su costo facturado y el estimado por tarifario">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Exportar servicios realizados
+                                </button>
+                            </div>
+                        </div>
+                        <div id="barraFacturaOtr" class="hidden mb-3 flex flex-wrap items-center justify-between gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 no-print">
+                            <span class="conteo-sel text-xs font-semibold text-brand-800"></span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="abrirModalFactura('otr')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                    Marcar como facturado
+                                </button>
+                                <button onclick="limpiarSeleccion('otr')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Quitar selección</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="min-w-full divide-y divide-slate-200">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left no-print"><input type="checkbox" class="chk-todos rounded border-slate-300" title="Seleccionar todo lo visible"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Orden (ID)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Equipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Marca / Modelo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Serie</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Fecha Ejecución</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Factura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaOtr" class="divide-y divide-slate-100 text-sm bg-white">
                                     <!-- Inyectado por JS -->
                                 </tbody>
                             </table>
@@ -975,9 +1158,9 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <select id="rsvUnidad" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     <select id="rsvTipo" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
-                        <option value="todos">Preventivos y calibraciones</option>
+                        <option value="todos">Preventivos y calibración EMA</option>
                         <option value="prev">Solo preventivos</option>
-                        <option value="cal">Solo calibraciones</option>
+                        <option value="cal">Solo calibración EMA</option>
                     </select>
                     <select id="rsvAnio" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     <select id="rsvMes" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
@@ -1174,9 +1357,9 @@
                     </select>
                     <select id="proxUnidad" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     <select id="proxTipo" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
-                        <option value="ambos">Preventivos y calibraciones</option>
+                        <option value="ambos">Preventivos y calibración EMA</option>
                         <option value="prev">Preventivos</option>
-                        <option value="cal">Calibraciones</option>
+                        <option value="cal">Calibración EMA</option>
                     </select>
                     <select id="proxIngeniero" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                     <select id="proxAsignacion" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
@@ -1261,7 +1444,11 @@
                         <select id="corrUnidad" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500"></select>
                         <select id="corrTipo" class="p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                             <option value="corr">Correctivos</option>
-                            <option value="todo">Correctivos y entregas</option>
+                            <option value="asi">Asistencia Biomédica</option>
+                            <option value="ent">Entregas</option>
+                            <option value="ins">Instrumental</option>
+                            <option value="otr">Otros</option>
+                            <option value="todo">Todos (sin preventivos ni calibración EMA)</option>
                         </select>
                         <input id="corrBuscar" type="text" placeholder="Buscar ingeniero…" class="p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-500">
                     </div>
@@ -2078,10 +2265,13 @@
                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Tipo de servicio</label>
                         <select id="relTipo" class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-brand-500">
                             <option value="prev">Preventivos</option>
-                            <option value="cal">Calibraciones</option>
-                            <option value="mant">Preventivos y calibraciones</option>
-                            <option value="corr">Correctivos / Asistencias</option>
-                            <option value="ent">Entregas / Materiales</option>
+                            <option value="corr">Correctivos</option>
+                            <option value="asi">Asistencia Biomédica</option>
+                            <option value="ent">Entregas</option>
+                            <option value="cal">Calibración EMA</option>
+                            <option value="mant">Preventivos y calibración EMA</option>
+                            <option value="ins">Instrumental</option>
+                            <option value="otr">Otros</option>
                             <option value="ren">Rentas</option>
                             <option value="todos">Todos los servicios</option>
                         </select>
@@ -2716,6 +2906,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=8.8"></script>
+    <script src="app.js?v=8.9"></script>
 </body>
 </html>

@@ -1423,6 +1423,14 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 - Cada usuario solo ve y cambia **su** firma: el servidor la identifica por la sesión. Se guarda en la pestaña oculta **Firmas_Usuarios** (clave, nombre, fecha y la imagen en trozos). Hay una copia en el equipo para usarla sin señal, y se borra al cerrar sesión.
 - Acciones nuevas del servidor: `miFirma` y `guardarMiFirma`.
 
+## 4.40 Siete tipos de servicio (v8.9)
+
+Las órdenes se clasifican como en la app de Órdenes: **Preventivo, Correctivo, Asistencia Biomédica, Entrega, Calibración EMA, Instrumental y Otro**. La clasificación es excluyente (una orden, un tipo). Si la orden marca varias casillas, gana la más específica: Calibración EMA › Instrumental › Entrega › Correctivo › Asistencia Biomédica › Preventivo. Lo que no coincide con ninguno (evaluación, capacitación, grabado, texto libre) va a **Otro**. Las órdenes antiguas se reparten igual: «Preventivo con calibración» y «Calibración» → Calibración EMA; «Mantenimiento correctivo» → Correctivo; «Entrega de material» → Entrega.
+
+- **Detalle de cada unidad:** una pestaña por tipo, en ese orden y con su número de órdenes, más Rentas y Comunicación. El recuadro «Correctivos» de arriba cuenta solo correctivos. *Exportar servicios realizados* permite elegir cualquiera de los tipos.
+- **Gestión de mantenimiento → Correctivos:** el selector de tipo filtra Correctivos, Asistencia Biomédica, Entregas, Instrumental, Otros o todos los no programados. El detalle por ingeniero muestra el tipo y abre la pestaña de ese tipo en la unidad. *Prellenar y asignar* ofrece esos mismos tipos.
+- **Preventivos (próximos) y Rutinas de servicio:** «Calibraciones» pasa a llamarse **Calibración EMA**.
+
 ## 5. Comportamientos automáticos relevantes
 
 - **Mes de ejecución**: se deriva de `FECHA DE INICIO:`; la hoja no necesita columna "Mes".
@@ -1505,6 +1513,7 @@ Apartado **Contratos** en el menú lateral (permiso `contratos`; el administrado
 | Versión | Cambios principales |
 |---|---|
 | 3.7 | **Cuatro pestañas de servicio** en la vista de unidad: Preventivos, Calibraciones, Correctivos/Asistencias y Entregas/Materiales, más la de Comunicación y Seguimiento. La clasificación es excluyente por precedencia, de modo que una orden aparece en una sola pestaña y los conteos no se duplican. Cada pestaña tiene búsqueda por texto, filtro de año y mes, impresión y exportación propias; las dos primeras conservan la columna de próximo servicio y el botón de rutina. **Hojas `Precios` y `Facturacion`** creadas por `setupPreciosYFacturacion()`, que además siembra el tarifario con los tipos de equipo ya presentes en las órdenes |
+| 8.9 | **Siete tipos de servicio.** Preventivo, Correctivo, Asistencia Biomédica, Entrega, Calibración EMA, Instrumental y Otro: una pestaña por tipo en el detalle de cada unidad y filtro por tipo en Gestión de mantenimiento → Correctivos. Solo archivos de la página |
 | 8.8 | **Firma en foto sin fondo.** Al subir la firma como imagen, el fondo se quita aunque la hoja salga gris, con luz dispareja o con sombra (se calcula el fondo de cada zona y se compara el trazo contra él); se eliminan puntitos sueltos y se conserva el tono de la pluma. Aplica también a la firma de cotizaciones. Solo archivos de la página |
 | 8.7 | **Rutinas de servicio más compacto.** La lista ya no muestra las columnas Área e Ingeniero (el buscador sigue encontrando por área e ingeniero). Solo archivos de la página |
 | 8.6 | **Firma con marca de agua.** La firma digital siempre se incluye en la rutina cuando el usuario ya tiene una (se quitó la casilla «Incluir mi firma digital») y lleva marca de agua «Ingenieros Asociados» con la fecha de creación de la rutina. Solo archivos de la página; `Code.gs` no cambia |

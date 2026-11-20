@@ -137,7 +137,7 @@
            (Ejecutar como: yo · Acceso: cualquier usuario) y pegar aquí
            la URL /exec y el mismo token definido en Code.gs.
            ============================================================ */
-        const VERSION_APP = '8.8';
+        const VERSION_APP = '8.9';
 
         // URL del Web App de Apps Script (termina en /exec). Vacío = sin backend.
         const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbzfExL7dS7DRXBk_CbmZ3B4xr-NWEoitYmhPDbU18STN8Mlm_FrRpVwcvLiM_ctp52_ug/exec';
@@ -227,8 +227,33 @@
         let datosDetalleOrdenes = [];
         let clientesUnicos = [];
         let clienteActual = '';
+        /* v8.9 — TIPOS DE SERVICIO (mismo orden que en la app de Órdenes) */
+        const CATEGORIAS_SERVICIO = [
+            { clave: 'prev', nombre: 'Preventivo',           plural: 'Preventivos',          programado: true },
+            { clave: 'corr', nombre: 'Correctivo',           plural: 'Correctivos' },
+            { clave: 'asi',  nombre: 'Asistencia Biomédica', plural: 'Asistencia Biomédica' },
+            { clave: 'ent',  nombre: 'Entrega',              plural: 'Entregas' },
+            { clave: 'cal',  nombre: 'Calibración EMA',      plural: 'Calibración EMA',      programado: true },
+            { clave: 'ins',  nombre: 'Instrumental',         plural: 'Instrumental' },
+            { clave: 'otr',  nombre: 'Otro',                 plural: 'Otros' }
+        ];
+        const NOMBRE_CATEGORIA = Object.fromEntries(CATEGORIAS_SERVICIO.map(c => [c.clave, c.nombre]));
+        // Precedencia si la orden marca varias casillas: lo más específico gana
+        function categoriaServicio(tipoNorm) {
+            const t = String(tipoNorm || '');
+            if (t.includes('calibracion') || /\bema\b/.test(t)) return 'cal';
+            if (t.includes('instrumental')) return 'ins';
+            if (t.includes('entrega') || t.includes('material')) return 'ent';
+            if (t.includes('correctivo')) return 'corr';
+            if (t.includes('asistencia')) return 'asi';
+            if (t.includes('preventivo')) return 'prev';
+            return 'otr';
+        }
         let dataPreventivos = [];
         let dataCorrectivos = [];
+        let dataAsistencias = [];    // v8.9
+        let dataInstrumental = [];   // v8.9
+        let dataOtros = [];          // v8.9
         // v3.7: cada pestaña de servicio tiene su propio conjunto
         let dataCalibraciones = [];
         let dataEntregas = [];
@@ -927,7 +952,7 @@
                         '<p class="text-xs text-slate-500">' + esc(d.Marca + ' / ' + d.Modelo) + '</p></td>' +
                     '<td class="px-4 py-2.5 text-xs text-slate-600"><p>S/N ' + esc(d.Serie) + '</p>' + (d.Inventario && d.Inventario !== 'N/A' ? '<p>Inv. ' + esc(d.Inventario) + '</p>' : '') + '</td>' +
                     '<td class="px-4 py-2.5"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded-full ' +
-                        (d.esCalibracion ? 'bg-purple-100 text-purple-800' : 'bg-brand-100 text-brand-800') + '">' + (d.esCalibracion ? 'Calibración' : 'Preventivo') + '</span></td>' +
+                        (d.esCalibracion ? 'bg-purple-100 text-purple-800' : 'bg-brand-100 text-brand-800') + '">' + (d.esCalibracion ? 'Calibración EMA' : 'Preventivo') + '</span></td>' +
                     '<td class="px-4 py-2.5 text-right"><button data-rsv-id="' + esc(d.ID) + '" data-rsv-unidad="' + esc(d.Cliente) + '" ' +
                         'class="text-brand-600 hover:text-brand-800 hover:bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">Ver rutina</button></td>' +
                 '</tr>').join('') + '</tbody></table>';
@@ -1865,17 +1890,25 @@
                    específico a lo más general: una orden de "Preventivo con
                    calibración" cuenta como calibración y aparece una sola vez,
                    no en dos pestañas sumando doble en los conteos. */
-                obj['esCalibracion'] = tipoNorm.includes('calibracion');
-                obj['esEntrega']     = !obj['esCalibracion'] &&
-                                       (tipoNorm.includes('entrega') || tipoNorm.includes('material'));
-                obj['esCorrectivo']  = !obj['esCalibracion'] && !obj['esEntrega'] &&
-                                       (tipoNorm.includes('correctivo') || tipoNorm.includes('asistencia'));
-                obj['esPreventivo']  = !obj['esCalibracion'] && !obj['esEntrega'] && !obj['esCorrectivo'] &&
-                                       tipoNorm.includes('preventivo');
+                /* v8.9: siete tipos de servicio, como en la app de Órdenes:
+                   Preventivo, Correctivo, Asistencia Biomédica, Entrega,
+                   Calibración EMA, Instrumental y Otro. Sigue siendo
+                   EXCLUYENTE (una orden, una pestaña) y por precedencia: si una
+                   orden marca varias casillas gana la más específica. Lo que no
+                   es de ningún tipo conocido (evaluación, capacitación, grabado,
+                   texto libre…) cae en «Otro» para que ninguna orden se pierda. */
+                obj['categoria']      = categoriaServicio(tipoNorm);
+                obj['esCalibracion']  = obj['categoria'] === 'cal';
+                obj['esInstrumental'] = obj['categoria'] === 'ins';
+                obj['esEntrega']      = obj['categoria'] === 'ent';
+                obj['esCorrectivo']   = obj['categoria'] === 'corr';
+                obj['esAsistencia']   = obj['categoria'] === 'asi';
+                obj['esPreventivo']   = obj['categoria'] === 'prev';
+                obj['esOtro']         = obj['categoria'] === 'otr';
 
                 // Compatibilidad con el resto del código (KPIs, oportunidades)
                 obj['esPrev'] = obj['esPreventivo'] || obj['esCalibracion'];
-                obj['esCorr'] = obj['esCorrectivo'] || obj['esEntrega'];
+                obj['esCorr'] = !obj['esPrev'];
 
                 // v8.1: una orden "preventivo con calibración" también cuenta como preventivo
                 obj['incluyePreventivo'] = tipoNorm.includes('preventivo');
@@ -2612,7 +2645,10 @@
             dataPreventivos   = dataCliente.filter(d => d.esPreventivo);
             dataCalibraciones = dataCliente.filter(d => d.esCalibracion);
             dataCorrectivos   = dataCliente.filter(d => d.esCorrectivo);
+            dataAsistencias   = dataCliente.filter(d => d.esAsistencia);    // v8.9
             dataEntregas      = dataCliente.filter(d => d.esEntrega);
+            dataInstrumental  = dataCliente.filter(d => d.esInstrumental);  // v8.9
+            dataOtros         = dataCliente.filter(d => d.esOtro);          // v8.9
             // v7.5: rentas de la unidad, la más reciente primero
             dataRentas = rentasDetalle.filter(r => r.Cliente === clienteNombre)
                 .sort((a, b) => (b.FechaObj ? b.FechaObj.getTime() : 0) - (a.FechaObj ? a.FechaObj.getTime() : 0));
@@ -2624,7 +2660,12 @@
                —programado contra no programado—, aunque las pestañas de abajo
                separen calibraciones y entregas. */
             document.getElementById('clientePrevCount').innerText = dataPreventivos.length + dataCalibraciones.length;
-            document.getElementById('clienteCorrCount').innerText = dataCorrectivos.length + dataEntregas.length;
+            document.getElementById('clienteCorrCount').innerText = dataCorrectivos.length;
+            // v8.9: número de órdenes en cada pestaña
+            Object.keys(PESTANAS_SERVICIO).forEach(k => {
+                const n = elOpcional('cuentaTab' + PESTANAS_SERVICIO[k].suf);
+                if (n) n.innerText = PESTANAS_SERVICIO[k].datos().length;
+            });
 
             // v3.7: las cuatro pestañas de servicio se preparan igual
             prepararPestanasServicio();
@@ -2690,13 +2731,17 @@
                 prev: ['tabPrev', 'contentPrev'],
                 cal:  ['tabCal',  'contentCal'],
                 corr: ['tabCorr', 'contentCorr'],
+                asi:  ['tabAsi',  'contentAsi'],    // v8.9
                 ent:  ['tabEnt',  'contentEnt'],
+                ins:  ['tabIns',  'contentIns'],    // v8.9
+                otr:  ['tabOtr',  'contentOtr'],    // v8.9
                 ren:  ['tabRen',  'contentRen'],   // v7.5
                 com:  ['tabCom',  'contentCom']
             };
             Object.entries(defs).forEach(([clave, [idBtn, idCont]]) => {
                 const btn = document.getElementById(idBtn);
                 const cont = document.getElementById(idCont);
+                if (!btn || !cont) return;   // página vieja sin esa pestaña
                 const activo = clave === tab;
                 btn.classList.toggle('tab-active', activo);
                 btn.classList.toggle('tab-inactive', !activo);
@@ -2808,20 +2853,35 @@
                 datos: () => dataPreventivos,
                 titulo: 'preventivos', archivo: 'Mantenimientos_Preventivos'
             },
-            cal: {
-                suf: 'Cal', conProximo: true,
-                datos: () => dataCalibraciones,
-                titulo: 'calibraciones', archivo: 'Calibraciones'
-            },
             corr: {
                 suf: 'Corr', conProximo: false,
                 datos: () => dataCorrectivos,
-                titulo: 'correctivos y asistencias', archivo: 'Correctivos_Asistencias'
+                titulo: 'correctivos', archivo: 'Correctivos'
+            },
+            asi: {   // v8.9
+                suf: 'Asi', conProximo: false,
+                datos: () => dataAsistencias,
+                titulo: 'asistencias biomédicas', archivo: 'Asistencia_Biomedica'
             },
             ent: {
                 suf: 'Ent', conProximo: false,
                 datos: () => dataEntregas,
-                titulo: 'entregas y materiales', archivo: 'Entregas_Materiales'
+                titulo: 'entregas', archivo: 'Entregas'
+            },
+            cal: {
+                suf: 'Cal', conProximo: true,
+                datos: () => dataCalibraciones,
+                titulo: 'calibraciones EMA', archivo: 'Calibracion_EMA'
+            },
+            ins: {   // v8.9
+                suf: 'Ins', conProximo: false,
+                datos: () => dataInstrumental,
+                titulo: 'servicios de instrumental', archivo: 'Instrumental'
+            },
+            otr: {   // v8.9
+                suf: 'Otr', conProximo: false,
+                datos: () => dataOtros,
+                titulo: 'otros servicios', archivo: 'Otros_Servicios'
             },
             ren: {   // v7.5
                 suf: 'Ren', conProximo: false, esRenta: true,
@@ -3710,12 +3770,15 @@
 
         const TIPOS_REALIZADOS = {
             prev:  { etiqueta: 'Preventivos',                  datos: () => dataPreventivos },
-            cal:   { etiqueta: 'Calibraciones',                datos: () => dataCalibraciones },
-            mant:  { etiqueta: 'Preventivos y calibraciones',  datos: () => dataPreventivos.concat(dataCalibraciones) },
-            corr:  { etiqueta: 'Correctivos / Asistencias',    datos: () => dataCorrectivos },
-            ent:   { etiqueta: 'Entregas / Materiales',        datos: () => dataEntregas },
+            corr:  { etiqueta: 'Correctivos',                  datos: () => dataCorrectivos },
+            asi:   { etiqueta: 'Asistencia Biomédica',         datos: () => dataAsistencias },     // v8.9
+            ent:   { etiqueta: 'Entregas',                     datos: () => dataEntregas },
+            cal:   { etiqueta: 'Calibración EMA',              datos: () => dataCalibraciones },
+            mant:  { etiqueta: 'Preventivos y calibración EMA', datos: () => dataPreventivos.concat(dataCalibraciones) },
+            ins:   { etiqueta: 'Instrumental',                 datos: () => dataInstrumental },    // v8.9
+            otr:   { etiqueta: 'Otros',                        datos: () => dataOtros },           // v8.9
             ren:   { etiqueta: 'Rentas',                       datos: () => dataRentas },
-            todos: { etiqueta: 'Todos los servicios',          datos: () => dataPreventivos.concat(dataCalibraciones, dataCorrectivos, dataEntregas, dataRentas) }
+            todos: { etiqueta: 'Todos los servicios',          datos: () => dataPreventivos.concat(dataCorrectivos, dataAsistencias, dataEntregas, dataCalibraciones, dataInstrumental, dataOtros, dataRentas) }
         };
 
         function mesesRealizados() {
@@ -4292,9 +4355,15 @@
             }
         }
 
+        // v8.9: un tipo de servicio a la vez, o todos los no programados
         function correctivosBase() {
-            const conEntregas = document.getElementById('corrTipo').value === 'todo';
-            return datosDetalleOrdenes.filter(d => d.esCorrectivo || (conEntregas && d.esEntrega));
+            const tipo = document.getElementById('corrTipo').value || 'corr';
+            return datosDetalleOrdenes.filter(d => tipo === 'todo' ? !d.esPrev : d.categoria === tipo);
+        }
+
+        function nombreTipoGestion() {
+            const sel = document.getElementById('corrTipo');
+            return sel.value === 'todo' ? 'servicios' : (sel.options[sel.selectedIndex].text || 'servicios').toLowerCase();
         }
 
         function poblarFiltrosCorrectivos() {
@@ -4384,12 +4453,12 @@
 
             const visibles = q ? resumen.filter(r => normalizar(r.ingeniero.toLowerCase()).includes(q)) : resumen;
             document.getElementById('corrResumen').innerText = lista.length + ' orden(es) · ' + resumen.length + ' ingeniero(s)' +
-                ' · ordenados de más a menos correctivos';
+                ' · ordenados de más a menos ' + nombreTipoGestion();
             const max = Math.max(1, ...resumen.map(r => r.total));
             const tbody = document.getElementById('corrTabla');
             if (!visibles.length) {
                 tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">' +
-                    (lista.length ? 'Ningún ingeniero cumple con la búsqueda.' : 'No hay correctivos en el periodo elegido.') + '</td></tr>';
+                    (lista.length ? 'Ningún ingeniero cumple con la búsqueda.' : 'No hay ' + nombreTipoGestion() + ' en el periodo elegido.') + '</td></tr>';
             } else {
                 tbody.innerHTML = visibles.map(r => {
                     const pct = Math.round(r.total / max * 100);
@@ -4418,7 +4487,7 @@
             document.getElementById('corrDetalleNombre').innerText = r.ingeniero + ' (' + r.total + ')';
             const ordenes = r.ordenes.slice().sort((a, b) => (b.FechaObj || 0) - (a.FechaObj || 0));
             document.getElementById('corrDetalleTabla').innerHTML = ordenes.slice(0, 1000).map(d => {
-                const pest = d.esEntrega ? 'ent' : 'corr';
+                const pest = d.categoria || 'corr';   // v8.9: abre la pestaña de su tipo
                 return '<tr class="hover:bg-slate-50 align-top">' +
                     '<td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">' + esc(d.FechaObj ? fechaCortaCal(d.FechaObj) : d.FechaEjecucionStr) + '</td>' +
                     '<td class="px-4 py-3 text-sm text-slate-600">' + esc(d.ID) + '</td>' +
@@ -4426,7 +4495,9 @@
                         'data-u="' + esc(d.Cliente) + '" data-t="' + pest + '" class="text-brand-600 hover:text-brand-800 font-semibold hover:underline">' + esc(d.Cliente) + '</a></td>' +
                     '<td class="px-4 py-3 text-sm"><p class="font-semibold text-slate-800">' + esc(d.Equipo) + '</p>' +
                         '<p class="text-xs text-slate-500 mt-0.5">' + esc([d.Marca, d.Modelo].filter(v => v && v !== 'N/A' && v !== 'Sin Marca').join(' · ')) + '</p></td>' +
-                    '<td class="px-4 py-3 text-sm text-slate-600">' + esc(d['Tipo de Servicio']) + '</td>' +
+                    '<td class="px-4 py-3 text-sm text-slate-600"><span class="font-semibold text-slate-700">' + esc(NOMBRE_CATEGORIA[d.categoria] || '') + '</span>' +
+                        (normalizar(String(d['Tipo de Servicio'] || '').toLowerCase()) !== normalizar(String(NOMBRE_CATEGORIA[d.categoria] || '').toLowerCase())
+                            ? '<p class="text-xs text-slate-400 mt-0.5">' + esc(d['Tipo de Servicio']) + '</p>' : '') + '</td>' +
                     '<td class="px-4 py-3 text-sm text-slate-600">' + esc(d.estatus_seguimiento_limpio || '') + '</td>' +
                 '</tr>';
             }).join('') + (ordenes.length > 1000 ? '<tr><td colspan="6" class="px-4 py-3 text-xs text-slate-500">Se muestran las 1000 más recientes. Exporta a Excel para ver todas.</td></tr>' : '');
@@ -4728,7 +4799,8 @@
                correctivos abiertos a la vez; uno capturado a mano lleva una
                llave única.
            ============================================================ */
-        const TIPOS_CORRECTIVO_BASE = ['Mantenimiento Correctivo', 'Asistencia Técnica'];
+        // v8.9: los tipos de la app de Órdenes que no son programados
+        const TIPOS_CORRECTIVO_BASE = ['Correctivo', 'Asistencia Biomédica', 'Entrega', 'Instrumental', 'Otro'];
         let equiposOrdenCorr = [];
 
         function esAsignacionCorrectiva(a) {
@@ -4738,12 +4810,7 @@
 
         function tiposCorrectivoDisponibles() {
             const cuenta = new Map();
-            datosDetalleOrdenes.filter(d => d.esCorrectivo).forEach(d => {
-                const t = String(d['Tipo de Servicio'] || '').trim();
-                if (t) cuenta.set(t, (cuenta.get(t) || 0) + 1);
-            });
-            const lista = Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]).map(e => e[0]);
-            return lista.length ? lista : TIPOS_CORRECTIVO_BASE;
+            return TIPOS_CORRECTIVO_BASE.slice();
         }
 
         // Equipos atendidos en la unidad: uno por equipo, con su última orden
@@ -5595,7 +5662,7 @@
                     const unidad = decodeURIComponent(partes[1]);
                     if (!clientesUnicos.includes(unidad)) return false;
                     mostrarVistaCliente(unidad);
-                    if (['prev', 'cal', 'corr', 'ent', 'ren', 'com'].includes(partes[2])) cambiarPestana(partes[2]);
+                    if (['prev', 'corr', 'asi', 'ent', 'cal', 'ins', 'otr', 'ren', 'com'].includes(partes[2])) cambiarPestana(partes[2]);
                     return true;
                 }
                 return false;
